@@ -72,3 +72,6 @@ app.*.map.json
 .supabase/.temp/
 .vercel
 .env*
+
+# Supabase CLI local cache
+supabase/.temp/
