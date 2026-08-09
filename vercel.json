@@ -4,6 +4,9 @@
   "framework": null,
   "installCommand": "echo skip",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

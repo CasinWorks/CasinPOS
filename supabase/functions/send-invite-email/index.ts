@@ -99,8 +99,7 @@ Deno.serve(async (req) => {
     const publicApp =
       (Deno.env.get("PUBLIC_APP_URL") ?? "https://casin-pos-black.vercel.app")
         .replace(/\/+$/, "");
-    const inviteUrl = (body.invite_url?.trim()) ||
-      `${publicApp}/invite?token=${encodeURIComponent(token)}`;
+    const inviteUrl = resolveInviteUrl(body.invite_url, token, publicApp);
 
     const storeRow = inv.stores as { name?: string } | null;
     const storeName = (body.store_name?.trim()) ||
@@ -326,6 +325,30 @@ Deno.serve(async (req) => {
     return json({ error: "INTERNAL", message: String(e) }, 500);
   }
 });
+
+function resolveInviteUrl(
+  bodyUrl: string | undefined,
+  token: string,
+  publicApp: string,
+): string {
+  const fallback =
+    `${publicApp}/invite?token=${encodeURIComponent(token)}`;
+  const raw = (bodyUrl ?? "").trim();
+  if (!raw) return fallback;
+  try {
+    const u = new URL(raw);
+    const q = u.searchParams.get("token");
+    if (q && q.trim()) {
+      // Normalize so query is never dropped / double-encoded oddly.
+      u.searchParams.set("token", token);
+      return u.toString();
+    }
+  } catch {
+    // fall through
+  }
+  // Reject bare /invite or /join without token — rebuild from PUBLIC_APP_URL.
+  return fallback;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

@@ -215,15 +215,30 @@ class StoreRepository {
   }
 
   Future<String> acceptInvitation(String token) async {
+    if (isInviteUrlMissingToken(token)) {
+      throw AppException(kInviteMissingTokenMessage);
+    }
     final cleaned = sanitizeInviteToken(token);
     if (cleaned == null || cleaned.length < 8) {
-      throw AppException('Invite not found. Check the link/token, or ask your store owner to resend it.');
+      throw AppException(
+        'Invite not found. Check the link/token, or ask your store owner to resend it.',
+      );
     }
-    final result = await _client.rpc(
-      'accept_store_invitation',
-      params: {'p_token': cleaned},
-    );
-    return result as String;
+    try {
+      final result = await _client.rpc(
+        'accept_store_invitation',
+        params: {'p_token': cleaned},
+      );
+      return result as String;
+    } catch (e) {
+      throw AppException(
+        friendlyError(
+          e,
+          fallback: 'Could not accept invite. Please try again.',
+        ),
+        cause: e,
+      );
+    }
   }
 
   /// Opens a franchise as a linked child store with a cloned catalog.

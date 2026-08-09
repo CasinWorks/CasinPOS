@@ -19,7 +19,9 @@ class StockLimitException extends AppException {
 String friendlyError(Object error, {String fallback = 'Something went wrong. Please try again.'}) {
   if (error is AppException) return error.message;
 
-  final raw = error.toString();
+  // Prefer structured Postgrest / Function fields when present (avoids raw dumps).
+  final structured = _structuredErrorBlob(error);
+  final raw = structured ?? error.toString();
   final mapped = mapKnownBackendError(raw);
   if (mapped != null) return mapped;
 
@@ -29,15 +31,25 @@ String friendlyError(Object error, {String fallback = 'Something went wrong. Ple
       .replaceFirst(RegExp(r'^StateError:\s*'), '')
       .replaceFirst(RegExp(r'^Bad state:\s*'), '')
       .replaceFirst(RegExp(r'^PostgrestException\([^)]*\):\s*'), '')
-      .replaceFirst(RegExp(r'^PostgrestException:\s*'), '');
+      .replaceFirst(RegExp(r'^PostgrestException:\s*'), '')
+      .replaceFirst(RegExp(r'^PostgresException\([^)]*\):\s*'), '')
+      .replaceFirst(RegExp(r'^PostgresException:\s*'), '');
+  final remapped = mapKnownBackendError(cleaned);
+  if (remapped != null) return remapped;
   if (cleaned.trim().isEmpty) return fallback;
   // Never surface raw unique-constraint / Postgres noise.
   if (RegExp(r'23505|duplicate key value|store_invitations_pending_unique', caseSensitive: false)
       .hasMatch(cleaned)) {
     return 'That invite is already pending. Try again to resend the email.';
   }
-  if (RegExp(r'PostgresException|violates unique constraint|PGRST', caseSensitive: false)
-      .hasMatch(cleaned)) {
+  if (RegExp(
+        r'PostgresException|PostgrestException|violates unique constraint|PGRST|severityException',
+        caseSensitive: false,
+      ).hasMatch(raw) ||
+      RegExp(
+        r'PostgresException|PostgrestException|violates unique constraint|PGRST',
+        caseSensitive: false,
+      ).hasMatch(cleaned)) {
     return fallback;
   }
   if (cleaned.length > 220) return '${cleaned.substring(0, 220)}…';
@@ -59,7 +71,8 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('EMAIL_INVALID') || s.contains('OWNER_EMAIL_INVALID')) {
     return 'Enter a valid email address.';
   }
-  if (s.contains('INVITE_EMAIL_MISMATCH')) {
+  // INVITE_* codes from migration 010; bare EMAIL_MISMATCH covered by substring too.
+  if (s.contains('EMAIL_MISMATCH')) {
     final invited = _inviteEmailFromError(raw);
     if (invited != null) {
       return 'Signed-in email doesn’t match this invite (sent to $invited). '
@@ -68,13 +81,13 @@ String? mapKnownBackendError(String raw) {
     return 'Signed-in email doesn’t match this invite. '
         'Ask your store owner to resend if you’re unsure which email was invited.';
   }
-  if (s.contains('INVITE_EXPIRED')) {
+  if (s.contains('INVITE_EXPIRED') || s.contains('INVITE_INVALID_OR_EXPIRED')) {
     final invited = _inviteEmailFromError(raw);
     return invited != null
         ? 'This invite expired (was for $invited). Ask your store owner to resend it.'
         : 'This invite has expired. Ask your store owner to resend it.';
   }
-  if (s.contains('INVITE_ALREADY_ACCEPTED')) {
+  if (s.contains('ALREADY_ACCEPTED')) {
     return 'This invite was already accepted. Sign in with the invited email, '
         'or ask your store owner to send a new invite.';
   }
@@ -83,9 +96,6 @@ String? mapKnownBackendError(String raw) {
   }
   if (s.contains('INVITE_NOT_FOUND')) {
     return 'Invite not found. Check the link/token, or ask your store owner to resend it.';
-  }
-  if (s.contains('INVITE_INVALID_OR_EXPIRED')) {
-    return 'Invite is invalid or expired. Ask your store owner to resend it.';
   }
   if (s.contains('NOT_AUTHENTICATED')) {
     return 'Please sign in and try again.';
@@ -106,6 +116,23 @@ String? mapKnownBackendError(String raw) {
     return 'Free monthly transaction limit reached.';
   }
   return null;
+}
+
+/// Builds a searchable blob from common Supabase exception shapes.
+String? _structuredErrorBlob(Object error) {
+  try {
+    final dynamic e = error;
+    final parts = <String>[
+      if (e.message != null) '${e.message}',
+      if (e.code != null) '${e.code}',
+      if (e.details != null) '${e.details}',
+      if (e.hint != null) '${e.hint}',
+    ];
+    if (parts.isEmpty) return null;
+    return parts.join(' ');
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Parses `INVITE_*:email@x` detail suffixes from Postgres raise exception messages.

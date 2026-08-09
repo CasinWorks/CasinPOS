@@ -336,6 +336,14 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
   Future<void> _maybeAutoAccept() async {
     if (_autoAcceptAttempted || !mounted) return;
     final session = ref.read(currentSessionProvider);
+    if (isInviteUrlMissingToken(_token.text)) {
+      _autoAcceptAttempted = true;
+      setState(() {
+        _error = kInviteMissingTokenMessage;
+        _info = null;
+      });
+      return;
+    }
     final token = sanitizeInviteToken(_token.text);
     if (session == null || token == null || token.length < 8) return;
     _autoAcceptAttempted = true;
@@ -343,6 +351,13 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
   }
 
   Future<void> _submit({bool auto = false}) async {
+    if (isInviteUrlMissingToken(_token.text)) {
+      setState(() {
+        _error = kInviteMissingTokenMessage;
+        _info = null;
+      });
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     final session = ref.read(currentSessionProvider);
     if (session == null) {
@@ -353,7 +368,16 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
       return;
     }
     final cleaned = sanitizeInviteToken(_token.text);
-    if (cleaned != null && cleaned != _token.text.trim()) {
+    if (cleaned == null || cleaned.length < 8) {
+      setState(() {
+        _error = isInviteUrlMissingToken(_token.text)
+            ? kInviteMissingTokenMessage
+            : 'Enter a valid invite token from your email link.';
+        _info = null;
+      });
+      return;
+    }
+    if (cleaned != _token.text.trim()) {
       _token.text = cleaned;
       savePendingInviteToken(cleaned);
     }
@@ -363,7 +387,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
       _info = auto ? 'Accepting your invite…' : null;
     });
     try {
-      await ref.read(storeRepositoryProvider).acceptInvitation(_token.text);
+      await ref.read(storeRepositoryProvider).acceptInvitation(cleaned);
       clearPendingInviteToken();
       ref.invalidate(membershipsProvider);
       setState(() => _info = 'Invite accepted. Opening your store…');
@@ -394,7 +418,10 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
     final session = ref.watch(currentSessionProvider);
     final signedIn = session != null;
     final signedEmail = session?.user.email;
-    final hasToken = (sanitizeInviteToken(_token.text) ?? '').length >= 8;
+    final cleanedToken = sanitizeInviteToken(_token.text);
+    final hasToken = (cleanedToken ?? '').length >= 8;
+    final missingTokenLink = isInviteUrlMissingToken(_token.text);
+    final emptyInviteState = !hasToken && !missingTokenLink && _token.text.trim().isEmpty;
 
     ref.listen(currentSessionProvider, (prev, next) {
       if (prev == null && next != null) {
@@ -422,31 +449,68 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    signedIn
-                        ? (hasToken
-                            ? 'You’re signed in${signedEmail != null ? ' as $signedEmail' : ''}. '
-                                'Accept to join — your account email must match the invite.'
-                            : 'Paste the invite token from your email or owner. '
-                                'Your signed-in email must match the invite.')
-                        : '1. Open the invite email link (token is filled for you).\n'
-                            '2. Create an account or sign in with the invited email.\n'
-                            '3. You’re in — Accept runs automatically once you’re signed in.',
+                    emptyInviteState
+                        ? 'Open the full invite link from your email (it includes ?token=…). '
+                            'Or paste only the token below — not the bare /invite page URL.'
+                        : signedIn
+                            ? (hasToken
+                                ? 'You’re signed in${signedEmail != null ? ' as $signedEmail' : ''}. '
+                                    'Accept to join — your account email must match the invite.'
+                                : 'Paste the invite token from your email or owner. '
+                                    'Your signed-in email must match the invite.')
+                            : '1. Open the invite email link (token is filled for you).\n'
+                                '2. Create an account or sign in with the invited email.\n'
+                                '3. You’re in — Accept runs automatically once you’re signed in.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  if (emptyInviteState || missingTokenLink) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.slate100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.slate200),
+                      ),
+                      child: Text(
+                        missingTokenLink
+                            ? kInviteMissingTokenMessage
+                            : 'Waiting for an invite token. Use the link in your invite email, '
+                                'or ask your manager to resend the invite.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.slate700,
+                            ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   TextFormField(
                     controller: _token,
-                    onChanged: (v) => savePendingInviteToken(v),
+                    onChanged: (v) {
+                      savePendingInviteToken(v);
+                      setState(() {
+                        if (isInviteUrlMissingToken(v)) {
+                          _error = kInviteMissingTokenMessage;
+                        } else if (_error == kInviteMissingTokenMessage) {
+                          _error = null;
+                        }
+                      });
+                    },
                     decoration: InputDecoration(
                       labelText: 'Invite token',
                       hintText: hasToken
                           ? 'Filled from your invite link'
                           : 'Paste token if you don’t have the link',
                     ),
-                    validator: (v) =>
-                        ((sanitizeInviteToken(v) ?? '').length < 8)
-                            ? 'Enter invite token'
-                            : null,
+                    validator: (v) {
+                      if (isInviteUrlMissingToken(v)) {
+                        return kInviteMissingTokenMessage;
+                      }
+                      if ((sanitizeInviteToken(v) ?? '').length < 8) {
+                        return 'Enter invite token';
+                      }
+                      return null;
+                    },
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),
@@ -525,6 +589,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
 }
 
 String _friendlyAuthError(Object e) {
+  if (e is AppException) return e.message;
   final raw = e.toString();
   if (raw.contains('Invalid login credentials')) {
     return 'Wrong email or password.';
