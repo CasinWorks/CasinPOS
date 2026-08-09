@@ -101,6 +101,16 @@ class _FluidInkIntroState extends State<FluidInkIntro>
                                 fontWeight: FontWeight.w600,
                               ),
                         ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Powered by CASINWORKS',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontSize: 9,
+                                letterSpacing: 0.6,
+                                color: AppColors.slate400,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
                       ],
                     ),
                   ),

@@ -13,6 +13,10 @@ abstract final class Permissions {
   static bool canCreateBranch(StoreRole role, PlanTier plan) =>
       role.canInviteUsers && plan.allowsMultiBranch;
 
+  /// Open a franchise (linked child store). Owner/Admin of a root store only.
+  static bool canOpenFranchise(StoreRole role, {required bool storeIsFranchise}) =>
+      role.canInviteUsers && !storeIsFranchise;
+
   /// Staff: personal sales for period. Manager+: store/branch analytics.
   static bool canViewPersonalAnalytics(StoreRole role) =>
       role.canViewPersonalAnalytics;
@@ -25,5 +29,9 @@ abstract final class Permissions {
 
   /// Void / reverse a completed sale (restock + mark voided).
   static bool canVoidSales(StoreRole role) =>
+      role == StoreRole.owner || role == StoreRole.admin || role == StoreRole.manager;
+
+  /// Open / unlock the cash register for a shift.
+  static bool canOpenCashRegister(StoreRole role) =>
       role == StoreRole.owner || role == StoreRole.admin || role == StoreRole.manager;
 }

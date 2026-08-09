@@ -11,6 +11,12 @@ import '../../../data/providers/session_providers.dart';
 import '../onboarding/tutorial_anchors.dart';
 import 'sales_report_pdf.dart';
 
+/// Stack analytics below this screen width (phone + most tablets in portrait).
+const _stackLayoutMaxWidth = 900.0;
+
+/// Bottom inset so the shell Cart FAB never covers the last list rows.
+const _cartFabClearance = 112.0;
+
 class SalesAnalyticsView extends ConsumerStatefulWidget {
   const SalesAnalyticsView({super.key});
 
@@ -82,7 +88,6 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       for (final o in orders) {
         byHour[o.createdAt.hour] += o.total;
       }
-      // Show open hours with activity, or all 24 if sparse
       final spots = <FlSpot>[];
       for (var h = 0; h < 24; h++) {
         if (byHour[h] > 0 || (h >= 8 && h <= 22)) {
@@ -102,7 +107,6 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       ];
     }
 
-    // month — by day of month
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
     final byDay = List<double>.filled(daysInMonth, 0);
@@ -113,6 +117,225 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     return [
       for (var i = 0; i < daysInMonth; i++) FlSpot((i + 1).toDouble(), byDay[i]),
     ];
+  }
+
+  /// Prefer MediaQuery; fall back to LayoutBuilder if width is finite.
+  bool _useStackedLayout(double screenWidth, BoxConstraints constraints) {
+    final contentW = constraints.maxWidth.isFinite
+        ? constraints.maxWidth
+        : screenWidth;
+    final effective = contentW < screenWidth ? contentW : screenWidth;
+    return effective < _stackLayoutMaxWidth;
+  }
+
+  Widget _periodChips({required bool wrap}) {
+    final chips = TutorialTarget(
+      anchor: TutorialAnchor.analyticsPeriod,
+      child: wrap
+          ? Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final p in ['today', 'week', 'month']) _periodChip(p),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final p in ['today', 'week', 'month']) ...[
+                  _periodChip(p),
+                  const SizedBox(width: 6),
+                ],
+              ],
+            ),
+    );
+    return chips;
+  }
+
+  Widget _periodChip(String p) {
+    return ChoiceChip(
+      label: Text(
+        p == 'today'
+            ? 'Daily Today'
+            : p == 'week'
+                ? 'This Week'
+                : 'This Month',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: _period == p ? AppColors.slate900 : Colors.white70,
+        ),
+      ),
+      selected: _period == p,
+      selectedColor: AppColors.retail,
+      backgroundColor: const Color(0xFF1E293B),
+      onSelected: (_) => setState(() => _period = p),
+      showCheckmark: false,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    );
+  }
+
+  Widget _header({
+    required bool stacked,
+    required VoidCallback onExportPdf,
+  }) {
+    final pdfButton = IconButton(
+      tooltip: 'Export owner report PDF',
+      onPressed: onExportPdf,
+      icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white, size: 20),
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+    );
+
+    if (stacked) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+        decoration: BoxDecoration(
+          color: AppColors.slate900,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Sales Analytics & Best Sellers',
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                pdfButton,
+              ],
+            ),
+            const SizedBox(height: 10),
+            _periodChips(wrap: true),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.slate900,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Sales Analytics & Best Sellers',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          pdfButton,
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: _periodChips(wrap: false),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricsGrid({
+    required bool stacked,
+    required List<Widget> metrics,
+  }) {
+    if (stacked) {
+      return GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.45,
+        children: metrics,
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < metrics.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: metrics[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _chartsSection({
+    required bool stacked,
+    required String periodTitle,
+    required List<PosOrder> orders,
+    required String symbol,
+    required double chartMax,
+    required List<FlSpot> spots,
+    required Map<PaymentMethod, double> byPay,
+  }) {
+    final revenue = _RevenueChartCard(
+      periodTitle: periodTitle,
+      orders: orders,
+      symbol: symbol,
+      chartMax: chartMax,
+      spots: spots,
+      period: _period,
+      stacked: stacked,
+    );
+    final payments = _PaymentMethodsCard(
+      byPay: byPay,
+      symbol: symbol,
+      stacked: stacked,
+    );
+
+    // Never place charts in a side-by-side Row on narrow screens —
+    // Expanded flex collapses and paints pie over the line chart.
+    if (stacked) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          revenue,
+          const SizedBox(height: 12),
+          payments,
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 3, child: revenue),
+        const SizedBox(width: 12),
+        Expanded(flex: 2, child: payments),
+      ],
+    );
   }
 
   @override
@@ -177,337 +400,376 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       _ => 'DAY',
     };
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return ColoredBox(
       color: Colors.white,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.slate900,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
+      child: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stacked = _useStackedLayout(screenWidth, constraints);
+
+            return ListView(
+              padding: EdgeInsets.fromLTRB(
+                stacked ? 16 : 20,
+                16,
+                stacked ? 16 : 20,
+                24 + _cartFabClearance + bottomInset,
+              ),
               children: [
-                const Expanded(
-                  child: Text(
-                    'Sales Analytics & Best Sellers',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
-                  ),
+                _header(
+                  stacked: stacked,
+                  onExportPdf: () => _exportPdf(orders: orders, start: start, end: end),
                 ),
-                IconButton(
-                  tooltip: 'Export owner report PDF',
-                  onPressed: () => _exportPdf(orders: orders, start: start, end: end),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white, size: 20),
-                ),
-                TutorialTarget(
-                  anchor: TutorialAnchor.analyticsPeriod,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final p in ['today', 'week', 'month']) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 6),
-                          child: ChoiceChip(
-                            label: Text(
-                              p == 'today'
-                                  ? 'Daily Today'
-                                  : p == 'week'
-                                      ? 'This Week'
-                                      : 'This Month',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: _period == p ? AppColors.slate900 : Colors.white70,
-                              ),
-                            ),
-                            selected: _period == p,
-                            selectedColor: AppColors.retail,
-                            backgroundColor: const Color(0xFF1E293B),
-                            onSelected: (_) => setState(() => _period = p),
-                            showCheckmark: false,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _Metric(
-                  title: 'Total Revenue',
-                  value: '$symbol${revenue.toStringAsFixed(2)}',
-                  sub: trendLabel,
-                  subColor: trendColor,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _Metric(
-                  title: 'Units / Orders Sold',
-                  value: '$packs Items',
-                  sub: '${orders.length} checkout receipt${orders.length == 1 ? '' : 's'}',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _Metric(
-                  title: 'Avg Basket Size',
-                  value: '$symbol${avgBasket.toStringAsFixed(2)}',
-                  sub: orders.isEmpty
-                      ? 'No checkouts yet'
-                      : '~${(packs / orders.length).toStringAsFixed(1)} items per purchase',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _Metric(
-                  title: 'Top Category',
-                  value: topCat.isEmpty ? '—' : topCat.first.key,
-                  sub: topCat.isEmpty
-                      ? 'Sell to populate'
-                      : '$symbol${topCat.first.value.toStringAsFixed(2)} sales',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Container(
-                  height: 240,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.scaffold,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.slate200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Revenue Overview ($periodTitle)',
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-                          ),
-                          const Spacer(),
-                          Text(
-                            'From ${orders.length} sale${orders.length == 1 ? '' : 's'}',
-                            style: const TextStyle(fontSize: 10, color: AppColors.slate400),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: orders.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No sales in this period yet.\nComplete a checkout to see the chart.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 12, color: AppColors.slate400),
-                                ),
-                              )
-                            : LineChart(
-                                LineChartData(
-                                  minY: 0,
-                                  maxY: chartMax,
-                                  gridData: FlGridData(
-                                    show: true,
-                                    drawVerticalLine: false,
-                                    getDrawingHorizontalLine: (v) => FlLine(
-                                      color: AppColors.slate200.withValues(alpha: 0.8),
-                                      strokeWidth: 1,
-                                    ),
-                                  ),
-                                  titlesData: FlTitlesData(
-                                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    leftTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 36,
-                                        getTitlesWidget: (v, meta) => Text(
-                                          v.toInt().toString(),
-                                          style: const TextStyle(fontSize: 9, color: AppColors.slate400),
-                                        ),
-                                      ),
-                                    ),
-                                    bottomTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        interval: _period == 'month' ? 5 : 1,
-                                        getTitlesWidget: (v, meta) {
-                                          final label = switch (_period) {
-                                            'week' => const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][v.toInt().clamp(0, 6)],
-                                            'month' => v.toInt().toString(),
-                                            _ => '${v.toInt()}h',
-                                          };
-                                          return Text(label, style: const TextStyle(fontSize: 9, color: AppColors.slate400));
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                  borderData: FlBorderData(show: false),
-                                  lineTouchData: LineTouchData(
-                                    touchTooltipData: LineTouchTooltipData(
-                                      getTooltipItems: (touched) => [
-                                        for (final t in touched)
-                                          LineTooltipItem(
-                                            '$symbol${t.y.toStringAsFixed(2)}',
-                                            const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  lineBarsData: [
-                                    LineChartBarData(
-                                      isCurved: true,
-                                      color: AppColors.restaurant,
-                                      barWidth: 3,
-                                      dotData: FlDotData(
-                                        show: true,
-                                        getDotPainter: (s, p, b, i) => FlDotCirclePainter(
-                                          radius: s.y > 0 ? 3.5 : 0,
-                                          color: AppColors.restaurant,
-                                          strokeWidth: 0,
-                                        ),
-                                      ),
-                                      belowBarData: BarAreaData(
-                                        show: true,
-                                        color: AppColors.restaurant.withValues(alpha: 0.18),
-                                      ),
-                                      spots: spots,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  height: 240,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.scaffold,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.slate200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Payment Methods', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: byPay.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No payments yet',
-                                  style: TextStyle(fontSize: 12, color: AppColors.slate400),
-                                ),
-                              )
-                            : PieChart(
-                                PieChartData(
-                                  sectionsSpace: 2,
-                                  centerSpaceRadius: 36,
-                                  sections: [
-                                    for (final e in byPay.entries)
-                                      PieChartSectionData(
-                                        value: e.value,
-                                        color: switch (e.key) {
-                                          PaymentMethod.cash => const Color(0xFFF97316),
-                                          PaymentMethod.gcash => const Color(0xFF3B82F6),
-                                          PaymentMethod.maya => const Color(0xFF10B981),
-                                          PaymentMethod.card => const Color(0xFFA855F7),
-                                        },
-                                        title: '${e.key.label}\n$symbol${e.value.toStringAsFixed(0)}',
-                                        titleStyle: const TextStyle(
-                                          fontSize: 9,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                        radius: 48,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.scaffold,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.slate200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Which Products Sell Most (Best Sellers)',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-                ),
-                const SizedBox(height: 10),
-                if (best.isEmpty)
-                  const Text(
-                    'No sales in this period — complete a checkout to populate.',
-                    style: TextStyle(fontSize: 12, color: AppColors.slate400),
-                  )
-                else
-                  for (var i = 0; i < best.take(5).length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            '#${i + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.slate400),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              best[i].key,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                            ),
-                          ),
-                          Text(
-                            '${best[i].value} Units Sold',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.slate500,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
+                const SizedBox(height: 12),
+                _metricsGrid(
+                  stacked: stacked,
+                  metrics: [
+                    _Metric(
+                      title: 'Total Revenue',
+                      value: '$symbol${revenue.toStringAsFixed(2)}',
+                      sub: trendLabel,
+                      subColor: trendColor,
+                      stacked: stacked,
                     ),
+                    _Metric(
+                      title: 'Units / Orders Sold',
+                      value: '$packs Items',
+                      sub: '${orders.length} checkout receipt${orders.length == 1 ? '' : 's'}',
+                      stacked: stacked,
+                    ),
+                    _Metric(
+                      title: 'Avg Basket Size',
+                      value: '$symbol${avgBasket.toStringAsFixed(2)}',
+                      sub: orders.isEmpty
+                          ? 'No checkouts yet'
+                          : '~${(packs / orders.length).toStringAsFixed(1)} items per purchase',
+                      stacked: stacked,
+                    ),
+                    _Metric(
+                      title: 'Top Category',
+                      value: topCat.isEmpty ? '—' : topCat.first.key,
+                      sub: topCat.isEmpty
+                          ? 'Sell to populate'
+                          : '$symbol${topCat.first.value.toStringAsFixed(2)} sales',
+                      stacked: stacked,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _chartsSection(
+                  stacked: stacked,
+                  periodTitle: periodTitle,
+                  orders: orders,
+                  symbol: symbol,
+                  chartMax: chartMax,
+                  spots: spots,
+                  byPay: byPay,
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.scaffold,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.slate200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Which Products Sell Most (Best Sellers)',
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                      ),
+                      const SizedBox(height: 10),
+                      if (best.isEmpty)
+                        const Text(
+                          'No sales in this period — complete a checkout to populate.',
+                          style: TextStyle(fontSize: 12, color: AppColors.slate400),
+                        )
+                      else
+                        for (var i = 0; i < best.take(5).length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '#${i + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.slate400,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    best[i].key,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${best[i].value} Units Sold',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.slate500,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _RevenueChartCard extends StatelessWidget {
+  const _RevenueChartCard({
+    required this.periodTitle,
+    required this.orders,
+    required this.symbol,
+    required this.chartMax,
+    required this.spots,
+    required this.period,
+    required this.stacked,
+  });
+
+  final String periodTitle;
+  final List<PosOrder> orders;
+  final String symbol;
+  final double chartMax;
+  final List<FlSpot> spots;
+  final String period;
+  final bool stacked;
+
+  @override
+  Widget build(BuildContext context) {
+    final chart = orders.isEmpty
+        ? const Center(
+            child: Text(
+              'No sales in this period yet.\nComplete a checkout to see the chart.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: AppColors.slate400),
+            ),
+          )
+        : LineChart(
+            LineChartData(
+              minY: 0,
+              maxY: chartMax,
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (v) => FlLine(
+                  color: AppColors.slate200.withValues(alpha: 0.8),
+                  strokeWidth: 1,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    getTitlesWidget: (v, meta) => Text(
+                      v.toInt().toString(),
+                      style: const TextStyle(fontSize: 9, color: AppColors.slate400),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: period == 'month' ? 5 : 1,
+                    getTitlesWidget: (v, meta) {
+                      final label = switch (period) {
+                        'week' => const [
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                              'Sun',
+                            ][v.toInt().clamp(0, 6)],
+                        'month' => v.toInt().toString(),
+                        _ => '${v.toInt()}h',
+                      };
+                      return Text(
+                        label,
+                        style: const TextStyle(fontSize: 9, color: AppColors.slate400),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipItems: (touched) => [
+                    for (final t in touched)
+                      LineTooltipItem(
+                        '$symbol${t.y.toStringAsFixed(2)}',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  isCurved: true,
+                  color: AppColors.restaurant,
+                  barWidth: 3,
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (s, p, b, i) => FlDotCirclePainter(
+                      radius: s.y > 0 ? 3.5 : 0,
+                      color: AppColors.restaurant,
+                      strokeWidth: 0,
+                    ),
+                  ),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: AppColors.restaurant.withValues(alpha: 0.18),
+                  ),
+                  spots: spots,
+                ),
               ],
             ),
+          );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.scaffold,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Revenue Overview ($periodTitle)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
           ),
+          const SizedBox(height: 2),
+          Text(
+            'From ${orders.length} sale${orders.length == 1 ? '' : 's'}',
+            style: const TextStyle(fontSize: 10, color: AppColors.slate400),
+          ),
+          const SizedBox(height: 12),
+          if (stacked)
+            AspectRatio(aspectRatio: 1.6, child: chart)
+          else
+            SizedBox(height: 200, child: chart),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentMethodsCard extends StatelessWidget {
+  const _PaymentMethodsCard({
+    required this.byPay,
+    required this.symbol,
+    required this.stacked,
+  });
+
+  final Map<PaymentMethod, double> byPay;
+  final String symbol;
+  final bool stacked;
+
+  @override
+  Widget build(BuildContext context) {
+    final chart = byPay.isEmpty
+        ? const Center(
+            child: Text(
+              'No payments yet',
+              style: TextStyle(fontSize: 12, color: AppColors.slate400),
+            ),
+          )
+        : FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: 200,
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 36,
+                  sections: [
+                    for (final e in byPay.entries)
+                      PieChartSectionData(
+                        value: e.value,
+                        color: switch (e.key) {
+                          PaymentMethod.cash => const Color(0xFFF97316),
+                          PaymentMethod.gcash => const Color(0xFF3B82F6),
+                          PaymentMethod.maya => const Color(0xFF10B981),
+                          PaymentMethod.card => const Color(0xFFA855F7),
+                        },
+                        title: '${e.key.label}\n$symbol${e.value.toStringAsFixed(0)}',
+                        titleStyle: const TextStyle(
+                          fontSize: 9,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        radius: 48,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.scaffold,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Payment Methods',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          if (stacked)
+            SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: chart,
+            )
+          else
+            SizedBox(height: 180, child: chart),
         ],
       ),
     );
@@ -520,17 +782,20 @@ class _Metric extends StatelessWidget {
     required this.value,
     required this.sub,
     this.subColor,
+    this.stacked = false,
   });
 
   final String title;
   final String value;
   final String sub;
   final Color? subColor;
+  final bool stacked;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: EdgeInsets.all(stacked ? 12 : 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -539,11 +804,42 @@ class _Metric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.slate500)),
+          Text(
+            title,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.slate500,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          Text(
+            value,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: stacked ? 15 : 16,
+              fontWeight: FontWeight.w900,
+              height: 1.15,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(sub, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: subColor ?? AppColors.slate400)),
+          Text(
+            sub,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: subColor ?? AppColors.slate400,
+              height: 1.2,
+            ),
+          ),
         ],
       ),
     );

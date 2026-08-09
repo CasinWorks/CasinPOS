@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'bootstrap.dart';
 import 'core/animations/fluid_ink_intro.dart';
+import 'core/invite/pending_invite_token.dart';
 import 'data/providers/session_providers.dart';
 import 'features/auth/login_page.dart';
 import 'features/onboarding/create_store_page.dart';
@@ -39,8 +40,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final session = ref.read(currentSessionProvider);
       final membershipsAsync = ref.read(membershipsProvider);
       final loggingIn = loc == '/login' || loc == '/signup';
-      final onInvite = loc.startsWith('/invite');
+      final onInvite = loc == '/invite' || loc == '/join' || loc.startsWith('/invite/');
       final onboarding = loc == '/onboarding/store';
+      final pendingToken = readPendingInviteToken();
+      final hasPendingInvite = pendingToken != null && pendingToken.isNotEmpty;
 
       if (session == null) {
         if (loggingIn || onInvite) return null;
@@ -57,11 +60,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
       if (!hasStore) {
         if (onboarding || onInvite) return null;
+        if (hasPendingInvite) {
+          return '/invite?token=${Uri.encodeQueryComponent(pendingToken)}';
+        }
         if (loggingIn) return '/onboarding/store';
         return '/onboarding/store';
       }
 
-      if (loggingIn || onboarding) return '/';
+      if (loggingIn || onboarding) {
+        if (hasPendingInvite && !onInvite) {
+          return '/invite?token=${Uri.encodeQueryComponent(pendingToken)}';
+        }
+        return '/';
+      }
       return null;
     },
     routes: [
@@ -78,6 +89,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
       GoRoute(
         path: '/invite',
+        builder: (context, state) => InviteAcceptPage(
+          initialToken: state.uri.queryParameters['token'],
+        ),
+      ),
+      GoRoute(
+        path: '/join',
         builder: (context, state) => InviteAcceptPage(
           initialToken: state.uri.queryParameters['token'],
         ),
@@ -101,6 +118,10 @@ String _postIntroTarget(Ref ref) {
   if (!isSupabaseReady) return '/';
   final session = ref.read(currentSessionProvider);
   if (session == null) return '/login';
+  final pending = readPendingInviteToken();
+  if (pending != null && pending.isNotEmpty) {
+    return '/invite?token=${Uri.encodeQueryComponent(pending)}';
+  }
   final memberships = ref.read(membershipsProvider).valueOrNull;
   if (memberships == null) return '/';
   if (memberships.isEmpty) return '/onboarding/store';
@@ -109,7 +130,8 @@ String _postIntroTarget(Ref ref) {
 
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(this.ref) {
-    ref.listen(authStateProvider, (_, _) => notifyListeners());
+    // User id only — password re-auth must not rebuild routes under open dialogs.
+    ref.listen(authUserIdProvider, (_, _) => notifyListeners());
     ref.listen(membershipsProvider, (_, _) => notifyListeners());
     ref.listen(introSeenProvider, (_, _) => notifyListeners());
   }

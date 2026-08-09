@@ -22,11 +22,19 @@ final currentSessionProvider = Provider<Session?>((ref) {
   return ref.watch(authRepositoryProvider).currentSession;
 });
 
-final membershipsProvider = FutureProvider<List<StoreMembership>>((ref) async {
-  // Re-fetch whenever auth stream ticks.
+/// Stable auth identity. Re-auth / token refresh keeps the same id, so
+/// dependents (memberships, shell) do not rebuild under open dialogs.
+final authUserIdProvider = Provider<String?>((ref) {
   ref.watch(authStateProvider);
-  final session = ref.watch(currentSessionProvider);
-  if (session == null) return [];
+  if (!isSupabaseReady) return null;
+  return ref.watch(authRepositoryProvider).currentSession?.user.id;
+});
+
+final membershipsProvider = FutureProvider<List<StoreMembership>>((ref) async {
+  // Only re-fetch when the signed-in user changes — not on every auth tick
+  // (password re-confirm via signInWithPassword must not wipe the shell).
+  final userId = ref.watch(authUserIdProvider);
+  if (userId == null) return [];
   return ref.watch(storeRepositoryProvider).fetchMemberships();
 });
 

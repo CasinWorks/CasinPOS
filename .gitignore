@@ -70,3 +70,5 @@ app.*.map.json
 
 # Misc tooling
 .supabase/.temp/
+.vercel
+.env*

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors/app_errors.dart';
+import '../../../core/input/numeric_formatters.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../data/repositories/cash_register_repository.dart';
+import '../../../domain/permissions.dart';
 
 class CashRegisterView extends ConsumerStatefulWidget {
   const CashRegisterView({super.key});
@@ -27,35 +30,63 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
       '$symbol${v.toStringAsFixed(2)}';
 
   Future<void> _openRegister(String symbol) async {
+    final role = ref.read(activeMembershipProvider)?.role;
+    if (role == null || !Permissions.canOpenCashRegister(role)) {
+      if (!mounted) return;
+      showAppMessage(
+        context,
+        'Only an owner, admin, or manager can open the cash register.',
+        isError: true,
+      );
+      return;
+    }
+
     final ctrl = TextEditingController(text: '1000');
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Open register'),
         content: TextField(
           controller: ctrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: NumericInput.moneyKeyboard,
+          inputFormatters: NumericInput.money(),
           decoration: InputDecoration(
             labelText: 'Opening float ($symbol)',
             helperText: 'Cash counted in the drawer at start of shift',
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Open')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(minimumSize: const Size(88, 52)),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.slate900,
+              minimumSize: const Size(100, 52),
+            ),
+            child: const Text('Open'),
+          ),
         ],
       ),
     );
-    final amount = double.tryParse(ctrl.text.trim());
+    final amount = NumericInput.tryParseMoney(ctrl.text);
     ctrl.dispose();
-    if (ok != true || amount == null || amount < 0 || !mounted) return;
+    if (ok != true || !mounted) return;
+    if (amount == null || amount < 0) {
+      showAppMessage(context, 'Enter a valid opening float amount', isError: true);
+      return;
+    }
     try {
       await ref.read(cashRegisterProvider.notifier).open(openingFloat: amount);
+      if (!mounted) return;
+      showAppMessage(context, 'Register opened');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: const Color(0xFFE11D48)),
-      );
+      showAppError(context, e, fallback: 'Could not open the register');
     }
   }
 
@@ -65,43 +96,75 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(payIn ? 'Cash pay-in' : 'Cash pay-out'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(payIn ? 'Pay-in (add cash)' : 'Pay-out (remove cash)'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              payIn
+                  ? 'Cash added to the drawer that is not from a sale — '
+                      'for example a change-fund top-up or owner putting money in.'
+                  : 'Cash removed from the drawer that is not a void/refund — '
+                      'for example paying a supplier, tips out, or a bank deposit.',
+              style: const TextStyle(fontSize: 13, color: AppColors.slate600),
+            ),
+            const SizedBox(height: 14),
             TextField(
               controller: amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              keyboardType: NumericInput.moneyKeyboard,
+              inputFormatters: NumericInput.money(),
               decoration: InputDecoration(labelText: 'Amount ($symbol)'),
             ),
+            const SizedBox(height: 8),
             TextField(
               controller: noteCtrl,
-              decoration: const InputDecoration(labelText: 'Note (optional)'),
+              decoration: InputDecoration(
+                labelText: 'Note (optional)',
+                hintText: payIn ? 'e.g. Change fund top-up' : 'e.g. Supplier payment',
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(minimumSize: const Size(88, 52)),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.slate900,
+              minimumSize: const Size(100, 52),
+            ),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
-    final amount = double.tryParse(amountCtrl.text.trim());
+    final amount = NumericInput.tryParseMoney(amountCtrl.text);
     final note = noteCtrl.text.trim();
     amountCtrl.dispose();
     noteCtrl.dispose();
-    if (ok != true || amount == null || amount <= 0 || !mounted) return;
+    if (ok != true || !mounted) return;
+    if (amount == null || amount <= 0) {
+      showAppMessage(context, 'Enter a valid amount greater than zero', isError: true);
+      return;
+    }
     try {
       if (payIn) {
         await ref.read(cashRegisterProvider.notifier).payIn(amount: amount, note: note.isEmpty ? null : note);
       } else {
         await ref.read(cashRegisterProvider.notifier).payOut(amount: amount, note: note.isEmpty ? null : note);
       }
+      if (!mounted) return;
+      showAppMessage(context, payIn ? 'Pay-in recorded' : 'Pay-out recorded');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: const Color(0xFFE11D48)),
-      );
+      showAppError(context, e);
     }
   }
 
@@ -112,6 +175,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Close register'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -121,7 +185,8 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: NumericInput.moneyKeyboard,
+              inputFormatters: NumericInput.money(),
               decoration: InputDecoration(
                 labelText: 'Actual counted cash ($symbol)',
               ),
@@ -129,14 +194,29 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Close shift')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(minimumSize: const Size(88, 52)),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.slate900,
+              minimumSize: const Size(120, 52),
+            ),
+            child: const Text('Close shift'),
+          ),
         ],
       ),
     );
-    final counted = double.tryParse(ctrl.text.trim());
+    final counted = NumericInput.tryParseMoney(ctrl.text);
     ctrl.dispose();
-    if (ok != true || counted == null || counted < 0 || !mounted) return;
+    if (ok != true || !mounted) return;
+    if (counted == null || counted < 0) {
+      showAppMessage(context, 'Enter a valid counted cash amount', isError: true);
+      return;
+    }
     try {
       final closed = await ref.read(cashRegisterProvider.notifier).close(closingCount: counted);
       if (!mounted) return;
@@ -144,6 +224,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text('Shift closed'),
           content: Text(
             'Expected: ${_money(closed.expectedCash ?? 0, symbol)}\n'
@@ -152,15 +233,17 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
             '${variance == 0 ? ' (balanced)' : variance > 0 ? ' (over)' : ' (short)'}',
           ),
           actions: [
-            FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: FilledButton.styleFrom(minimumSize: const Size(100, 52)),
+              child: const Text('Done'),
+            ),
           ],
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: const Color(0xFFE11D48)),
-      );
+      showAppError(context, e, fallback: 'Could not close the register');
     }
   }
 
@@ -259,32 +342,72 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                     Row(
                       children: [
                         Expanded(
-                          child: _StatTile(label: 'Pay-ins', value: _money(balance.payIns, symbol)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatTile(label: 'Pay-outs', value: _money(balance.payOuts, symbol)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _movement(payIn: true, symbol: symbol),
-                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
-                            icon: const Icon(Icons.add, size: 22),
-                            label: const Text('Pay-in'),
+                          child: _StatTile(
+                            label: 'Pay-ins',
+                            value: _money(balance.payIns, symbol),
+                            subtitle: 'Cash added (not from sales)',
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _movement(payIn: false, symbol: symbol),
-                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
-                            icon: const Icon(Icons.remove, size: 22),
-                            label: const Text('Pay-out'),
+                          child: _StatTile(
+                            label: 'Pay-outs',
+                            value: _money(balance.payOuts, symbol),
+                            subtitle: 'Cash removed (not voids)',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Cash movements',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Record cash that enters or leaves the drawer outside of sales and voids.',
+                      style: TextStyle(fontSize: 12, color: AppColors.slate500),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Tooltip(
+                            message:
+                                'Add cash that is not from a sale (change fund, owner top-up).',
+                            child: OutlinedButton.icon(
+                              onPressed: () => _movement(payIn: true, symbol: symbol),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 56),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                              ),
+                              icon: const Icon(Icons.add, size: 20),
+                              label: const Text(
+                                'Pay-in\n(add cash)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, height: 1.15),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Tooltip(
+                            message:
+                                'Remove cash that is not a void/refund (supplier, tips out, bank deposit).',
+                            child: OutlinedButton.icon(
+                              onPressed: () => _movement(payIn: false, symbol: symbol),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 56),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                              ),
+                              icon: const Icon(Icons.remove, size: 20),
+                              label: const Text(
+                                'Pay-out\n(remove cash)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, height: 1.15),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -294,9 +417,13 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.slate900,
                               minimumSize: const Size(0, 56),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                             ),
-                            icon: const Icon(Icons.lock_outline, size: 22),
-                            label: const Text('Close'),
+                            icon: const Icon(Icons.lock_outline, size: 20),
+                            label: const Text(
+                              'Close',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                            ),
                           ),
                         ),
                       ],
@@ -305,7 +432,10 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                     const Text('Recent movements', style: TextStyle(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     if (balance.movements.isEmpty)
-                      const Text('No pay-ins or pay-outs yet.', style: TextStyle(color: AppColors.slate400, fontSize: 12))
+                      const Text(
+                        'No pay-ins or pay-outs yet.',
+                        style: TextStyle(color: AppColors.slate400, fontSize: 12),
+                      )
                     else
                       for (final m in balance.movements)
                         ListTile(
@@ -315,7 +445,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                             color: m.kind == 'pay_in' ? const Color(0xFF059669) : const Color(0xFFE11D48),
                           ),
                           title: Text(
-                            m.kind == 'pay_in' ? 'Pay-in' : 'Pay-out',
+                            m.kind == 'pay_in' ? 'Pay-in (add cash)' : 'Pay-out (remove cash)',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                           subtitle: Text(
@@ -361,7 +491,8 @@ class _ClosedCard extends StatelessWidget {
           const Text('Register is closed', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           const SizedBox(height: 6),
           const Text(
-            'Open a shift with your starting cash float to track drawer balance.',
+            'Open a shift with your starting cash float to track drawer balance. '
+            'Owner, admin, or manager only.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: AppColors.slate500),
           ),
@@ -370,7 +501,10 @@ class _ClosedCard extends StatelessWidget {
             onPressed: onOpen,
             icon: const Icon(Icons.lock_open_rounded, size: 18),
             label: const Text('Open register'),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.slate900),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.slate900,
+              minimumSize: const Size(180, 52),
+            ),
           ),
         ],
       ),
@@ -379,9 +513,10 @@ class _ClosedCard extends StatelessWidget {
 }
 
 class _StatTile extends StatelessWidget {
-  const _StatTile({required this.label, required this.value});
+  const _StatTile({required this.label, required this.value, this.subtitle});
   final String label;
   final String value;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -395,9 +530,16 @@ class _StatTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.slate400)),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.slate400),
+          ),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle!, style: const TextStyle(fontSize: 10, color: AppColors.slate500, height: 1.25)),
+          ],
         ],
       ),
     );
@@ -428,7 +570,11 @@ class _ErrorCard extends StatelessWidget {
             Text(hint!, style: const TextStyle(fontSize: 11, color: AppColors.slate500)),
           ],
           const SizedBox(height: 10),
-          OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          OutlinedButton(
+            onPressed: onRetry,
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );

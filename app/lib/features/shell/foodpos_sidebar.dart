@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/enums.dart';
+import '../../../domain/permissions.dart';
+import '../franchise/franchise_dialog.dart';
 import '../onboarding/story_mode.dart';
 import '../onboarding/tutorial_anchors.dart';
 import '../settings/store_settings_dialog.dart';
@@ -95,8 +98,12 @@ class CasinPosSidebar extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Retail · locked',
-                style: TextStyle(
+                membership?.store.isFranchise == true
+                    ? (type == BusinessType.retail
+                        ? 'Retail franchise · locked'
+                        : 'Restaurant franchise · locked')
+                    : (type == BusinessType.retail ? 'Retail · locked' : 'Restaurant · locked'),
+                style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: AppColors.slate400,
@@ -138,6 +145,17 @@ class CasinPosSidebar extends ConsumerWidget {
                       selected: false,
                       onTap: () => showStoreSettingsDialog(context, ref),
                     ),
+                    if (membership != null &&
+                        Permissions.canOpenFranchise(
+                          membership.role,
+                          storeIsFranchise: membership.store.isFranchise,
+                        ))
+                      _NavItem(
+                        label: 'Franchise',
+                        icon: Icons.storefront_outlined,
+                        selected: false,
+                        onTap: () => showFranchiseDialog(context, ref),
+                      ),
                     _NavItem(
                       label: 'Notifications',
                       icon: Icons.notifications_none_rounded,
@@ -199,6 +217,7 @@ class CasinPosSidebar extends ConsumerWidget {
                       },
                       child: const Text('Sign out', style: TextStyle(fontSize: 11)),
                     ),
+                    const PoweredByCasinworks(),
                   ],
                 ),
               ),

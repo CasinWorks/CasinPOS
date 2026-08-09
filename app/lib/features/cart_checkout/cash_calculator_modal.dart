@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../../core/errors/app_errors.dart';
+import '../../../core/input/numeric_formatters.dart';
 import '../../../core/theme/app_colors.dart';
 
 class CashCalcResult {
@@ -71,8 +72,8 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
               const SizedBox(height: 12),
               TextField(
                 controller: _ctrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                keyboardType: NumericInput.moneyKeyboard,
+                inputFormatters: NumericInput.money(),
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   labelText: 'Cash received',
@@ -132,10 +133,17 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
         ),
         FilledButton(
           onPressed: enough
-              ? () => Navigator.pop(
+              ? () {
+                  final parsed = NumericInput.tryParseMoney(_ctrl.text);
+                  if (parsed == null) {
+                    showAppMessage(context, 'Enter a valid cash amount', isError: true);
+                    return;
+                  }
+                  Navigator.pop(
                     context,
-                    CashCalcResult(received: received, change: change),
-                  )
+                    CashCalcResult(received: parsed, change: parsed - widget.totalPayable),
+                  );
+                }
               : null,
           style: FilledButton.styleFrom(minimumSize: const Size(160, 52)),
           child: const Text('Confirm payment'),

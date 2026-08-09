@@ -151,9 +151,12 @@ Future<pw.Document> buildReceiptPdf({
             ),
             pw.SizedBox(height: 2),
             pw.Center(
-              child: pw.Text(
-                'Powered by CasinPOS',
-                style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
+              child: pw.UrlLink(
+                destination: 'https://www.casinworks.com',
+                child: pw.Text(
+                  'CasinPOS · Powered by CASINWORKS',
+                  style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
+                ),
               ),
             ),
           ],

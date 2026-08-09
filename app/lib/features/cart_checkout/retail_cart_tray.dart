@@ -11,6 +11,7 @@ import '../../../data/providers/session_providers.dart';
 import '../onboarding/tutorial_anchors.dart';
 import '../receipts/receipt_pdf.dart';
 import '../receipts/receipt_preview_page.dart';
+import '../register/open_register_flow.dart';
 import 'cash_calculator_modal.dart';
 
 class RetailCartTray extends ConsumerStatefulWidget {
@@ -42,6 +43,9 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
       showAppError(context, e);
       return;
     }
+
+    final registerOpen = await ensureCashRegisterOpenForCheckout(context, ref);
+    if (!registerOpen || !mounted) return;
 
     if (settings.paymentMethod == PaymentMethod.cash) {
       final result = await showCashCalculatorModal(

@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/enums.dart';
 
@@ -46,7 +48,9 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
       ref.invalidate(membershipsProvider);
       if (mounted) context.go('/');
     } catch (e) {
-      setState(() => _error = e.toString());
+      final msg = friendlyError(e, fallback: 'Could not create store. Please try again.');
+      setState(() => _error = msg);
+      if (mounted) showAppError(context, msg);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -169,6 +173,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                     },
                     child: const Text('Sign out'),
                   ),
+                  const PoweredByCasinworks(),
                 ],
               ),
             ),

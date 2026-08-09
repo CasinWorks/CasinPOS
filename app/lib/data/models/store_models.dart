@@ -14,6 +14,8 @@ class StoreSummary {
     this.acceptGcash = true,
     this.acceptMaya = true,
     this.acceptCard = true,
+    this.franchisorStoreId,
+    this.franchiseNotes,
   });
 
   final String id;
@@ -27,6 +29,11 @@ class StoreSummary {
   final bool acceptGcash;
   final bool acceptMaya;
   final bool acceptCard;
+  /// When set, this store is a franchise of the franchisor store.
+  final String? franchisorStoreId;
+  final String? franchiseNotes;
+
+  bool get isFranchise => franchisorStoreId != null;
 
   /// Cash is always available. Optional methods follow store settings.
   List<PaymentMethod> get enabledPaymentMethods => [
@@ -48,6 +55,8 @@ class StoreSummary {
     bool? acceptGcash,
     bool? acceptMaya,
     bool? acceptCard,
+    String? franchisorStoreId,
+    String? franchiseNotes,
   }) {
     return StoreSummary(
       id: id,
@@ -61,6 +70,8 @@ class StoreSummary {
       acceptGcash: acceptGcash ?? this.acceptGcash,
       acceptMaya: acceptMaya ?? this.acceptMaya,
       acceptCard: acceptCard ?? this.acceptCard,
+      franchisorStoreId: franchisorStoreId ?? this.franchisorStoreId,
+      franchiseNotes: franchiseNotes ?? this.franchiseNotes,
     );
   }
 
@@ -77,6 +88,86 @@ class StoreSummary {
       acceptGcash: json['accept_gcash'] as bool? ?? true,
       acceptMaya: json['accept_maya'] as bool? ?? true,
       acceptCard: json['accept_card'] as bool? ?? true,
+      franchisorStoreId: json['franchisor_store_id'] as String?,
+      franchiseNotes: json['franchise_notes'] as String?,
+    );
+  }
+}
+
+/// Result of [StoreRepository.createFranchiseStore].
+class FranchiseCreateResult {
+  const FranchiseCreateResult({
+    required this.storeId,
+    required this.branchId,
+    required this.storeName,
+    required this.ownerEmail,
+    required this.ownerLinked,
+    required this.categoriesCloned,
+    required this.productsCloned,
+    required this.copyStock,
+    this.inviteToken,
+  });
+
+  final String storeId;
+  final String branchId;
+  final String storeName;
+  final String ownerEmail;
+  final bool ownerLinked;
+  final int categoriesCloned;
+  final int productsCloned;
+  final bool copyStock;
+  final String? inviteToken;
+
+  factory FranchiseCreateResult.fromJson(Map<String, dynamic> json) {
+    return FranchiseCreateResult(
+      storeId: json['store_id'] as String,
+      branchId: json['branch_id'] as String,
+      storeName: json['store_name'] as String? ?? '',
+      ownerEmail: json['owner_email'] as String? ?? '',
+      ownerLinked: json['owner_linked'] as bool? ?? false,
+      categoriesCloned: (json['categories_cloned'] as num?)?.toInt() ?? 0,
+      productsCloned: (json['products_cloned'] as num?)?.toInt() ?? 0,
+      copyStock: json['copy_stock'] as bool? ?? true,
+      inviteToken: json['invite_token'] as String?,
+    );
+  }
+}
+
+class FranchiseStoreSummary {
+  const FranchiseStoreSummary({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.ownerLinked,
+    required this.productsCount,
+    this.franchiseNotes,
+    this.ownerEmail,
+    this.inviteStatus,
+    this.inviteToken,
+  });
+
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final bool ownerLinked;
+  final int productsCount;
+  final String? franchiseNotes;
+  final String? ownerEmail;
+  final String? inviteStatus;
+  final String? inviteToken;
+
+  factory FranchiseStoreSummary.fromJson(Map<String, dynamic> json) {
+    return FranchiseStoreSummary(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+      franchiseNotes: json['franchise_notes'] as String?,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      ownerEmail: json['owner_email'] as String?,
+      ownerLinked: json['owner_linked'] as bool? ?? false,
+      inviteStatus: json['invite_status'] as String?,
+      inviteToken: json['invite_token'] as String?,
+      productsCount: (json['products_count'] as num?)?.toInt() ?? 0,
     );
   }
 }

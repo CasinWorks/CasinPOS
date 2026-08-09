@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:uuid/uuid.dart';
 
+import '../../../core/errors/app_errors.dart';
+import '../../../core/input/numeric_formatters.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/product_photo.dart';
 import '../../../data/models/pos_models.dart';
@@ -187,24 +189,30 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     final name = _name.text.trim();
     if (name.isEmpty) {
       setState(() => _error = 'Product name is required');
+      showAppMessage(context, 'Product name is required', isError: true);
       return;
     }
     if (_uploading) {
       setState(() => _error = 'Wait for the photo to finish uploading');
+      showAppMessage(context, 'Wait for the photo to finish uploading', isError: true);
       return;
     }
-    final price = double.tryParse(_price.text.trim());
-    final cost = double.tryParse(_cost.text.trim());
-    final stock = double.tryParse(_stock.text.trim());
-    final low = double.tryParse(_lowStock.text.trim());
+    final price = NumericInput.tryParseMoney(_price.text);
+    final cost = NumericInput.tryParseMoney(_cost.text);
+    final stockInt = NumericInput.tryParseInt(_stock.text);
+    final lowInt = NumericInput.tryParseInt(_lowStock.text);
     if (price == null || price < 0 || cost == null || cost < 0) {
       setState(() => _error = 'Enter valid price and cost');
+      showAppMessage(context, 'Enter valid price and cost amounts', isError: true);
       return;
     }
-    if (stock == null || stock < 0 || low == null || low < 0) {
+    if (stockInt == null || stockInt < 0 || lowInt == null || lowInt < 0) {
       setState(() => _error = 'Enter valid stock values');
+      showAppMessage(context, 'Enter valid stock quantity and low-stock alert', isError: true);
       return;
     }
+    final stock = stockInt.toDouble();
+    final low = lowInt.toDouble();
 
     final existing = widget.existing;
     final category = _category.text.trim().isEmpty ? 'General' : _category.text.trim();
@@ -393,7 +401,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         Expanded(
                           child: TextField(
                             controller: _price,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: NumericInput.moneyKeyboard,
+                            inputFormatters: NumericInput.money(),
                             decoration: const InputDecoration(labelText: 'Retail price'),
                           ),
                         ),
@@ -401,7 +410,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         Expanded(
                           child: TextField(
                             controller: _cost,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: NumericInput.moneyKeyboard,
+                            inputFormatters: NumericInput.money(),
                             decoration: const InputDecoration(labelText: 'Cost price'),
                           ),
                         ),
@@ -413,7 +423,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         Expanded(
                           child: TextField(
                             controller: _stock,
-                            keyboardType: TextInputType.number,
+                            keyboardType: NumericInput.integerKeyboard,
+                            inputFormatters: NumericInput.integers,
                             decoration: const InputDecoration(labelText: 'Stock qty'),
                           ),
                         ),
@@ -421,7 +432,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         Expanded(
                           child: TextField(
                             controller: _lowStock,
-                            keyboardType: TextInputType.number,
+                            keyboardType: NumericInput.integerKeyboard,
+                            inputFormatters: NumericInput.integers,
                             decoration: const InputDecoration(labelText: 'Low-stock alert'),
                           ),
                         ),
