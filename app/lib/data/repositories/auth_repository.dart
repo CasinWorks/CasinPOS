@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../bootstrap.dart';
 import '../../core/errors/app_errors.dart';
+import '../../core/invite/invite_token.dart';
 import '../../domain/enums.dart';
 import '../models/store_models.dart';
 
@@ -214,9 +215,13 @@ class StoreRepository {
   }
 
   Future<String> acceptInvitation(String token) async {
+    final cleaned = sanitizeInviteToken(token);
+    if (cleaned == null || cleaned.length < 8) {
+      throw AppException('Invite not found. Check the link/token, or ask your store owner to resend it.');
+    }
     final result = await _client.rpc(
       'accept_store_invitation',
-      params: {'p_token': token.trim()},
+      params: {'p_token': cleaned},
     );
     return result as String;
   }

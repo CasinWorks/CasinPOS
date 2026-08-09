@@ -60,10 +60,32 @@ String? mapKnownBackendError(String raw) {
     return 'Enter a valid email address.';
   }
   if (s.contains('INVITE_EMAIL_MISMATCH')) {
-    return 'Signed-in email doesn’t match this invite.';
+    final invited = _inviteEmailFromError(raw);
+    if (invited != null) {
+      return 'Signed-in email doesn’t match this invite (sent to $invited). '
+          'Sign out and use that email, or ask the owner for a new invite.';
+    }
+    return 'Signed-in email doesn’t match this invite. '
+        'Ask your store owner to resend if you’re unsure which email was invited.';
+  }
+  if (s.contains('INVITE_EXPIRED')) {
+    final invited = _inviteEmailFromError(raw);
+    return invited != null
+        ? 'This invite expired (was for $invited). Ask your store owner to resend it.'
+        : 'This invite has expired. Ask your store owner to resend it.';
+  }
+  if (s.contains('INVITE_ALREADY_ACCEPTED')) {
+    return 'This invite was already accepted. Sign in with the invited email, '
+        'or ask your store owner to send a new invite.';
+  }
+  if (s.contains('INVITE_NOT_PENDING')) {
+    return 'This invite is no longer active. Ask your store owner to resend it.';
+  }
+  if (s.contains('INVITE_NOT_FOUND')) {
+    return 'Invite not found. Check the link/token, or ask your store owner to resend it.';
   }
   if (s.contains('INVITE_INVALID_OR_EXPIRED')) {
-    return 'Invite is invalid or expired.';
+    return 'Invite is invalid or expired. Ask your store owner to resend it.';
   }
   if (s.contains('NOT_AUTHENTICATED')) {
     return 'Please sign in and try again.';
@@ -84,6 +106,17 @@ String? mapKnownBackendError(String raw) {
     return 'Free monthly transaction limit reached.';
   }
   return null;
+}
+
+/// Parses `INVITE_*:email@x` detail suffixes from Postgres raise exception messages.
+String? _inviteEmailFromError(String raw) {
+  final m = RegExp(
+    r'INVITE_[A-Z_]+[:\s]+([^\s,;]+@[^\s,;]+)',
+    caseSensitive: false,
+  ).firstMatch(raw);
+  final email = m?.group(1)?.trim();
+  if (email == null || !email.contains('@')) return null;
+  return email.replaceAll(RegExp(r'[>\]\)]+$'), '');
 }
 
 void showAppError(

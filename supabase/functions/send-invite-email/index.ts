@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
     const inviterNameHtml = escapeHtml(inviterName);
     const roleNameHtml = escapeHtml(roleName);
     const inviteUrlHtml = escapeHtml(inviteUrl);
+    const tokenHtml = escapeHtml(token);
     const expiryDaysHtml = escapeHtml(String(expiryDays));
     const yearHtml = escapeHtml(year);
 
@@ -191,7 +192,8 @@ Deno.serve(async (req) => {
             <td style="padding:0 32px 12px 32px;" align="center">
               <a href="${inviteUrlHtml}"
                  style="display:inline-block; background-color:#111827; color:#ffffff; text-decoration:none;
-                        font-size:15px; font-weight:600; padding:14px 28px; border-radius:8px;">
+                        font-size:15px; font-weight:600; padding:14px 28px; border-radius:8px;
+                        mso-line-height-rule:exactly;">
                 Accept Invitation
               </a>
             </td>
@@ -206,12 +208,28 @@ Deno.serve(async (req) => {
             </td>
           </tr>
 
-          <!-- Fallback link -->
+          <!-- Fallback link — nowrap on href URL; word-break only for display wrapping -->
+          <tr>
+            <td style="padding:0 32px 16px 32px;">
+              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#9ca3af;">
+                Or copy and paste this link into your browser:
+              </p>
+              <p style="margin:0; font-size:12px; line-height:1.5;">
+                <a href="${inviteUrlHtml}"
+                   style="color:#2563eb; word-break:break-all; overflow-wrap:anywhere; text-decoration:underline;">${inviteUrlHtml}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Bare token backup (no mid-token soft breaks) -->
           <tr>
             <td style="padding:0 32px 28px 32px;">
-              <p style="margin:0; font-size:13px; line-height:1.6; color:#9ca3af;">
-                Or copy and paste this link into your browser:<br />
-                <a href="${inviteUrlHtml}" style="color:#2563eb; word-break:break-all;">${inviteUrlHtml}</a>
+              <p style="margin:0 0 6px 0; font-size:12px; line-height:1.5; color:#9ca3af;">
+                If the link breaks, sign in at CasinPOS → Join your team, and paste this token:
+              </p>
+              <p style="margin:0; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+                        font-size:12px; line-height:1.5; color:#111827; word-break:keep-all; white-space:nowrap;">
+                ${tokenHtml}
               </p>
             </td>
           </tr>
@@ -262,6 +280,9 @@ Deno.serve(async (req) => {
       `${inviterName} has invited you to join ${storeName} on CasinPOS as a ${roleName}.\n\n` +
       `Accept the invite to set up your login and start using the app with your team:\n` +
       `${inviteUrl}\n\n` +
+      `If the link does not open cleanly, sign in at ${publicApp} → Join your team,\n` +
+      `and paste this invite token (copy the whole line):\n` +
+      `${token}\n\n` +
       `Store: ${storeName}\n` +
       `Role: ${roleName}\n\n` +
       `This invite link expires in ${expiryDays} days.\n\n` +

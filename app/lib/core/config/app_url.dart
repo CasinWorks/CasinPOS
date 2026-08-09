@@ -52,10 +52,12 @@ abstract final class AppUrl {
         : storeName.trim();
     final subject = 'Join $store on CasinPOS';
     final body = 'You’re invited to join $store on CasinPOS.\n\n'
-        '1. Open this link: $link\n'
+        '1. Open this link (copy the whole line):\n'
+        '$link\n\n'
         '2. Create an account (or sign in) with this email: ${toEmail.trim()}\n'
         '3. You’re in — no token paste needed if you use the link.\n\n'
-        'If the link doesn’t work, sign in at ${publicOrigin()} and paste this token on Join:\n'
+        'If the link doesn’t work, sign in at ${publicOrigin()} → Join your team,\n'
+        'and paste this token (copy the whole line):\n'
         '${token.trim()}\n';
     return Uri(
       scheme: 'mailto',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/app_errors.dart';
+import '../../../core/invite/invite_token.dart';
 import '../../../core/invite/pending_invite_token.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -308,7 +309,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
   @override
   void initState() {
     super.initState();
-    final fromQuery = widget.initialToken?.trim();
+    final fromQuery = sanitizeInviteToken(widget.initialToken);
     final stored = readPendingInviteToken();
     final initial = (fromQuery != null && fromQuery.isNotEmpty)
         ? fromQuery
@@ -327,16 +328,16 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
   }
 
   void _goAuth(String path) {
-    final t = _token.text.trim();
-    if (t.isNotEmpty) savePendingInviteToken(t);
+    final t = sanitizeInviteToken(_token.text);
+    if (t != null && t.isNotEmpty) savePendingInviteToken(t);
     context.go(path);
   }
 
   Future<void> _maybeAutoAccept() async {
     if (_autoAcceptAttempted || !mounted) return;
     final session = ref.read(currentSessionProvider);
-    final token = _token.text.trim();
-    if (session == null || token.length < 8) return;
+    final token = sanitizeInviteToken(_token.text);
+    if (session == null || token == null || token.length < 8) return;
     _autoAcceptAttempted = true;
     await _submit(auto: true);
   }
@@ -350,6 +351,11 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
             'Create an account or sign in with the invited email first, then accept.';
       });
       return;
+    }
+    final cleaned = sanitizeInviteToken(_token.text);
+    if (cleaned != null && cleaned != _token.text.trim()) {
+      _token.text = cleaned;
+      savePendingInviteToken(cleaned);
     }
     setState(() {
       _loading = true;
@@ -366,9 +372,13 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
       final signedEmail = ref.read(currentSessionProvider)?.user.email;
       var msg = _friendlyAuthError(e);
       if (msg.contains('doesn’t match') && signedEmail != null) {
-        msg =
-            'You’re signed in as $signedEmail, which doesn’t match this invite. '
-            'Sign out and use the invited email, then open the join link again.';
+        if (!msg.contains('@')) {
+          msg =
+              'You’re signed in as $signedEmail, which doesn’t match this invite. '
+              'Sign out and use the invited email, then open the join link again.';
+        } else if (!msg.toLowerCase().contains(signedEmail.toLowerCase())) {
+          msg = 'You’re signed in as $signedEmail. $msg';
+        }
       }
       setState(() {
         _error = msg;
@@ -384,7 +394,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
     final session = ref.watch(currentSessionProvider);
     final signedIn = session != null;
     final signedEmail = session?.user.email;
-    final hasToken = _token.text.trim().length >= 8;
+    final hasToken = (sanitizeInviteToken(_token.text) ?? '').length >= 8;
 
     ref.listen(currentSessionProvider, (prev, next) {
       if (prev == null && next != null) {
@@ -434,11 +444,21 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
                           : 'Paste token if you don’t have the link',
                     ),
                     validator: (v) =>
-                        (v == null || v.trim().length < 8) ? 'Enter invite token' : null,
+                        ((sanitizeInviteToken(v) ?? '').length < 8)
+                            ? 'Enter invite token'
+                            : null,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),
                     Text(_error!, style: const TextStyle(color: AppColors.danger)),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'If this keeps failing, ask your store owner to resend the invite '
+                      '(Team → Invite). Use the new email link — don’t paste a truncated token.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.slate500,
+                          ),
+                    ),
                   ],
                   if (_info != null) ...[
                     const SizedBox(height: AppSpacing.md),
@@ -477,9 +497,9 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
                       onPressed: _loading
                           ? null
                           : () async {
-                              final keep = _token.text.trim();
+                              final keep = sanitizeInviteToken(_token.text);
                               await ref.read(authRepositoryProvider).signOut();
-                              if (keep.isNotEmpty) {
+                              if (keep != null && keep.isNotEmpty) {
                                 savePendingInviteToken(keep);
                               }
                               if (mounted) {
@@ -525,12 +545,8 @@ String _friendlyAuthError(Object e) {
       raw.contains('is invalid')) {
     return 'Enter a valid email address.';
   }
-  if (raw.contains('INVITE_EMAIL_MISMATCH')) {
-    return 'Signed-in email doesn’t match this invite.';
-  }
-  if (raw.contains('INVITE_INVALID_OR_EXPIRED')) {
-    return 'Invite is invalid or expired.';
-  }
+  final mapped = mapKnownBackendError(raw);
+  if (mapped != null) return mapped;
   if (raw.contains('FREE_MONTHLY_LIMIT_REACHED')) {
     return 'Free monthly transaction limit reached.';
   }

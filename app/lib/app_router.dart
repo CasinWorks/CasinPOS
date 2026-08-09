@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'bootstrap.dart';
 import 'core/animations/fluid_ink_intro.dart';
+import 'core/invite/invite_token.dart';
 import 'core/invite/pending_invite_token.dart';
 import 'data/providers/session_providers.dart';
 import 'features/auth/login_page.dart';
@@ -22,6 +23,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loc = state.matchedLocation;
       final introSeen = ref.read(introSeenProvider);
+
+      // Always capture invite token from the current URI before any redirect
+      // (intro previously dropped /invite?token=… before the join page ran).
+      captureInviteTokenFromUri(state.uri);
+      final pathTok = state.pathParameters['token'];
+      if (pathTok != null && pathTok.isNotEmpty) {
+        savePendingInviteToken(pathTok);
+      }
 
       if (!introSeen && loc != '/intro') {
         return '/intro';
@@ -90,19 +99,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/invite',
         builder: (context, state) => InviteAcceptPage(
-          initialToken: state.uri.queryParameters['token'],
+          initialToken: sanitizeInviteToken(state.uri.queryParameters['token']),
         ),
       ),
       GoRoute(
         path: '/join',
         builder: (context, state) => InviteAcceptPage(
-          initialToken: state.uri.queryParameters['token'],
+          initialToken: sanitizeInviteToken(state.uri.queryParameters['token']),
         ),
       ),
       GoRoute(
         path: '/invite/:token',
         builder: (context, state) => InviteAcceptPage(
-          initialToken: state.pathParameters['token'],
+          initialToken: sanitizeInviteToken(state.pathParameters['token']),
         ),
       ),
       GoRoute(
@@ -116,12 +125,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
 String _postIntroTarget(Ref ref) {
   if (!isSupabaseReady) return '/';
-  final session = ref.read(currentSessionProvider);
-  if (session == null) return '/login';
   final pending = readPendingInviteToken();
   if (pending != null && pending.isNotEmpty) {
     return '/invite?token=${Uri.encodeQueryComponent(pending)}';
   }
+  final session = ref.read(currentSessionProvider);
+  if (session == null) return '/login';
   final memberships = ref.read(membershipsProvider).valueOrNull;
   if (memberships == null) return '/';
   if (memberships.isEmpty) return '/onboarding/store';
