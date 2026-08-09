@@ -1,0 +1,17 @@
+# FoodPos local Supabase project (optional).
+# Install CLI: https://supabase.com/docs/guides/cli
+# Then: supabase start && supabase db reset
+
+project_id = "foodpos"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323

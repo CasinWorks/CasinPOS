@@ -1,0 +1,286 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/brand_mark.dart';
+import '../../../data/providers/session_providers.dart';
+import '../../../domain/enums.dart';
+import '../onboarding/story_mode.dart';
+import '../onboarding/tutorial_anchors.dart';
+import '../settings/store_settings_dialog.dart';
+import '../team/invite_teammate_dialog.dart';
+
+class CasinPosSidebar extends ConsumerWidget {
+  const CasinPosSidebar({
+    super.key,
+    required this.activeTab,
+    required this.onSelectTab,
+    required this.orderCount,
+  });
+
+  final String activeTab;
+  final ValueChanged<String> onSelectTab;
+  final int orderCount;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final membership = ref.watch(activeMembershipProvider);
+    final storeName = membership?.store.name ?? 'My Store';
+    final type = membership?.store.businessType ?? BusinessType.retail;
+    final role = membership?.role.value ?? 'staff';
+    String userName = 'Team member';
+    try {
+      final user = ref.watch(authRepositoryProvider).currentUser;
+      userName = (user?.userMetadata?['full_name'] as String?) ??
+          user?.email ??
+          'Team member';
+    } catch (_) {}
+
+    final items = <({String id, String label, IconData icon, int? badge})>[
+      (id: 'checkout', label: 'Retail POS', icon: Icons.point_of_sale_rounded, badge: null),
+      (id: 'inventory', label: 'Store Inventory', icon: Icons.inventory_2_outlined, badge: null),
+      (id: 'register', label: 'Cash Register', icon: Icons.account_balance_wallet_outlined, badge: null),
+      (id: 'orders', label: 'Sales History', icon: Icons.bookmark_outline, badge: orderCount),
+      (id: 'receipts', label: 'Receipts Audit', icon: Icons.receipt_long_outlined, badge: null),
+      (id: 'analytics', label: 'Sales Statistics', icon: Icons.trending_up, badge: null),
+    ];
+
+    return ColoredBox(
+      color: AppColors.scaffold,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: AppColors.slate200)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: BrandMark(businessType: type, compact: true)),
+                  IconButton(
+                    tooltip: 'Replay story tutorial',
+                    onPressed: () => startRetailStory(ref),
+                    icon: const Icon(Icons.auto_awesome, size: 18, color: AppColors.restaurant),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.slate100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.slate200),
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Active Store:',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.slate500),
+                    ),
+                    const Spacer(),
+                    Flexible(
+                      child: Text(
+                        storeName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Retail · locked',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate400,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final item in items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: _anchoredNav(
+                          id: item.id,
+                          child: _NavItem(
+                            label: item.label,
+                            icon: item.icon,
+                            selected: activeTab == item.id,
+                            badge: item.badge,
+                            onTap: () => onSelectTab(item.id),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 24),
+                    const Text(
+                      'SYSTEM',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: AppColors.slate400,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _NavItem(
+                      label: 'Store Settings',
+                      icon: Icons.settings_outlined,
+                      selected: false,
+                      onTap: () => showStoreSettingsDialog(context, ref),
+                    ),
+                    _NavItem(
+                      label: 'Notifications',
+                      icon: Icons.notifications_none_rounded,
+                      selected: activeTab == 'notifications',
+                      onTap: () => onSelectTab('notifications'),
+                    ),
+                    _NavItem(
+                      label: 'Support',
+                      icon: Icons.help_outline_rounded,
+                      selected: activeTab == 'support',
+                      onTap: () => onSelectTab('support'),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.slate100.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.slate200),
+                ),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppColors.slate300,
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      userName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    ),
+                    Text(role, style: const TextStyle(fontSize: 10, color: AppColors.slate500)),
+                    const SizedBox(height: 8),
+                    if (membership?.role.canInviteUsers == true)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => showInviteTeammateDialog(context, ref),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                          ),
+                          child: const Text('Invite / Manage'),
+                        ),
+                      ),
+                    TextButton(
+                      onPressed: () async {
+                        await ref.read(authRepositoryProvider).signOut();
+                        if (context.mounted) context.go('/login');
+                      },
+                      child: const Text('Sign out', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _anchoredNav({required String id, required Widget child}) {
+    final anchor = switch (id) {
+      'inventory' => TutorialAnchor.navInventory,
+      'checkout' => TutorialAnchor.navPos,
+      'receipts' => TutorialAnchor.navReceipts,
+      'analytics' => TutorialAnchor.navAnalytics,
+      _ => null,
+    };
+    if (anchor == null) return child;
+    return TutorialTarget(anchor: anchor, child: child);
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  final int? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.slate900 : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: selected ? Colors.white : AppColors.slate500),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? Colors.white : AppColors.slate600,
+                  ),
+                ),
+              ),
+              if (badge != null && badge! > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.restaurant : const Color(0xFFDBEAFE),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? Colors.white : const Color(0xFF1D4ED8),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
