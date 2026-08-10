@@ -53,7 +53,7 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
             - media.viewInsets.bottom
             - media.padding.vertical
             - 200)
-        .clamp(120.0, 480.0);
+        .clamp(120.0, 520.0);
 
     final received = double.tryParse(_ctrl.text) ?? 0;
     final change = received - widget.totalPayable;
@@ -68,7 +68,7 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
       title: const Text('Cash calculator', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
       content: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 340,
+          maxWidth: 360,
           maxHeight: maxContentHeight,
         ),
         child: SingleChildScrollView(
@@ -77,47 +77,86 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                 decoration: BoxDecoration(
                   color: AppColors.slate900,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.retail.withValues(alpha: 0.45)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Cash in drawer',
+                      'AMOUNT DUE',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
                         color: AppColors.slate400,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '₱${widget.totalPayable.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                        letterSpacing: -0.8,
+                        color: AppColors.retail,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '₱${widget.drawerBalance.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.retail,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'After this sale: ₱${drawerAfter.toStringAsFixed(2)}',
+                      'Customer owes this amount',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.65),
+                        color: Colors.white.withValues(alpha: 0.55),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.slate100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.slate200),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Cash in drawer',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '₱${widget.drawerBalance.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
               Text(
-                'Total payable: ₱${widget.totalPayable.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                'After this sale: ₱${drawerAfter.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate500,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
