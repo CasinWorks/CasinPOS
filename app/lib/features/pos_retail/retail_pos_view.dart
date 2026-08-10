@@ -236,20 +236,25 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
               anchor: TutorialAnchor.productArea,
               child: LayoutBuilder(
               builder: (context, constraints) {
-                final cols = constraints.maxWidth > 900
-                    ? 4
-                    : constraints.maxWidth > 600
-                        ? 3
-                        : 2;
+                // Tablet POS: prefer denser tiles so more SKUs fit without huge scrolling.
+                final w = constraints.maxWidth;
+                final cols = w >= 1100
+                    ? 5
+                    : w >= 820
+                        ? 4
+                        : w >= 520
+                            ? 3
+                            : 2;
+                final aspect = w >= 820 ? 0.78 : 0.72;
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: filtered.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: cols,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: 0.62,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: aspect,
                   ),
                   itemBuilder: (context, i) {
                     final p = filtered[i];
@@ -346,16 +351,16 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
             : product.isLowStock
                 ? const Color(0xFFFFFBEB)
                 : AppColors.scaffold,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: _handleAdd,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           child: Opacity(
             opacity: outOfStock ? 0.72 : 1,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: outOfStock
                       ? AppColors.slate200
@@ -368,24 +373,24 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    flex: 5,
+                    flex: 4,
                     child: Stack(
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                           child: ProductPhoto(
                             imageUrl: product.imageUrl,
                             width: double.infinity,
                             height: double.infinity,
-                            borderRadius: 16,
-                            iconSize: 36,
+                            borderRadius: 12,
+                            iconSize: 28,
                           ),
                         ),
                         Positioned(
-                          top: 8,
-                          left: 8,
+                          top: 6,
+                          left: 6,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.slate900.withValues(alpha: 0.92),
                               borderRadius: BorderRadius.circular(999),
@@ -398,7 +403,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                               style: const TextStyle(
                                 color: AppColors.retail,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 16,
+                                fontSize: 13,
                                 letterSpacing: -0.2,
                               ),
                             ),
@@ -409,7 +414,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: Colors.black45,
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Center(
                                 child: Text(
@@ -417,7 +422,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     letterSpacing: 0.6,
                                   ),
                                 ),
@@ -427,20 +432,19 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
                     product.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      height: 1.2,
+                      height: 1.15,
                       color: AppColors.ink,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  // De-emphasized metadata (SKU / unit / category)
+                  const SizedBox(height: 4),
                   Opacity(
                     opacity: 0.55,
                     child: Row(
@@ -451,7 +455,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 9,
+                              fontSize: 8,
                               fontWeight: FontWeight.w600,
                               color: AppColors.slate500,
                             ),
@@ -460,7 +464,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                         if (product.weight.trim().isNotEmpty) ...[
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               color: AppColors.slate100,
                               borderRadius: BorderRadius.circular(4),
@@ -495,16 +499,16 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                           outOfStock
                               ? 'No units left'
-                              : '${remaining.toStringAsFixed(0)} available',
+                              : '${remaining.toStringAsFixed(0)} left',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: outOfStock
                                 ? const Color(0xFFE11D48)
@@ -516,8 +520,8 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                       ),
                       if (!outOfStock && product.isLowStock)
                         const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFF59E0B)),
+                          padding: EdgeInsets.only(right: 2),
+                          child: Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFF59E0B)),
                         ),
                       FilledButton(
                         onPressed: outOfStock ? null : _handleAdd,
@@ -525,12 +529,13 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                           backgroundColor: AppColors.slate900,
                           foregroundColor: AppColors.retail,
                           disabledBackgroundColor: AppColors.slate300,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          minimumSize: const Size(80, 44),
-                          tapTargetSize: MaterialTapTargetSize.padded,
-                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: const Size(64, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                         ),
-                        child: Text(outOfStock ? 'Sold out' : '+ Add'),
+                        child: Text(outOfStock ? 'Sold' : '+ Add'),
                       ),
                     ],
                   ),
