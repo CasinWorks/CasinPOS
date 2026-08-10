@@ -4,9 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../../domain/enums.dart';
 
-/// Bundled CasinPOS logo (duck + bag mark).
+/// Bundled CasinPOS logo assets.
 abstract final class BrandAssets {
+  /// Full mark with gold background + wordmark (icons / chrome).
   static const logo = 'assets/branding/casinpos_logo.png';
+
+  /// Duck mascot only (splash / loading).
+  static const duck = 'assets/branding/casinpos_duck.png';
 }
 
 /// Logo image only — square mark for avatars, splash, headers.

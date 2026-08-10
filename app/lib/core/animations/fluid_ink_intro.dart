@@ -1,17 +1,18 @@
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/brand_mark.dart';
 
-/// Port of the AI Studio Fluid Ink intro (ink swirl → logo → dissolve).
+/// Duck-shopping splash: waddle + random puns while the app boots.
 class FluidInkIntro extends StatefulWidget {
   const FluidInkIntro({
     super.key,
     required this.onComplete,
-    this.duration = const Duration(milliseconds: 3800),
+    this.duration = const Duration(milliseconds: 4200),
   });
 
   final VoidCallback onComplete;
@@ -22,33 +23,75 @@ class FluidInkIntro extends StatefulWidget {
 }
 
 class _FluidInkIntroState extends State<FluidInkIntro>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final List<_InkParticle> _particles;
-  final _rng = math.Random(42);
+    with TickerProviderStateMixin {
+  late final AnimationController _progress;
+  late final AnimationController _waddle;
+  late final math.Random _rng;
+  late String _pun;
+  late List<String> _remaining;
+  Timer? _punTimer;
 
-  static const _colors = [
-    AppColors.accentDeep,
-    AppColors.accent,
-    AppColors.brandYellow,
-    AppColors.brandOrange,
-    AppColors.inkDeep,
+  static const _puns = [
+    'Duck is shopping… putting it on the bill',
+    'Waddling to checkout… please hold still',
+    'Filling the bag with quackers',
+    'Just a quick quack-action…',
+    'Scanning aisles for bargains (and bread)',
+    'Counting coins with webbed feet',
+    'Not egg-stravagant… just loading',
+    'Fetching your POS — no, wait, I’m a duck',
+    'Organizing the flock (and the SKUs)',
+    'Hopping brands into the cart',
+    'Duck, duck… ring up!',
+    'Making change without losing a feather',
+    'Bread in bag > bugs in build',
+    'This bill is totally quackers',
+    'Aisle be right with you…',
+    'Checking out like a BOSS (mallard)',
+    'Rolling into retail with a rubber soul',
+    'Receipt paper? More like duck tape',
+    'Beak peek: almost ready…',
+    'Loading faster than a Sunday market run',
   ];
 
   @override
   void initState() {
     super.initState();
-    _particles = List.generate(140, (_) => _InkParticle.seed(_rng));
-    _controller = AnimationController(vsync: this, duration: widget.duration)
+    _rng = math.Random();
+    _remaining = List<String>.from(_puns)..shuffle(_rng);
+    _pun = _remaining.removeLast();
+
+    _waddle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _progress = AnimationController(vsync: this, duration: widget.duration)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) widget.onComplete();
       })
       ..forward();
+
+    _punTimer = Timer.periodic(const Duration(milliseconds: 850), (_) {
+      if (!mounted) return;
+      setState(_nextPun);
+    });
+  }
+
+  void _nextPun() {
+    if (_remaining.isEmpty) {
+      _remaining = List<String>.from(_puns)..shuffle(_rng);
+      _remaining.removeWhere((p) => p == _pun);
+    }
+    if (_remaining.isEmpty) return;
+    _pun = _remaining.removeAt(_rng.nextInt(_remaining.length));
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _punTimer?.cancel();
+    _progress.dispose();
+    _waddle.dispose();
     super.dispose();
   }
 
@@ -56,237 +99,223 @@ class _FluidInkIntroState extends State<FluidInkIntro>
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.inkIntroBg,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              return CustomPaint(
-                painter: _InkPainter(
-                  progress: _controller.value,
-                  particles: _particles,
-                  colors: _colors,
-                ),
-              );
-            },
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFFFDF5),
+              Color(0xFFFFF3C4),
+              Color(0xFFFFE082),
+            ],
           ),
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final p = _controller.value;
-              final showLogo = p >= 0.47 && p < 0.92;
-              final opacity = showLogo
-                  ? (p < 0.55
-                      ? ((p - 0.47) / 0.08).clamp(0.0, 1.0)
-                      : p > 0.79
-                          ? (1 - (p - 0.79) / 0.13).clamp(0.0, 1.0)
-                          : 1.0)
-                  : 0.0;
-              return IgnorePointer(
-                child: Opacity(
-                  opacity: opacity,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const BrandLogo(size: 156, radius: 28, shadow: true),
-                        const SizedBox(height: 16),
-                        Text(
-                          'POINT OF SALE  ·  INVENTORY',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                letterSpacing: 2.4,
-                                color: AppColors.slate700,
-                                fontWeight: FontWeight.w800,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AnimatedBuilder(
+              animation: _waddle,
+              builder: (context, _) => CustomPaint(painter: _SoftOrbPainter(_waddle.value)),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedBuilder(
+                      animation: Listenable.merge([_waddle, _progress]),
+                      builder: (context, _) {
+                        final bob = math.sin(_waddle.value * math.pi) * 10;
+                        final tilt = (_waddle.value - 0.5) * 0.18;
+                        final scale = 0.96 + (_waddle.value * 0.08);
+                        final fadeIn = (_progress.value / 0.12).clamp(0.0, 1.0);
+                        final fadeOut = _progress.value > 0.88
+                            ? (1 - (_progress.value - 0.88) / 0.12).clamp(0.0, 1.0)
+                            : 1.0;
+
+                        return Opacity(
+                          opacity: fadeIn * fadeOut,
+                          child: Transform.translate(
+                            offset: Offset(0, bob),
+                            child: Transform.rotate(
+                              angle: tilt,
+                              child: Transform.scale(
+                                scale: scale,
+                                child: Column(
+                                  children: [
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.accent.withValues(alpha: 0.35),
+                                            blurRadius: 36,
+                                            spreadRadius: 2,
+                                            offset: const Offset(0, 14),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Image.asset(
+                                        BrandAssets.duck,
+                                        height: 168,
+                                        fit: BoxFit.contain,
+                                        filterQuality: FilterQuality.high,
+                                        errorBuilder: (_, error, stack) =>
+                                            const BrandLogo(size: 140),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: List.generate(5, (i) {
+                                        final active =
+                                            ((_waddle.value * 5) + i) % 5 < 2.2;
+                                        return Container(
+                                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                                          width: 7,
+                                          height: 7,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.accentDeep.withValues(
+                                              alpha: active ? 0.85 : 0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(99),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                  ],
+                                ),
                               ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Powered by CASINWORKS',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontSize: 9,
-                                letterSpacing: 0.6,
-                                color: AppColors.slate500,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                      ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
-          Positioned(
-            top: 24,
-            right: 24,
-            child: FilledButton.tonal(
-              onPressed: widget.onComplete,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.slate900.withValues(alpha: 0.85),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Skip'),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 32,
-            child: Center(
-              child: SizedBox(
-                width: 192,
-                height: 4,
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, _) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: _controller.value,
-                        backgroundColor: AppColors.slate200,
-                        color: AppColors.restaurant,
+                    const SizedBox(height: 28),
+                    Text(
+                      'CASIN POS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                        color: AppColors.ink,
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'POINT OF SALE  ·  INVENTORY',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2.2,
+                        color: AppColors.slate600,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      height: 48,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 420),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, anim) {
+                          return FadeTransition(
+                            opacity: anim,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.2),
+                                end: Offset.zero,
+                              ).animate(anim),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Text(
+                          _pun,
+                          key: ValueKey(_pun),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.35,
+                            color: AppColors.slate800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: 220,
+                      child: AnimatedBuilder(
+                        animation: _progress,
+                        builder: (context, _) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: _progress.value,
+                              minHeight: 6,
+                              backgroundColor: Colors.white.withValues(alpha: 0.65),
+                              color: AppColors.accentDeep,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Powered by CASINWORKS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.6,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+            Positioned(
+              top: 24,
+              right: 24,
+              child: FilledButton.tonal(
+                onPressed: widget.onComplete,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.ink.withValues(alpha: 0.88),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Skip'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InkParticle {
-  _InkParticle({
-    required this.angle,
-    required this.dist,
-    required this.size,
-    required this.colorIndex,
-    required this.spin,
-    required this.alpha,
-  });
+class _SoftOrbPainter extends CustomPainter {
+  _SoftOrbPainter(this.t);
 
-  factory _InkParticle.seed(math.Random rng) {
-    return _InkParticle(
-      angle: rng.nextDouble() * math.pi * 2,
-      dist: rng.nextDouble() * 40,
-      size: 10 + rng.nextDouble() * 34,
-      colorIndex: rng.nextInt(5),
-      spin: (rng.nextDouble() - 0.5) * 0.03,
-      alpha: 0.2 + rng.nextDouble() * 0.55,
-    );
-  }
-
-  final double angle;
-  final double dist;
-  final double size;
-  final int colorIndex;
-  final double spin;
-  final double alpha;
-}
-
-class _InkPainter extends CustomPainter {
-  _InkPainter({
-    required this.progress,
-    required this.particles,
-    required this.colors,
-  });
-
-  final double progress;
-  final List<_InkParticle> particles;
-  final List<Color> colors;
+  final double t;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final elapsedMs = progress * 3800;
-
-    final bg = Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(cx, cy),
-        math.max(size.width, size.height) * 0.7,
-        [
-          Colors.white.withValues(alpha: 0.95),
-          const Color(0xFFF1F5F9).withValues(alpha: 0.6),
-        ],
-      );
-    canvas.drawRect(Offset.zero & size, bg);
-
-    for (var i = 0; i < particles.length; i++) {
-      final part = particles[i];
-      late double x;
-      late double y;
-      late double particleSize;
-      late double alpha;
-
-      if (elapsedMs < 1800) {
-        final t = elapsedMs / 1800;
-        final swirl = part.angle + t * 2.2 + part.spin * elapsedMs;
-        final radius = part.dist + 20 + t * (80 + (i % 7) * 18);
-        x = cx + math.cos(swirl) * radius;
-        y = cy + math.sin(swirl) * radius;
-        particleSize = part.size * (1.1 - t * 0.15);
-        alpha = part.alpha;
-      } else if (elapsedMs < 3000) {
-        final morph = ((elapsedMs - 1800) / 1200).clamp(0.0, 1.0);
-        final logoAngle = (i / particles.length) * math.pi * 2;
-        final logoRadius = 42.0 + (i % 3) * 6;
-        final tx = cx + math.cos(logoAngle) * logoRadius;
-        final ty = cy + math.sin(logoAngle) * logoRadius - 10;
-        final swirl = part.angle + 2.2 + part.spin * 1800;
-        final radius = part.dist + 100 + (i % 7) * 18;
-        final sx = cx + math.cos(swirl) * radius;
-        final sy = cy + math.sin(swirl) * radius;
-        x = ui.lerpDouble(sx, tx, morph)!;
-        y = ui.lerpDouble(sy, ty, morph)!;
-        particleSize = ui.lerpDouble(part.size, 8, morph)!;
-        alpha = part.alpha;
-      } else {
-        final dissolve = ((elapsedMs - 3000) / 800).clamp(0.0, 1.0);
-        final logoAngle = (i / particles.length) * math.pi * 2;
-        final logoRadius = 42.0 + (i % 3) * 6;
-        x = cx + math.cos(logoAngle) * logoRadius;
-        y = cy + math.sin(logoAngle) * logoRadius - 10;
-        particleSize = 8 * (1 + dissolve * 1.2);
-        alpha = part.alpha * (1 - dissolve);
-      }
-
-      final color = colors[part.colorIndex % colors.length];
-      final paint = Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(x, y),
-          particleSize,
-          [
-            color.withValues(alpha: alpha),
-            color.withValues(alpha: 0),
-          ],
-        );
-      canvas.drawCircle(Offset(x, y), particleSize, paint);
-    }
-
-    if (elapsedMs >= 1800 && elapsedMs < 3200) {
-      final morphP = ((elapsedMs - 1800) / 1200).clamp(0.0, 1.0);
-      final goldAlpha = math.sin(morphP * math.pi) * 0.55;
-      final aura = Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cx, cy),
-          90,
-          [
-            AppColors.goldShimmer.withValues(alpha: goldAlpha * 0.45),
-            AppColors.restaurant.withValues(alpha: goldAlpha * 0.2),
-            Colors.transparent,
-          ],
-          [0.0, 0.55, 1.0],
-        );
-      canvas.drawCircle(Offset(cx, cy), 90, aura);
+    final orbs = [
+      (Offset(size.width * 0.18, size.height * 0.22), 70.0, AppColors.accent),
+      (Offset(size.width * 0.82, size.height * 0.28), 90.0, AppColors.brandOrange),
+      (Offset(size.width * 0.7, size.height * 0.75), 80.0, AppColors.brandYellow),
+      (Offset(size.width * 0.22, size.height * 0.72), 60.0, AppColors.accentDeep),
+    ];
+    for (var i = 0; i < orbs.length; i++) {
+      final (c, r, color) = orbs[i];
+      final drift = math.sin((t + i * 0.2) * math.pi) * 12;
+      final paint = Paint()..color = color.withValues(alpha: 0.12 + (i % 2) * 0.04);
+      canvas.drawCircle(c.translate(0, drift), r, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _InkPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _SoftOrbPainter oldDelegate) => oldDelegate.t != t;
 }
