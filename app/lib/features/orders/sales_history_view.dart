@@ -111,147 +111,218 @@ class SalesHistoryView extends ConsumerWidget {
                 for (final o in orders)
                   SizedBox(
                     width: 360,
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: o.isVoided ? const Color(0xFFFFF1F2) : AppColors.scaffold,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: o.isVoided ? const Color(0xFFFECDD3) : AppColors.slate200,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      o.orderNo,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w900,
-                                        decoration:
-                                            o.isVoided ? TextDecoration.lineThrough : null,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Retail · ${o.paymentMethod.label} · ${o.timestampLabel}',
-                                      style: const TextStyle(fontSize: 10, color: AppColors.slate400),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: o.isVoided
-                                      ? const Color(0xFFFEE2E2)
-                                      : const Color(0xFFD1FAE5),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      o.isVoided ? Icons.block : Icons.check,
-                                      size: 12,
-                                      color: o.isVoided
-                                          ? const Color(0xFFB91C1C)
-                                          : const Color(0xFF047857),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      o.status,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: o.isVoided
-                                            ? const Color(0xFF991B1B)
-                                            : const Color(0xFF065F46),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.slate100),
-                            ),
-                            child: Column(
-                              children: [
-                                for (final item in o.items)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${item.qty}x ${item.name}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          '₱${(item.unitPrice * item.qty).toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Total: ₱${o.total.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-                                ),
-                              ),
-                              if (canVoid && o.isPaid)
-                                TextButton.icon(
-                                  onPressed: () => _voidSale(context, ref, o),
-                                  style: TextButton.styleFrom(
-                                    minimumSize: const Size(88, 48),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  ),
-                                  icon: const Icon(Icons.undo_rounded, size: 22, color: Color(0xFFE11D48)),
-                                  label: const Text(
-                                    'Void',
-                                    style: TextStyle(
-                                      color: Color(0xFFE11D48),
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
+                    child: _SaleHistoryCard(
+                      order: o,
+                      canVoid: canVoid && o.isPaid,
+                      onVoid: () => _voidSale(context, ref, o),
                     ),
                   ),
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SaleHistoryCard extends StatelessWidget {
+  const _SaleHistoryCard({
+    required this.order,
+    required this.canVoid,
+    required this.onVoid,
+  });
+
+  final PosOrder order;
+  final bool canVoid;
+  final VoidCallback onVoid;
+
+  @override
+  Widget build(BuildContext context) {
+    final voided = order.isVoided;
+
+    return Opacity(
+      opacity: voided ? 0.72 : 1,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: voided ? const Color(0xFFF8FAFC) : AppColors.scaffold,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: voided ? AppColors.slate300 : const Color(0xFFA7F3D0),
+            width: voided ? 1 : 1.5,
+            strokeAlign: BorderSide.strokeAlignInside,
+          ),
+        ),
+        foregroundDecoration: voided
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.slate300, width: 1),
+              )
+            : null,
+        child: Stack(
+          children: [
+            if (voided)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Transform.rotate(
+                  angle: 0.2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.slate200,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'VOIDED',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.orderNo,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              decoration: voided ? TextDecoration.lineThrough : null,
+                              decorationThickness: 2,
+                              color: voided ? AppColors.slate400 : AppColors.ink,
+                            ),
+                          ),
+                          Text(
+                            'Retail · ${order.paymentMethod.label} · ${order.timestampLabel}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: voided ? AppColors.slate400 : AppColors.slate400,
+                              decoration: voided ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: voided ? AppColors.slate200 : const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            voided ? Icons.block : Icons.check,
+                            size: 12,
+                            color: voided ? AppColors.slate500 : const Color(0xFF047857),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            voided ? 'Voided' : 'Paid',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: voided ? AppColors.slate600 : const Color(0xFF065F46),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: voided ? const Color(0xFFF1F5F9) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.slate100),
+                  ),
+                  child: Column(
+                    children: [
+                      for (final item in order.items)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${item.qty}x ${item.name}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: voided ? TextDecoration.lineThrough : null,
+                                    color: voided ? AppColors.slate400 : AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '₱${(item.unitPrice * item.qty).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  decoration: voided ? TextDecoration.lineThrough : null,
+                                  color: voided ? AppColors.slate400 : AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Total: ₱${order.total.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          decoration: voided ? TextDecoration.lineThrough : null,
+                          decorationThickness: 2,
+                          color: voided ? AppColors.slate400 : AppColors.ink,
+                        ),
+                      ),
+                    ),
+                    if (canVoid)
+                      TextButton.icon(
+                        onPressed: onVoid,
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(88, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        ),
+                        icon: const Icon(Icons.undo_rounded, size: 22, color: Color(0xFFE11D48)),
+                        label: const Text(
+                          'Void',
+                          style: TextStyle(
+                            color: Color(0xFFE11D48),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

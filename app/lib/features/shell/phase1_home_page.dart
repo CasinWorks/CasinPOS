@@ -119,7 +119,9 @@ class _Phase1HomePageState extends ConsumerState<Phase1HomePage> {
                   ),
                 TextButton(
                   onPressed: () async {
-                    await ref.read(authRepositoryProvider).signOut();
+                    try {
+                      await ref.read(authRepositoryProvider).signOut();
+                    } catch (_) {}
                     if (context.mounted) context.go('/login');
                   },
                   child: const Text('Sign out'),

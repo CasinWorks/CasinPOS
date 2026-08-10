@@ -143,7 +143,8 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                     FilledButton.icon(
                       onPressed: () => ref.read(retailTabProvider.notifier).state = 'inventory',
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.restaurant,
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: AppColors.ink,
                         minimumSize: const Size(0, 52),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
@@ -244,7 +245,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                     crossAxisCount: cols,
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.62,
                   ),
                   itemBuilder: (context, i) {
                     final p = filtered[i];
@@ -277,7 +278,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
   }
 }
 
-class _ProductCard extends StatelessWidget {
+class _ProductCard extends StatefulWidget {
   const _ProductCard({
     required this.product,
     required this.onAdd,
@@ -293,169 +294,244 @@ class _ProductCard extends StatelessWidget {
   final double remaining;
 
   @override
+  State<_ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends State<_ProductCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _tapPulse;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _tapPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1, end: 0.94), weight: 35),
+      TweenSequenceItem(tween: Tween(begin: 0.94, end: 1.03), weight: 35),
+      TweenSequenceItem(tween: Tween(begin: 1.03, end: 1), weight: 30),
+    ]).animate(CurvedAnimation(parent: _tapPulse, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _tapPulse.dispose();
+    super.dispose();
+  }
+
+  void _handleAdd() {
+    if (widget.outOfStock) return;
+    _tapPulse.forward(from: 0);
+    widget.onAdd();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: outOfStock
-          ? const Color(0xFFF8FAFC)
-          : product.isLowStock
-              ? const Color(0xFFFFFBEB)
-              : AppColors.scaffold,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: onAdd,
+    final product = widget.product;
+    final outOfStock = widget.outOfStock;
+    final remaining = widget.remaining;
+    final currencySymbol = widget.currencySymbol;
+
+    return ScaleTransition(
+      scale: _scale,
+      child: Material(
+        color: outOfStock
+            ? const Color(0xFFF8FAFC)
+            : product.isLowStock
+                ? const Color(0xFFFFFBEB)
+                : AppColors.scaffold,
         borderRadius: BorderRadius.circular(24),
-        child: Opacity(
-          opacity: outOfStock ? 0.72 : 1,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: outOfStock
-                    ? AppColors.slate200
-                    : product.isLowStock
-                        ? const Color(0xFFFCD34D)
-                        : AppColors.slate100,
+        child: InkWell(
+          onTap: _handleAdd,
+          borderRadius: BorderRadius.circular(24),
+          child: Opacity(
+            opacity: outOfStock ? 0.72 : 1,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: outOfStock
+                      ? AppColors.slate200
+                      : product.isLowStock
+                          ? const Color(0xFFFCD34D)
+                          : AppColors.slate100,
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: ProductPhoto(
-                          imageUrl: product.imageUrl,
-                          width: double.infinity,
-                          height: double.infinity,
-                          borderRadius: 16,
-                          iconSize: 36,
-                        ),
-                      ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.slate900.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '$currencySymbol${product.price.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: ProductPhoto(
+                            imageUrl: product.imageUrl,
+                            width: double.infinity,
+                            height: double.infinity,
+                            borderRadius: 16,
+                            iconSize: 36,
                           ),
                         ),
-                      ),
-                      if (outOfStock)
-                        Positioned.fill(
-                          child: DecoratedBox(
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.black45,
-                              borderRadius: BorderRadius.circular(16),
+                              color: AppColors.slate900.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: AppColors.retail.withValues(alpha: 0.55),
+                              ),
                             ),
-                            child: const Center(
-                              child: Text(
-                                'OUT OF STOCK',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 11,
-                                  letterSpacing: 0.6,
-                                ),
+                            child: Text(
+                              '$currencySymbol${product.price.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppColors.retail,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                letterSpacing: -0.2,
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      product.sku,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.slate400,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.slate200.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(6),
+                        if (outOfStock)
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black45,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'OUT OF STOCK',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      height: 1.2,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // De-emphasized metadata (SKU / unit / category)
+                  Opacity(
+                    opacity: 0.55,
+                    child: Row(
+                      children: [
+                        Flexible(
                           child: Text(
-                            product.weight,
+                            product.sku,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.slate500,
                             ),
                           ),
                         ),
-                      ),
+                        if (product.weight.trim().isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.slate100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              product.weight,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate500,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (product.category.trim().isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              product.category,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate400,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4,
-                  runSpacing: 6,
-                  children: [
-                    Text(
-                      outOfStock
-                          ? 'No units left'
-                          : '${remaining.toStringAsFixed(0)} available',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: outOfStock
-                            ? const Color(0xFFE11D48)
-                            : product.isLowStock
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          outOfStock
+                              ? 'No units left'
+                              : '${remaining.toStringAsFixed(0)} available',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: outOfStock
                                 ? const Color(0xFFE11D48)
-                                : const Color(0xFF047857),
+                                : product.isLowStock
+                                    ? const Color(0xFFE11D48)
+                                    : const Color(0xFF047857),
+                          ),
+                        ),
                       ),
-                    ),
-                    if (!outOfStock && product.isLowStock)
-                      const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFF59E0B)),
-                    FilledButton(
-                      onPressed: outOfStock ? null : onAdd,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.slate900,
-                        disabledBackgroundColor: AppColors.slate300,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        minimumSize: const Size(88, 48),
-                        tapTargetSize: MaterialTapTargetSize.padded,
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                      if (!outOfStock && product.isLowStock)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFF59E0B)),
+                        ),
+                      FilledButton(
+                        onPressed: outOfStock ? null : _handleAdd,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.slate900,
+                          foregroundColor: AppColors.retail,
+                          disabledBackgroundColor: AppColors.slate300,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          minimumSize: const Size(80, 44),
+                          tapTargetSize: MaterialTapTargetSize.padded,
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                        ),
+                        child: Text(outOfStock ? 'Sold out' : '+ Add'),
                       ),
-                      child: Text(outOfStock ? 'Sold out' : '+ Add'),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

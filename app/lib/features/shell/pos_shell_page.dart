@@ -87,6 +87,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     final width = MediaQuery.sizeOf(context).width;
     final showSidebar = Breakpoints.useSidebar(width);
     final showCart = Breakpoints.useCartTray(width);
+    ref.watch(cartDisplaySyncProvider);
 
     Widget body;
     switch (tab) {
@@ -127,7 +128,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                   },
                 );
               },
-              backgroundColor: AppColors.restaurant,
+              backgroundColor: AppColors.accent,
+              foregroundColor: AppColors.ink,
               label: const Text('Cart'),
               icon: const Icon(Icons.shopping_bag),
             ),

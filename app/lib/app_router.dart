@@ -8,6 +8,7 @@ import 'core/invite/invite_token.dart';
 import 'core/invite/pending_invite_token.dart';
 import 'data/providers/session_providers.dart';
 import 'features/auth/login_page.dart';
+import 'features/customer_display/customer_display_page.dart';
 import 'features/onboarding/create_store_page.dart';
 import 'features/shell/pos_shell_page.dart';
 
@@ -32,7 +33,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         savePendingInviteToken(pathTok);
       }
 
-      if (!introSeen && loc != '/intro') {
+      if (!introSeen && loc != '/intro' && loc != '/display') {
         return '/intro';
       }
       if (loc == '/intro') {
@@ -40,9 +41,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (!isSupabaseReady) {
-        if (loc == '/login' || loc == '/signup' || loc == '/onboarding/store') {
-          return '/';
-        }
+        // Offline / UI scaffold: allow login & signup so Sign out works.
+        // Demo entry stays on `/` via intro / "Continue to demo".
         return null;
       }
 
@@ -51,6 +51,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = loc == '/login' || loc == '/signup';
       final onInvite = loc == '/invite' || loc == '/join' || loc.startsWith('/invite/');
       final onboarding = loc == '/onboarding/store';
+      final onCustomerDisplay = loc == '/display';
       final pendingToken = readPendingInviteToken();
       final hasPendingInvite = pendingToken != null && pendingToken.isNotEmpty;
 
@@ -68,6 +69,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final hasStore = memberships.isNotEmpty;
 
       if (!hasStore) {
+        if (onCustomerDisplay) return null;
         if (onboarding || onInvite) return null;
         if (hasPendingInvite) {
           return '/invite?token=${Uri.encodeQueryComponent(pendingToken)}';
@@ -75,6 +77,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         if (loggingIn) return '/onboarding/store';
         return '/onboarding/store';
       }
+
+      if (onCustomerDisplay) return null;
 
       if (loggingIn || onboarding) {
         if (hasPendingInvite && !onInvite) {
@@ -117,6 +121,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding/store',
         builder: (context, state) => const CreateStorePage(),
+      ),
+      GoRoute(
+        path: '/display',
+        builder: (context, state) => const CustomerDisplayPage(),
       ),
       GoRoute(path: '/', builder: (context, state) => const PosShellPage()),
     ],

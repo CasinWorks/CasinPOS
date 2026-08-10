@@ -31,7 +31,8 @@ class ReceiptsAuditView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orders = ref.watch(paidOrdersProvider);
+    // Include voided so audit shows clear paid vs voided distinction.
+    final orders = ref.watch(ordersProvider);
 
     return ColoredBox(
       color: Colors.white,
@@ -43,7 +44,7 @@ class ReceiptsAuditView extends ConsumerWidget {
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
           ),
           const Text(
-            'Completed transactions & payment history — preview & print as PDF',
+            'Completed and voided transactions — preview & print paid receipts as PDF',
             style: TextStyle(fontSize: 12, color: AppColors.slate400),
           ),
           const SizedBox(height: 16),
@@ -59,106 +60,166 @@ class ReceiptsAuditView extends ConsumerWidget {
             )
           else
             for (final o in orders)
-              Material(
-                color: AppColors.scaffold,
-                borderRadius: BorderRadius.circular(24),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => openReceiptPdfPreview(
-                    context,
-                    order: o,
-                    pdfContext: _pdfContext(ref),
+              _ReceiptRow(
+                order: o,
+                onPreview: o.isPaid
+                    ? () => openReceiptPdfPreview(
+                          context,
+                          order: o,
+                          pdfContext: _pdfContext(ref),
+                        )
+                    : null,
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptRow extends StatelessWidget {
+  const _ReceiptRow({required this.order, this.onPreview});
+
+  final PosOrder order;
+  final VoidCallback? onPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    final voided = order.isVoided;
+    final TextStyle mutedStrike = TextStyle(
+      decoration: voided ? TextDecoration.lineThrough : null,
+      decorationThickness: 2,
+      color: voided ? AppColors.slate400 : AppColors.ink,
+    );
+
+    return Opacity(
+      opacity: voided ? 0.65 : 1,
+      child: Material(
+        color: voided ? const Color(0xFFF1F5F9) : AppColors.scaffold,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onPreview,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: voided ? AppColors.slate300 : const Color(0xFFA7F3D0),
+                width: voided ? 1 : 1.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: voided ? AppColors.slate400 : AppColors.slate900,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.slate200),
+                  child: Icon(
+                    voided ? Icons.block : Icons.receipt_long,
+                    color: voided ? Colors.white : AppColors.retail,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              order.orderNo,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                decoration: voided ? TextDecoration.lineThrough : null,
+                                color: voided ? AppColors.slate400 : AppColors.ink,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: voided ? AppColors.slate200 : AppColors.slate200,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              order.paymentMethod.label,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                decoration: voided ? TextDecoration.lineThrough : null,
+                                color: voided ? AppColors.slate500 : AppColors.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        voided
+                            ? 'Voided transaction • ${order.timestampLabel}'
+                            : 'Walk-in Customer • ${order.timestampLabel} • ${order.items.length} item(s)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.slate400,
+                          decoration: voided ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₱${order.total.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ).merge(mutedStrike),
                     ),
-                    child: Row(
+                    Row(
                       children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.slate900,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(Icons.receipt_long, color: AppColors.retail, size: 20),
+                        Icon(
+                          voided ? Icons.cancel_outlined : Icons.check_circle,
+                          size: 12,
+                          color: voided ? AppColors.slate500 : AppColors.success,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(o.orderNo, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.slate200,
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      o.paymentMethod.label,
-                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                'Walk-in Customer • ${o.timestampLabel} • ${o.items.length} item(s)',
-                                style: const TextStyle(fontSize: 10, color: AppColors.slate400),
-                              ),
-                            ],
+                        const SizedBox(width: 4),
+                        Text(
+                          voided ? 'Voided' : 'Paid',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: voided ? AppColors.slate500 : AppColors.success,
                           ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '₱${o.total.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-                            ),
-                            const Row(
-                              children: [
-                                Icon(Icons.check_circle, size: 12, color: AppColors.success),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Paid',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'Preview PDF',
-                          onPressed: () => openReceiptPdfPreview(
-                            context,
-                            order: o,
-                            pdfContext: _pdfContext(ref),
-                          ),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: AppColors.slate200),
-                          ),
-                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-              ),
-        ],
+                if (onPreview != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Preview PDF',
+                    onPressed: onPreview,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: AppColors.slate200),
+                    ),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -275,7 +275,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 1.45,
+        childAspectRatio: 1.15,
         children: metrics,
       );
     }
@@ -358,21 +358,42 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     final prevRevenue = prevOrders.fold<double>(0, (s, o) => s + o.total);
     final packs = orders.fold<int>(0, (s, o) => s + o.items.fold<int>(0, (a, i) => a + i.qty));
     final avgBasket = orders.isEmpty ? 0.0 : revenue / orders.length;
+    final prevAvgBasket = prevOrders.isEmpty
+        ? 0.0
+        : prevOrders.fold<double>(0, (s, o) => s + o.total) / prevOrders.length;
 
     String trendLabel;
     Color? trendColor;
+    double? revenueTrendPct;
     if (prevRevenue <= 0 && revenue <= 0) {
       trendLabel = 'No prior period data';
       trendColor = AppColors.slate400;
     } else if (prevRevenue <= 0) {
       trendLabel = 'New sales this period';
       trendColor = AppColors.success;
+      revenueTrendPct = 100;
     } else {
       final pct = ((revenue - prevRevenue) / prevRevenue) * 100;
+      revenueTrendPct = pct;
       final sign = pct >= 0 ? '+' : '';
       trendLabel = '$sign${pct.toStringAsFixed(1)}% vs previous $_period';
       trendColor = pct >= 0 ? AppColors.success : AppColors.danger;
     }
+
+    double? basketTrendPct;
+    if (prevAvgBasket > 0) {
+      basketTrendPct = ((avgBasket - prevAvgBasket) / prevAvgBasket) * 100;
+    } else if (avgBasket > 0) {
+      basketTrendPct = 100;
+    }
+
+    final revenueSpark = _metricSparkline(orders, _period, (o) => o.total);
+    final basketSpark = _metricSparkline(
+      orders,
+      _period,
+      (o) => o.total, // period buckets; avg visualized via same cadence
+      asAverage: true,
+    );
 
     final byProduct = <String, int>{};
     final byCategory = <String, double>{};
@@ -433,6 +454,8 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                       sub: trendLabel,
                       subColor: trendColor,
                       stacked: stacked,
+                      sparkline: revenueSpark,
+                      trendPct: revenueTrendPct,
                     ),
                     _Metric(
                       title: 'Units / Orders Sold',
@@ -447,6 +470,8 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                           ? 'No checkouts yet'
                           : '~${(packs / orders.length).toStringAsFixed(1)} items per purchase',
                       stacked: stacked,
+                      sparkline: basketSpark,
+                      trendPct: basketTrendPct,
                     ),
                     _Metric(
                       title: 'Top Category',
@@ -638,19 +663,19 @@ class _RevenueChartCard extends StatelessWidget {
               lineBarsData: [
                 LineChartBarData(
                   isCurved: true,
-                  color: AppColors.restaurant,
+                  color: AppColors.accent,
                   barWidth: 3,
                   dotData: FlDotData(
                     show: true,
                     getDotPainter: (s, p, b, i) => FlDotCirclePainter(
                       radius: s.y > 0 ? 3.5 : 0,
-                      color: AppColors.restaurant,
+                      color: AppColors.accent,
                       strokeWidth: 0,
                     ),
                   ),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: AppColors.restaurant.withValues(alpha: 0.18),
+                    color: AppColors.accent.withValues(alpha: 0.18),
                   ),
                   spots: spots,
                 ),
@@ -783,6 +808,8 @@ class _Metric extends StatelessWidget {
     required this.sub,
     this.subColor,
     this.stacked = false,
+    this.sparkline,
+    this.trendPct,
   });
 
   final String title;
@@ -790,9 +817,18 @@ class _Metric extends StatelessWidget {
   final String sub;
   final Color? subColor;
   final bool stacked;
+  final List<double>? sparkline;
+  final double? trendPct;
 
   @override
   Widget build(BuildContext context) {
+    final arrowUp = trendPct != null && trendPct! >= 0;
+    final arrowColor = trendPct == null
+        ? AppColors.slate400
+        : arrowUp
+            ? AppColors.success
+            : AppColors.danger;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(stacked ? 12 : 14),
@@ -804,16 +840,28 @@ class _Metric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            maxLines: 2,
-            softWrap: true,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate500,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate500,
+                  ),
+                ),
+              ),
+              if (trendPct != null)
+                Icon(
+                  arrowUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                  size: 18,
+                  color: arrowColor,
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(
@@ -827,6 +875,19 @@ class _Metric extends StatelessWidget {
               height: 1.15,
             ),
           ),
+          if (sparkline != null && sparkline!.length >= 2) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 28,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _SparklinePainter(
+                  values: sparkline!,
+                  color: arrowColor == AppColors.slate400 ? AppColors.accent : arrowColor,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             sub,
@@ -844,4 +905,109 @@ class _Metric extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SparklinePainter extends CustomPainter {
+  _SparklinePainter({required this.values, required this.color});
+
+  final List<double> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    final maxV = values.reduce((a, b) => a > b ? a : b);
+    final span = (maxV - minV).abs() < 0.0001 ? 1.0 : (maxV - minV);
+
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = size.width * (i / (values.length - 1));
+      final y = size.height - ((values[i] - minV) / span) * size.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    final fill = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..color = color.withValues(alpha: 0.12)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
+    return oldDelegate.values != values || oldDelegate.color != color;
+  }
+}
+
+/// Buckets order values across the active period for metric sparklines.
+List<double> _metricSparkline(
+  List<PosOrder> orders,
+  String period,
+  double Function(PosOrder) valueOf, {
+  bool asAverage = false,
+}) {
+  if (period == 'today') {
+    final sums = List<double>.filled(24, 0);
+    final counts = List<int>.filled(24, 0);
+    for (final o in orders) {
+      final h = o.createdAt.hour;
+      sums[h] += valueOf(o);
+      counts[h] += 1;
+    }
+    final start = 8;
+    final end = 22;
+    return [
+      for (var h = start; h <= end; h++)
+        asAverage ? (counts[h] == 0 ? 0.0 : sums[h] / counts[h]) : sums[h],
+    ];
+  }
+
+  if (period == 'week') {
+    final sums = List<double>.filled(7, 0);
+    final counts = List<int>.filled(7, 0);
+    for (final o in orders) {
+      final i = o.createdAt.weekday - 1;
+      sums[i] += valueOf(o);
+      counts[i] += 1;
+    }
+    return [
+      for (var i = 0; i < 7; i++)
+        asAverage ? (counts[i] == 0 ? 0.0 : sums[i] / counts[i]) : sums[i],
+    ];
+  }
+
+  final now = DateTime.now();
+  final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+  final sums = List<double>.filled(daysInMonth, 0);
+  final counts = List<int>.filled(daysInMonth, 0);
+  for (final o in orders) {
+    final d = o.createdAt.day - 1;
+    if (d >= 0 && d < daysInMonth) {
+      sums[d] += valueOf(o);
+      counts[d] += 1;
+    }
+  }
+  return [
+    for (var i = 0; i < daysInMonth; i++)
+      asAverage ? (counts[i] == 0 ? 0.0 : sums[i] / counts[i]) : sums[i],
+  ];
 }

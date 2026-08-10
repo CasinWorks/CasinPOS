@@ -168,7 +168,9 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                   ),
                   TextButton(
                     onPressed: () async {
-                      await ref.read(authRepositoryProvider).signOut();
+                      try {
+                        await ref.read(authRepositoryProvider).signOut();
+                      } catch (_) {}
                       if (context.mounted) context.go('/login');
                     },
                     child: const Text('Sign out'),

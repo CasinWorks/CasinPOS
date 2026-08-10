@@ -66,8 +66,8 @@ abstract final class AppTheme {
       colorScheme: ColorScheme.light(
         primary: AppColors.slate900,
         onPrimary: Colors.white,
-        secondary: AppColors.restaurant,
-        onSecondary: Colors.white,
+        secondary: AppColors.accent,
+        onSecondary: AppColors.ink,
         surface: AppColors.surface,
         onSurface: AppColors.ink,
         error: AppColors.danger,

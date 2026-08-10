@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/display/open_customer_display.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
@@ -157,6 +158,23 @@ class CasinPosSidebar extends ConsumerWidget {
                         onTap: () => showFranchiseDialog(context, ref),
                       ),
                     _NavItem(
+                      label: 'Customer Display',
+                      icon: Icons.tv_outlined,
+                      selected: false,
+                      onTap: () async {
+                        final ok = await openCustomerDisplayWindow();
+                        if (!context.mounted) return;
+                        if (!ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Could not open customer display'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    _NavItem(
                       label: 'Notifications',
                       icon: Icons.notifications_none_rounded,
                       selected: activeTab == 'notifications',
@@ -212,7 +230,9 @@ class CasinPosSidebar extends ConsumerWidget {
                       ),
                     TextButton(
                       onPressed: () async {
-                        await ref.read(authRepositoryProvider).signOut();
+                        try {
+                          await ref.read(authRepositoryProvider).signOut();
+                        } catch (_) {}
                         if (context.mounted) context.go('/login');
                       },
                       child: const Text('Sign out', style: TextStyle(fontSize: 11)),

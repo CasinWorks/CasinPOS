@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../bootstrap.dart';
 import '../../core/errors/app_errors.dart';
+import '../cart_display_sync.dart';
 import '../models/demo_catalog.dart';
 import '../models/pos_models.dart';
 import '../repositories/cash_register_repository.dart';
@@ -213,6 +214,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       final live = _ref.read(posCatalogProvider).where((p) => p.id == product.id).firstOrNull ?? product;
       state = [...state, CartLine(product: live, quantity: 1)];
     }
+    _ref.read(cartAddPulseProvider.notifier).state = product.id;
   }
 
   /// Changes qty. Throws [StockLimitException] when increasing past stock.
@@ -498,6 +500,9 @@ final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>(
   (ref) => CartNotifier(ref),
 );
 
+/// Product id that was just added — drives cart-row + card micro-animations.
+final cartAddPulseProvider = StateProvider<String?>((ref) => null);
+
 final ordersProvider = StateNotifierProvider<OrdersNotifier, List<PosOrder>>(
   (ref) => OrdersNotifier(ref),
 );
@@ -625,4 +630,37 @@ final cartTotalsProvider = Provider<CartTotals>((ref) {
     tax: tax,
     total: afterDiscount + tax,
   );
+});
+
+/// Keeps the customer-facing second screen in sync with the live cart.
+final cartDisplaySyncProvider = Provider<void>((ref) {
+  void publish() {
+    final cart = ref.read(cartProvider);
+    final totals = ref.read(cartTotalsProvider);
+    final store = ref.read(activeMembershipProvider)?.store;
+    publishCartDisplay(
+      CartDisplaySnapshot(
+        storeName: store?.name ?? 'CasinPOS',
+        currencySymbol: store?.currencySymbol ?? '₱',
+        lines: [
+          for (final line in cart)
+            CartDisplayLine(
+              name: line.product.name,
+              quantity: line.quantity,
+              unitPrice: line.product.price,
+              lineTotal: line.lineTotal,
+            ),
+        ],
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        total: totals.total,
+        updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  ref.listen(cartProvider, (_, _) => publish());
+  ref.listen(cartTotalsProvider, (_, _) => publish());
+  ref.listen(activeMembershipProvider, (_, _) => publish());
+  publish();
 });

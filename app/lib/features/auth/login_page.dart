@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../bootstrap.dart';
 import '../../../core/errors/app_errors.dart';
 import '../../../core/invite/invite_token.dart';
 import '../../../core/invite/pending_invite_token.dart';
@@ -111,6 +112,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           )
                         : const Text('Sign in'),
                   ),
+                  if (!isSupabaseReady) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton(
+                      onPressed: () => context.go('/'),
+                      child: const Text('Continue to demo POS'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Backend not connected — demo mode only.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.slate500,
+                          ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   TextButton(
                     onPressed: () => context.go('/signup'),
@@ -562,7 +578,9 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
                           ? null
                           : () async {
                               final keep = sanitizeInviteToken(_token.text);
-                              await ref.read(authRepositoryProvider).signOut();
+                              try {
+                                await ref.read(authRepositoryProvider).signOut();
+                              } catch (_) {}
                               if (keep != null && keep.isNotEmpty) {
                                 savePendingInviteToken(keep);
                               }

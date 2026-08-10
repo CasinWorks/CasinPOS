@@ -13,16 +13,24 @@ class CashCalcResult {
 Future<CashCalcResult?> showCashCalculatorModal(
   BuildContext context, {
   required double totalPayable,
+  required double drawerBalance,
 }) {
   return showDialog<CashCalcResult>(
     context: context,
-    builder: (ctx) => _CashCalculatorDialog(totalPayable: totalPayable),
+    builder: (ctx) => _CashCalculatorDialog(
+      totalPayable: totalPayable,
+      drawerBalance: drawerBalance,
+    ),
   );
 }
 
 class _CashCalculatorDialog extends StatefulWidget {
-  const _CashCalculatorDialog({required this.totalPayable});
+  const _CashCalculatorDialog({
+    required this.totalPayable,
+    required this.drawerBalance,
+  });
   final double totalPayable;
+  final double drawerBalance;
 
   @override
   State<_CashCalculatorDialog> createState() => _CashCalculatorDialogState();
@@ -45,11 +53,14 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
             - media.viewInsets.bottom
             - media.padding.vertical
             - 200)
-        .clamp(120.0, 420.0);
+        .clamp(120.0, 480.0);
 
     final received = double.tryParse(_ctrl.text) ?? 0;
     final change = received - widget.totalPayable;
-    final enough = received >= widget.totalPayable;
+    final enoughPayment = received >= widget.totalPayable;
+    final canMakeChange = !enoughPayment || change <= widget.drawerBalance + 0.001;
+    final enough = enoughPayment && canMakeChange;
+    final drawerAfter = widget.drawerBalance + widget.totalPayable;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -57,7 +68,7 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
       title: const Text('Cash calculator', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
       content: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 320,
+          maxWidth: 340,
           maxHeight: maxContentHeight,
         ),
         child: SingleChildScrollView(
@@ -65,6 +76,45 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.slate900,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cash in drawer',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate400,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₱${widget.drawerBalance.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.retail,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'After this sale: ₱${drawerAfter.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Total payable: ₱${widget.totalPayable.toStringAsFixed(2)}',
                 style: const TextStyle(fontWeight: FontWeight.w700),
@@ -108,17 +158,64 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: enough ? const Color(0xFFECFDF5) : AppColors.slate100,
+                  color: !enoughPayment
+                      ? AppColors.slate100
+                      : !canMakeChange
+                          ? const Color(0xFFFFF1F2)
+                          : const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  enough
-                      ? 'Change: ₱${change.toStringAsFixed(2)}'
-                      : 'Need ₱${(widget.totalPayable - received).toStringAsFixed(2)} more',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: enough ? const Color(0xFF065F46) : AppColors.slate600,
+                  border: Border.all(
+                    color: !enoughPayment
+                        ? AppColors.slate200
+                        : !canMakeChange
+                            ? const Color(0xFFFECDD3)
+                            : const Color(0xFFA7F3D0),
                   ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      !enoughPayment
+                          ? 'Need ₱${(widget.totalPayable - received).toStringAsFixed(2)} more'
+                          : !canMakeChange
+                              ? 'Not enough cash in drawer for change'
+                              : 'Change due: ₱${change.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: !enoughPayment
+                            ? AppColors.slate600
+                            : !canMakeChange
+                                ? const Color(0xFF991B1B)
+                                : const Color(0xFF065F46),
+                      ),
+                    ),
+                    if (enoughPayment && !canMakeChange) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Drawer has ₱${widget.drawerBalance.toStringAsFixed(2)} but change is '
+                        '₱${change.toStringAsFixed(2)}. Add a pay-in or ask for exact change.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9F1239),
+                        ),
+                      ),
+                    ],
+                    if (enough) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Drawer: +₱${received.toStringAsFixed(2)} in · '
+                        '−₱${change.toStringAsFixed(2)} change · '
+                        'net +₱${widget.totalPayable.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF047857),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -139,9 +236,18 @@ class _CashCalculatorDialogState extends State<_CashCalculatorDialog> {
                     showAppMessage(context, 'Enter a valid cash amount', isError: true);
                     return;
                   }
+                  final ch = parsed - widget.totalPayable;
+                  if (ch > widget.drawerBalance + 0.001) {
+                    showAppMessage(
+                      context,
+                      'Not enough cash in drawer to give change',
+                      isError: true,
+                    );
+                    return;
+                  }
                   Navigator.pop(
                     context,
-                    CashCalcResult(received: parsed, change: parsed - widget.totalPayable),
+                    CashCalcResult(received: parsed, change: ch),
                   );
                 }
               : null,

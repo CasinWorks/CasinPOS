@@ -13,6 +13,7 @@ import '../receipts/receipt_pdf.dart';
 import '../receipts/receipt_preview_page.dart';
 import '../register/open_register_flow.dart';
 import 'cash_calculator_modal.dart';
+import 'order_review_modal.dart';
 
 class RetailCartTray extends ConsumerStatefulWidget {
   const RetailCartTray({super.key});
@@ -35,6 +36,7 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
     if (cart.isEmpty) return;
     final settings = ref.read(checkoutSettingsProvider);
     final totals = ref.read(cartTotalsProvider);
+    final symbol = ref.read(activeMembershipProvider)?.store.currencySymbol ?? '₱';
 
     try {
       ref.read(cartProvider.notifier).assertWithinStock();
@@ -47,10 +49,27 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
     final registerOpen = await ensureCashRegisterOpenForCheckout(context, ref);
     if (!registerOpen || !mounted) return;
 
+    final reviewed = await showOrderReviewModal(
+      context,
+      lines: List<CartLine>.from(cart),
+      totals: totals,
+      paymentMethod: settings.paymentMethod,
+      currencySymbol: symbol,
+    );
+    if (!reviewed || !mounted) return;
+
     if (settings.paymentMethod == PaymentMethod.cash) {
+      await ref.read(cashRegisterProvider.notifier).refresh();
+      if (!mounted) return;
+      final balance = ref.read(cashRegisterProvider).valueOrNull;
+      if (balance == null) {
+        showAppMessage(context, 'Open the cash register before taking cash', isError: true);
+        return;
+      }
       final result = await showCashCalculatorModal(
         context,
         totalPayable: totals.total,
+        drawerBalance: balance.expectedInDrawer,
       );
       if (result == null || !mounted) return;
       await _completeSale(settings.paymentMethod, result.received, result.change);
@@ -193,10 +212,10 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: AppColors.restaurant,
+                        color: AppColors.accent,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.shopping_bag, color: Colors.white, size: 16),
+                      child: const Icon(Icons.shopping_bag, color: AppColors.ink, size: 16),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -403,7 +422,7 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 18,
-                              color: AppColors.restaurant,
+                              color: AppColors.accentDeep,
                             ),
                           ),
                         ],
@@ -442,83 +461,136 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
   }
 }
 
-class _CartLineTile extends ConsumerWidget {
+class _CartLineTile extends ConsumerStatefulWidget {
   const _CartLineTile({required this.index, required this.line});
 
   final int index;
   final CartLine line;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.slate200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  line.product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+  ConsumerState<_CartLineTile> createState() => _CartLineTileState();
+}
+
+class _CartLineTileState extends ConsumerState<_CartLineTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final Animation<Color?> _borderColor;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _borderColor = ColorTween(
+      begin: AppColors.slate200,
+      end: AppColors.accent,
+    ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeOut));
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1, end: 1.03), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.03, end: 1), weight: 60),
+    ]).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final line = widget.line;
+    final index = widget.index;
+
+    ref.listen<String?>(cartAddPulseProvider, (prev, next) {
+      if (next == line.product.id) {
+        _pulse.forward(from: 0);
+      }
+    });
+
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        return Transform.scale(
+          scale: _scale.value,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _borderColor.value ?? AppColors.slate200,
+                width: _pulse.value > 0.05 && _pulse.value < 0.95 ? 2 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        line.product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => ref.read(cartProvider.notifier).removeAt(index),
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ),
-              ),
-              IconButton(
-                onPressed: () => ref.read(cartProvider.notifier).removeAt(index),
-                icon: const Icon(Icons.delete_outline, size: 16),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-          Text(
-            '₱${line.product.price.toStringAsFixed(2)}',
-            style: const TextStyle(fontSize: 10, color: AppColors.slate500, fontWeight: FontWeight.w700),
-          ),
-          Row(
-            children: [
-              _QtyBtn(
-                icon: Icons.remove,
-                onTap: () {
-                  try {
-                    ref.read(cartProvider.notifier).updateQty(index, -1);
-                  } catch (e) {
-                    showAppError(context, e);
-                  }
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  '${line.quantity}',
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                Text(
+                  '₱${line.product.price.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 10, color: AppColors.slate500, fontWeight: FontWeight.w700),
                 ),
-              ),
-              _QtyBtn(
-                icon: Icons.add,
-                onTap: () {
-                  try {
-                    ref.read(cartProvider.notifier).updateQty(index, 1);
-                  } catch (e) {
-                    showAppError(context, e);
-                  }
-                },
-              ),
-              const Spacer(),
-              Text(
-                '₱${line.lineTotal.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-              ),
-            ],
+                Row(
+                  children: [
+                    _QtyBtn(
+                      icon: Icons.remove,
+                      onTap: () {
+                        try {
+                          ref.read(cartProvider.notifier).updateQty(index, -1);
+                        } catch (e) {
+                          showAppError(context, e);
+                        }
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        '${line.quantity}',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      ),
+                    ),
+                    _QtyBtn(
+                      icon: Icons.add,
+                      onTap: () {
+                        try {
+                          ref.read(cartProvider.notifier).updateQty(index, 1);
+                        } catch (e) {
+                          showAppError(context, e);
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    Text(
+                      '₱${line.lineTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

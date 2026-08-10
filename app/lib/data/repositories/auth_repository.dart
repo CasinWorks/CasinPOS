@@ -58,7 +58,11 @@ class AuthRepository {
     );
   }
 
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    final c = supabaseOrNull;
+    if (c == null) return;
+    await c.auth.signOut();
+  }
 }
 
 class StoreRepository {
