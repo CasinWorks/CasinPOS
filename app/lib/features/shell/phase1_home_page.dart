@@ -169,7 +169,8 @@ class _Phase1HomePageState extends ConsumerState<Phase1HomePage> {
                           )
                         : const Icon(Icons.storefront_rounded, size: 18),
                     label: Text(_switching ? 'Switching…' : 'Switch permanently to Retail'),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.slate900),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white),
                   ),
                 ],
               ),

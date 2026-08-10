@@ -54,6 +54,7 @@ Future<bool> ensureCashRegisterOpenForCheckout(
             onPressed: () => Navigator.pop(ctx, _RegisterClosedAction.open),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
               minimumSize: const Size(140, 52),
             ),
             child: const Text('Open register'),
@@ -80,6 +81,7 @@ Future<bool> ensureCashRegisterOpenForCheckout(
           onPressed: () => Navigator.pop(ctx, true),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
             minimumSize: const Size(120, 52),
           ),
           child: const Text('Yes, open'),
@@ -147,6 +149,7 @@ Future<double?> _askOpeningFloat(
           onPressed: () => Navigator.pop(ctx, true),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
             minimumSize: const Size(100, 52),
           ),
           child: const Text('Open'),

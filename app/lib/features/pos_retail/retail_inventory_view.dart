@@ -565,6 +565,7 @@ class _InventoryProductCard extends StatelessWidget {
       onPressed: () => onRestock(10),
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
         minimumSize: const Size(64, 48),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),

@@ -122,6 +122,7 @@ Future<String?> _promptPassword(
                       },
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
                   minimumSize: TouchTargets.buttonMin,
                   padding: TouchTargets.buttonPadding,
                 ),

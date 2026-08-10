@@ -461,7 +461,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         Expanded(
                           child: FilledButton(
                             onPressed: _uploading ? null : _save,
-                            style: FilledButton.styleFrom(backgroundColor: AppColors.slate900),
+                            style: FilledButton.styleFrom(backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white),
                             child: Text(_isEditing ? 'Save changes' : 'Add product'),
                           ),
                         ),

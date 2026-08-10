@@ -333,6 +333,7 @@ class _CoachCard extends StatelessWidget {
                       onPressed: onPrimary,
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
                       ),
                       child: Text(step.actionLabel),
                     ),

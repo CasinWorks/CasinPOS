@@ -66,6 +66,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
               minimumSize: const Size(100, 52),
             ),
             child: const Text('Open'),
@@ -138,6 +139,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
               minimumSize: const Size(100, 52),
             ),
             child: const Text('Save'),
@@ -230,6 +232,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
               minimumSize: const Size(120, 52),
             ),
             child: const Text('Close shift'),
@@ -494,6 +497,7 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                             onPressed: () => _closeRegister(balance, symbol),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.slate900,
+                              foregroundColor: Colors.white,
                               minimumSize: const Size(0, 56),
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                             ),
@@ -581,6 +585,7 @@ class _ClosedCard extends StatelessWidget {
             label: const Text('Open register'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.slate900,
+              foregroundColor: Colors.white,
               minimumSize: const Size(180, 52),
             ),
           ),
