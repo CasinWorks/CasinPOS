@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/product_photo.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../onboarding/tutorial_anchors.dart';
+import 'barcode_scanner_sheet.dart';
 
 class RetailPosView extends ConsumerStatefulWidget {
   const RetailPosView({super.key, required this.onOpenInventory});
@@ -59,7 +61,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF0F172A), Color(0xFF1E1B4B), Color(0xFF0F172A)],
+                colors: [Color(0xFF151515), Color(0xFF3D2E00), Color(0xFF151515)],
               ),
               borderRadius: BorderRadius.circular(24),
             ),
@@ -68,16 +70,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.retail,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.storefront_rounded, size: 20, color: AppColors.ink),
-                    ),
+                    const BrandLogo(size: 40, radius: 12),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -95,18 +88,18 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: AppColors.retail.withValues(alpha: 0.2),
+                                  color: AppColors.accent.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: AppColors.retail.withValues(alpha: 0.35)),
+                                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.55)),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.tune_rounded, size: 12, color: AppColors.retail),
+                                    Icon(Icons.tune_rounded, size: 12, color: AppColors.accent),
                                     SizedBox(width: 4),
                                     Text(
                                       'Retail POS · Your prices',
-                                      style: TextStyle(color: AppColors.retail, fontSize: 10, fontWeight: FontWeight.w800),
+                                      style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w800),
                                     ),
                                   ],
                                 ),
@@ -139,6 +132,17 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                       ),
                       icon: const Icon(Icons.inventory_2_outlined, size: 20, color: AppColors.success),
                       label: const Text('Store Inventory', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => openBarcodeScanner(context, ref),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.ink,
+                        minimumSize: const Size(0, 52),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                      icon: const Icon(Icons.qr_code_scanner, size: 20),
+                      label: const Text('Scan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
                     ),
                     FilledButton.icon(
                       onPressed: () => ref.read(retailTabProvider.notifier).state = 'inventory',

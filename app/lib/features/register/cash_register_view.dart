@@ -168,6 +168,33 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
     }
   }
 
+  Future<void> _showXReport(RegisterBalance balance, String symbol) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('X report (mid-shift)'),
+        content: Text(
+          'Opened: ${DateFormat('MMM d · h:mm a').format(balance.session.openedAt)}\n'
+          'Opening float: ${_money(balance.session.openingFloat, symbol)}\n'
+          'Cash sales: ${_money(balance.cashSales, symbol)}\n'
+          'Pay-ins: ${_money(balance.payIns, symbol)}\n'
+          'Pay-outs: ${_money(balance.payOuts, symbol)}\n'
+          'Expected in drawer: ${_money(balance.expectedInDrawer, symbol)}\n\n'
+          'This does not close the register. Use Close for a Z report.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(minimumSize: const Size(100, 52)),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _closeRegister(RegisterBalance balance, String symbol) async {
     final ctrl = TextEditingController(
       text: balance.expectedInDrawer.toStringAsFixed(2),
@@ -323,8 +350,59 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                             'Opened ${DateFormat('MMM d · h:mm a').format(balance.session.openedAt)}',
                             style: const TextStyle(color: Colors.white60, fontSize: 12),
                           ),
+                          if (balance.session.claimedBy != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Claimed by cashier · ${balance.session.claimedAt != null ? DateFormat('h:mm a').format(balance.session.claimedAt!) : 'now'}',
+                              style: const TextStyle(color: Color(0xFFA7F3D0), fontSize: 12),
+                            ),
+                          ],
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (balance.session.claimedBy == null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              await ref
+                                  .read(cashRegisterProvider.notifier)
+                                  .claim(sessionId: balance.session.id);
+                              if (!context.mounted) return;
+                              showAppMessage(context, 'Shift claimed — sales on this drawer are tied to you');
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              showAppError(context, e, fallback: 'Could not claim shift');
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                          icon: const Icon(Icons.badge_outlined),
+                          label: const Text(
+                            'Claim this shift (cashier accountability)',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showXReport(balance, symbol),
+                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                            icon: const Icon(Icons.summarize_outlined, size: 18),
+                            label: const Text('X report', style: TextStyle(fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'X = mid-shift snapshot · Z = close shift below',
+                            style: TextStyle(fontSize: 11, color: AppColors.slate500),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Row(

@@ -11,12 +11,16 @@ class ReceiptPdfContext {
     required this.currencySymbol,
     this.cashierName,
     this.businessTypeLabel = 'Retail',
+    this.businessTin,
+    this.businessAddress,
   });
 
   final String storeName;
   final String currencySymbol;
   final String? cashierName;
   final String businessTypeLabel;
+  final String? businessTin;
+  final String? businessAddress;
 }
 
 Future<pw.Document> buildReceiptPdf({
@@ -70,6 +74,24 @@ Future<pw.Document> buildReceiptPdf({
                     style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
                     textAlign: pw.TextAlign.center,
                   ),
+                  if (context.businessAddress != null &&
+                      context.businessAddress!.trim().isNotEmpty) ...[
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      context.businessAddress!.trim(),
+                      style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  ],
+                  if (context.businessTin != null &&
+                      context.businessTin!.trim().isNotEmpty) ...[
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      'TIN: ${context.businessTin!.trim()}',
+                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  ],
                   pw.Text(
                     context.businessTypeLabel,
                     style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),

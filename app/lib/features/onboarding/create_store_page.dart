@@ -69,7 +69,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  BrandMark(businessType: _type),
+                  const Center(child: BrandLogo(size: 112, radius: 22, shadow: true)),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     'Create your store',

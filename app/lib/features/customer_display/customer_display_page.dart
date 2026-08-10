@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/brand_mark.dart';
 import '../../data/cart_display_sync.dart';
 
 /// Customer-facing dual-screen view — intended for a second monitor / browser tab.
@@ -48,15 +49,7 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.retail,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(Icons.storefront_rounded, color: AppColors.ink),
-                  ),
+                  const BrandLogo(size: 48, radius: 14),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -179,10 +172,10 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                    colors: [Color(0xFF2A2100), Color(0xFF151515)],
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.retail.withValues(alpha: 0.35)),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.55)),
                 ),
                 child: Row(
                   children: [

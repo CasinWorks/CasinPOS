@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/brand_mark.dart';
-import '../../domain/enums.dart';
 
 /// Port of the AI Studio Fluid Ink intro (ink swirl → logo → dissolve).
 class FluidInkIntro extends StatefulWidget {
@@ -29,11 +28,11 @@ class _FluidInkIntroState extends State<FluidInkIntro>
   final _rng = math.Random(42);
 
   static const _colors = [
+    AppColors.accentDeep,
+    AppColors.accent,
+    AppColors.brandYellow,
+    AppColors.brandOrange,
     AppColors.inkDeep,
-    AppColors.inkIndigo,
-    AppColors.inkRoyal,
-    Color(0xFF18181B),
-    AppColors.inkViolet,
   ];
 
   @override
@@ -91,14 +90,14 @@ class _FluidInkIntroState extends State<FluidInkIntro>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const BrandMark(businessType: BusinessType.restaurant),
-                        const SizedBox(height: 8),
+                        const BrandLogo(size: 156, radius: 28, shadow: true),
+                        const SizedBox(height: 16),
                         Text(
                           'POINT OF SALE  ·  INVENTORY',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 letterSpacing: 2.4,
-                                color: AppColors.slate500,
-                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate700,
+                                fontWeight: FontWeight.w800,
                               ),
                         ),
                         const SizedBox(height: 10),
@@ -107,7 +106,7 @@ class _FluidInkIntroState extends State<FluidInkIntro>
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 fontSize: 9,
                                 letterSpacing: 0.6,
-                                color: AppColors.slate400,
+                                color: AppColors.slate500,
                                 fontWeight: FontWeight.w500,
                               ),
                         ),

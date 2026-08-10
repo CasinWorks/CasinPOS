@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../data/providers/session_providers.dart';
-import '../../../domain/enums.dart';
+import '../../core/errors/app_errors.dart';
+import '../../core/theme/app_colors.dart';
+import '../../data/providers/session_providers.dart';
+import '../../domain/enums.dart';
 import '../onboarding/story_mode.dart';
 
 Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async {
@@ -11,6 +13,8 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
   if (membership == null) return;
 
   final nameCtrl = TextEditingController(text: membership.store.name);
+  final tinCtrl = TextEditingController(text: membership.store.businessTin ?? '');
+  final addressCtrl = TextEditingController(text: membership.store.businessAddress ?? '');
   var saving = false;
   String? error;
   final type = membership.store.businessType;
@@ -27,7 +31,7 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
           return AlertDialog(
             title: const Text('Store settings'),
             content: SizedBox(
-              width: 400,
+              width: 420,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -81,6 +85,31 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
                       style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
                     ),
                     const SizedBox(height: 20),
+                    Text('Receipt legal fields (PH)', style: Theme.of(ctx).textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Shown on printed receipts. Use your BIR TIN and business address.',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: tinCtrl,
+                      enabled: canEdit,
+                      decoration: const InputDecoration(
+                        labelText: 'TIN',
+                        hintText: '000-000-000-000',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: addressCtrl,
+                      enabled: canEdit,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Business address',
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     Text('Payment methods', style: Theme.of(ctx).textTheme.titleSmall),
                     const SizedBox(height: 4),
                     Text(
@@ -116,6 +145,87 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
                       onChanged: canEdit ? (v) => setLocal(() => acceptCard = v) : null,
                       title: const Text('Card', style: TextStyle(fontWeight: FontWeight.w700)),
                       secondary: const Icon(Icons.credit_card_outlined),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.push('/privacy');
+                          },
+                          child: const Text('Privacy'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.push('/terms');
+                          },
+                          child: const Text('Terms'),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 28),
+                    Text(
+                      'Danger zone',
+                      style: Theme.of(ctx).textTheme.titleSmall?.copyWith(color: AppColors.danger),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Permanently delete your CasinPOS account and sign out. '
+                      'Stores you solely own will be removed.',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: ctx,
+                                builder: (c2) => AlertDialog(
+                                  title: const Text('Delete account?'),
+                                  content: const Text(
+                                    'This cannot be undone. Your login will be deleted. '
+                                    'If you are the only owner of a store, that store and its data will be removed.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c2, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                                      onPressed: () => Navigator.pop(c2, true),
+                                      child: const Text('Delete permanently'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm != true || !ctx.mounted) return;
+                              setLocal(() {
+                                saving = true;
+                                error = null;
+                              });
+                              try {
+                                await ref.read(storeRepositoryProvider).deleteAccount();
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                await ref.read(authRepositoryProvider).signOut();
+                                if (context.mounted) context.go('/login');
+                              } catch (e) {
+                                if (ctx.mounted) {
+                                  setLocal(() {
+                                    error = friendlyError(e, fallback: 'Could not delete account');
+                                    saving = false;
+                                  });
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.delete_forever_outlined, color: AppColors.danger),
+                      label: const Text(
+                        'Delete my account',
+                        style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800),
+                      ),
                     ),
                     if (error != null) ...[
                       const SizedBox(height: 8),
@@ -168,8 +278,17 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
                                 acceptCard: acceptCard,
                               );
                             }
-                            // Close before invalidating — rebuilding the shell under an open
-                            // dialog caused InheritedWidget dispose asserts.
+                            final tin = tinCtrl.text.trim();
+                            final address = addressCtrl.text.trim();
+                            final receiptChanged = tin != (membership.store.businessTin ?? '') ||
+                                address != (membership.store.businessAddress ?? '');
+                            if (receiptChanged) {
+                              await repo.updateReceiptFields(
+                                storeId: membership.storeId,
+                                businessTin: tin,
+                                businessAddress: address,
+                              );
+                            }
                             if (ctx.mounted) Navigator.pop(ctx);
                             ref.invalidate(membershipsProvider);
                           } catch (e) {
@@ -197,4 +316,6 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
   );
 
   nameCtrl.dispose();
+  tinCtrl.dispose();
+  addressCtrl.dispose();
 }

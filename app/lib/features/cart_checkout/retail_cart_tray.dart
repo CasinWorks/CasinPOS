@@ -112,6 +112,8 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
         currencySymbol: membership?.store.currencySymbol ?? '₱',
         cashierName: cashier,
         businessTypeLabel: 'Retail',
+        businessTin: membership?.store.businessTin,
+        businessAddress: membership?.store.businessAddress,
       );
 
       if (!mounted) return;
@@ -319,11 +321,11 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: _VatChip(
-                              label: '+10% VAT',
-                              selected: settings.vatMode == VatMode.plusTen,
+                              label: '+12% VAT',
+                              selected: settings.vatMode == VatMode.plusTwelve,
                               selectedColor: const Color(0xFF2563EB),
                               onTap: () =>
-                                  ref.read(checkoutSettingsProvider.notifier).setVat(VatMode.plusTen),
+                                  ref.read(checkoutSettingsProvider.notifier).setVat(VatMode.plusTwelve),
                             ),
                           ),
                         ],
@@ -403,7 +405,7 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                       const SizedBox(height: 12),
                       _TotalRow(label: 'Subtotal', value: '₱${totals.subtotal.toStringAsFixed(2)}'),
                       _TotalRow(
-                        label: settings.vatMode == VatMode.inclusive ? 'Tax / VAT' : 'Tax (10% VAT)',
+                        label: settings.vatMode == VatMode.inclusive ? 'Tax / VAT' : 'Tax (12% VAT)',
                         value: settings.vatMode == VatMode.inclusive
                             ? 'Inclusive in item price'
                             : '₱${totals.tax.toStringAsFixed(2)}',

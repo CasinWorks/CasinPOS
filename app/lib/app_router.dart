@@ -9,6 +9,7 @@ import 'core/invite/pending_invite_token.dart';
 import 'data/providers/session_providers.dart';
 import 'features/auth/login_page.dart';
 import 'features/customer_display/customer_display_page.dart';
+import 'features/legal/legal_pages.dart';
 import 'features/onboarding/create_store_page.dart';
 import 'features/shell/pos_shell_page.dart';
 
@@ -33,7 +34,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         savePendingInviteToken(pathTok);
       }
 
-      if (!introSeen && loc != '/intro' && loc != '/display') {
+      if (!introSeen &&
+          loc != '/intro' &&
+          loc != '/display' &&
+          loc != '/privacy' &&
+          loc != '/terms') {
         return '/intro';
       }
       if (loc == '/intro') {
@@ -56,7 +61,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final hasPendingInvite = pendingToken != null && pendingToken.isNotEmpty;
 
       if (session == null) {
-        if (loggingIn || onInvite) return null;
+        if (loggingIn || onInvite || loc == '/privacy' || loc == '/terms') {
+          return null;
+        }
         return '/login';
       }
 
@@ -70,6 +77,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
       if (!hasStore) {
         if (onCustomerDisplay) return null;
+        if (loc == '/privacy' || loc == '/terms') return null;
         if (onboarding || onInvite) return null;
         if (hasPendingInvite) {
           return '/invite?token=${Uri.encodeQueryComponent(pendingToken)}';
@@ -125,6 +133,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/display',
         builder: (context, state) => const CustomerDisplayPage(),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const PrivacyPolicyPage(),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) => const TermsOfServicePage(),
       ),
       GoRoute(path: '/', builder: (context, state) => const PosShellPage()),
     ],

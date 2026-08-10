@@ -723,7 +723,7 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
   }
 }
 
-enum VatMode { inclusive, plusTen }
+enum VatMode { inclusive, plusTwelve }
 
 class CheckoutSettings {
   const CheckoutSettings({
@@ -902,6 +902,11 @@ class CashRegisterNotifier extends StateNotifier<AsyncValue<RegisterBalance?>> {
     );
   }
 
+  Future<void> claim({required String sessionId}) async {
+    await _repo.claimSession(sessionId);
+    await refresh();
+  }
+
   Future<void> open({required double openingFloat, String? notes}) async {
     final storeId = _ref.read(activeMembershipProvider)?.storeId;
     if (storeId == null) throw StateError('No active store');
@@ -994,7 +999,7 @@ final cartTotalsProvider = Provider<CartTotals>((ref) {
     );
   }
 
-  final tax = afterDiscount * 0.10;
+  final tax = afterDiscount * 0.12;
   return CartTotals(
     subtotal: afterDiscount,
     discount: discount,

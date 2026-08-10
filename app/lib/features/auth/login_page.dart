@@ -11,7 +11,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../data/providers/session_providers.dart';
-import '../../../domain/enums.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -68,7 +67,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const BrandMark(),
+                  const Center(child: BrandLogo(size: 128, radius: 24, shadow: true)),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     'Welcome back',
@@ -135,6 +134,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   TextButton(
                     onPressed: () => context.go('/invite'),
                     child: const Text('Join with an invite link'),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () => context.push('/privacy'),
+                        child: const Text('Privacy', style: TextStyle(fontSize: 12)),
+                      ),
+                      const Text('·', style: TextStyle(color: AppColors.slate400)),
+                      TextButton(
+                        onPressed: () => context.push('/terms'),
+                        child: const Text('Terms', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
                   ),
                   const PoweredByCasinworks(),
                 ],
@@ -227,7 +240,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const BrandMark(),
+                  const Center(child: BrandLogo(size: 128, radius: 24, shadow: true)),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     joiningTeam
@@ -293,6 +306,20 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                   TextButton(
                     onPressed: () => context.go('/login'),
                     child: const Text('Already have an account? Sign in'),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () => context.push('/privacy'),
+                        child: const Text('Privacy', style: TextStyle(fontSize: 12)),
+                      ),
+                      const Text('·', style: TextStyle(color: AppColors.slate400)),
+                      TextButton(
+                        onPressed: () => context.push('/terms'),
+                        child: const Text('Terms', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
                   ),
                   const PoweredByCasinworks(),
                 ],
@@ -457,7 +484,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const BrandMark(businessType: BusinessType.retail),
+                  const Center(child: BrandLogo(size: 128, radius: 24, shadow: true)),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     'Join your team',

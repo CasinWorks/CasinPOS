@@ -26,6 +26,8 @@ class ReceiptsAuditView extends ConsumerWidget {
       businessTypeLabel: membership?.store.businessType.value == 'restaurant'
           ? 'Restaurant'
           : 'Retail',
+      businessTin: membership?.store.businessTin,
+      businessAddress: membership?.store.businessAddress,
     );
   }
 

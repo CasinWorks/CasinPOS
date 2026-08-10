@@ -16,6 +16,9 @@ class CashSession {
     this.variance,
     this.notes,
     this.closedAt,
+    this.claimedBy,
+    this.claimedAt,
+    this.openedBy,
   });
 
   final String id;
@@ -29,6 +32,9 @@ class CashSession {
   final double? variance;
   final String? notes;
   final DateTime? closedAt;
+  final String? claimedBy;
+  final DateTime? claimedAt;
+  final String? openedBy;
 
   bool get isOpen => status == 'open';
 
@@ -47,6 +53,11 @@ class CashSession {
       closedAt: json['closed_at'] != null
           ? DateTime.parse(json['closed_at'] as String).toLocal()
           : null,
+      claimedBy: json['claimed_by'] as String?,
+      claimedAt: json['claimed_at'] != null
+          ? DateTime.parse(json['claimed_at'] as String).toLocal()
+          : null,
+      openedBy: json['opened_by'] as String?,
     );
   }
 }
@@ -141,16 +152,36 @@ class CashRegisterRepository {
       throw StateError('A register session is already open.');
     }
     final branchId = await _transactions.primaryBranchId(storeId);
+    final now = DateTime.now().toUtc().toIso8601String();
     final row = await _client
         .from('cash_sessions')
         .insert({
           'store_id': storeId,
           'branch_id': branchId,
           'opened_by': uid,
+          'claimed_by': uid,
+          'claimed_at': now,
           'opening_float': openingFloat,
           'notes': notes,
           'status': 'open',
         })
+        .select()
+        .single();
+    return CashSession.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  /// Assigns the open shift to the signed-in cashier for accountability.
+  Future<CashSession> claimSession(String sessionId) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not signed in.');
+    final row = await _client
+        .from('cash_sessions')
+        .update({
+          'claimed_by': uid,
+          'claimed_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', sessionId)
+        .eq('status', 'open')
         .select()
         .single();
     return CashSession.fromJson(Map<String, dynamic>.from(row));

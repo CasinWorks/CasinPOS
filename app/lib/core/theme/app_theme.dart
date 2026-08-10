@@ -64,10 +64,10 @@ abstract final class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.scaffold,
       colorScheme: ColorScheme.light(
-        primary: AppColors.slate900,
-        onPrimary: Colors.white,
-        secondary: AppColors.accent,
-        onSecondary: AppColors.ink,
+        primary: AppColors.accent,
+        onPrimary: AppColors.ink,
+        secondary: AppColors.brandOrange,
+        onSecondary: Colors.white,
         surface: AppColors.surface,
         onSurface: AppColors.ink,
         error: AppColors.danger,
@@ -89,8 +89,8 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.slate900,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.accent,
+          foregroundColor: AppColors.ink,
           minimumSize: TouchTargets.buttonMin,
           padding: TouchTargets.buttonPadding,
           shape: RoundedRectangleBorder(

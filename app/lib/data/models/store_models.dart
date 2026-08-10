@@ -16,6 +16,8 @@ class StoreSummary {
     this.acceptCard = true,
     this.franchisorStoreId,
     this.franchiseNotes,
+    this.businessTin,
+    this.businessAddress,
   });
 
   final String id;
@@ -32,6 +34,8 @@ class StoreSummary {
   /// When set, this store is a franchise of the franchisor store.
   final String? franchisorStoreId;
   final String? franchiseNotes;
+  final String? businessTin;
+  final String? businessAddress;
 
   bool get isFranchise => franchisorStoreId != null;
 
@@ -57,6 +61,8 @@ class StoreSummary {
     bool? acceptCard,
     String? franchisorStoreId,
     String? franchiseNotes,
+    String? businessTin,
+    String? businessAddress,
   }) {
     return StoreSummary(
       id: id,
@@ -72,6 +78,8 @@ class StoreSummary {
       acceptCard: acceptCard ?? this.acceptCard,
       franchisorStoreId: franchisorStoreId ?? this.franchisorStoreId,
       franchiseNotes: franchiseNotes ?? this.franchiseNotes,
+      businessTin: businessTin ?? this.businessTin,
+      businessAddress: businessAddress ?? this.businessAddress,
     );
   }
 
@@ -90,6 +98,8 @@ class StoreSummary {
       acceptCard: json['accept_card'] as bool? ?? true,
       franchisorStoreId: json['franchisor_store_id'] as String?,
       franchiseNotes: json['franchise_notes'] as String?,
+      businessTin: json['business_tin'] as String?,
+      businessAddress: json['business_address'] as String?,
     );
   }
 }

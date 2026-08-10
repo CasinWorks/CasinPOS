@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Take product photos for your catalog</string>
+	<string>Scan product barcodes at checkout and take catalog photos</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save product photos to your library when needed</string>
 	<key>NSPhotoLibraryUsageDescription</key>

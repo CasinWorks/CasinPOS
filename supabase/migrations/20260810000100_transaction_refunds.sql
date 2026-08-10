@@ -1,13 +1,10 @@
--- Partial / full refunds for paid sales (CasinPOS tablet POS).
+-- Same refund columns as 20260810000100 — safe to re-run in SQL Editor.
 alter table public.transaction_items
-  add column if not exists refunded_quantity numeric(12, 3) not null default 0
-    check (refunded_quantity >= 0);
+  add column if not exists refunded_quantity numeric(12, 3) not null default 0;
 
 alter table public.transactions
-  add column if not exists refunded_total numeric(12, 2) not null default 0
-    check (refunded_total >= 0);
+  add column if not exists refunded_total numeric(12, 2) not null default 0;
 
--- Full refunds release a free-tier slot the same way voids do.
 create or replace function public.on_transaction_voided()
 returns trigger
 language plpgsql

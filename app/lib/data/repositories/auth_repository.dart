@@ -338,6 +338,35 @@ class StoreRepository {
     }).eq('id', storeId);
   }
 
+  Future<void> updateReceiptFields({
+    required String storeId,
+    String? businessTin,
+    String? businessAddress,
+  }) async {
+    await _client.from('stores').update({
+      'business_tin': businessTin?.trim().isEmpty == true ? null : businessTin?.trim(),
+      'business_address':
+          businessAddress?.trim().isEmpty == true ? null : businessAddress?.trim(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', storeId);
+  }
+
+  /// Soft cleanup + Edge Function hard delete (App Store requirement).
+  Future<void> deleteAccount() async {
+    try {
+      await _client.rpc('request_account_deletion');
+    } catch (_) {
+      // Edge Function still attempts admin delete.
+    }
+    final res = await _client.functions.invoke('delete-account');
+    final data = res.data;
+    if (data is Map && data['ok'] == true) return;
+    final msg = data is Map
+        ? (data['message'] as String? ?? data['error'] as String? ?? 'Delete failed')
+        : 'Delete failed';
+    throw AppException(msg);
+  }
+
   Future<void> markOnboardingComplete() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return;
