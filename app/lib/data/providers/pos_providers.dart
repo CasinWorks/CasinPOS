@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../bootstrap.dart';
 import '../../core/errors/app_errors.dart';
 import '../cart_display_sync.dart';
+import '../local/local_pos_store.dart';
 import '../models/demo_catalog.dart';
 import '../models/pos_models.dart';
 import '../repositories/cash_register_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/transaction_repository.dart';
+import 'connectivity_providers.dart';
+import 'outbox_tick.dart';
 import 'session_providers.dart';
 
 final productRepositoryProvider = Provider<ProductRepository>(
@@ -35,9 +41,22 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
   bool get canPersist => isSupabaseReady && _storeId != null;
 
   Future<void> loadForStore(String storeId) async {
-    if (!isSupabaseReady || _loading) return;
+    if (_loading) return;
     _loading = true;
     try {
+      // Hydrate device cache first so POS works immediately offline.
+      final cached = await LocalPosStore.loadCatalog(storeId);
+      if (cached.isNotEmpty && mounted) {
+        state = [for (final m in cached) RetailProduct.fromJson(m)];
+        final cats = _ref.read(catalogCategoriesProvider.notifier);
+        for (final p in state) {
+          cats.ensure(p.category);
+        }
+      }
+
+      if (!isSupabaseReady) return;
+      if (!(_ref.read(cloudReachableProvider))) return;
+
       final products = await _repo.fetchRetailProducts(storeId);
       if (!mounted) return;
       state = products;
@@ -45,9 +64,21 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
       for (final p in products) {
         cats.ensure(p.category);
       }
+      await LocalPosStore.saveCatalog(
+        storeId,
+        [for (final p in products) p.toJson()],
+      );
+    } catch (_) {
+      // Keep cached / current catalog if cloud fetch fails.
     } finally {
       _loading = false;
     }
+  }
+
+  Future<void> _persistCatalog() async {
+    final storeId = _storeId;
+    if (storeId == null) return;
+    await LocalPosStore.saveCatalog(storeId, [for (final p in state) p.toJson()]);
   }
 
   void clearLocal() {
@@ -63,8 +94,30 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
     final next = [...state];
     next[index] = updated;
     state = next;
-    if (!canPersist) return;
-    await _repo.updateStock(productId: id, stock: updated.stock);
+    await _persistCatalog();
+    if (!canPersist || !(_ref.read(cloudReachableProvider))) {
+      if (canPersist) {
+        await LocalPosStore.enqueueOutbox(_storeId!, {
+          'id': const Uuid().v4(),
+          'kind': 'stock',
+          'productId': id,
+          'stock': updated.stock,
+        });
+        bumpOutboxTick(_ref);
+      }
+      return;
+    }
+    try {
+      await _repo.updateStock(productId: id, stock: updated.stock);
+    } catch (_) {
+      await LocalPosStore.enqueueOutbox(_storeId!, {
+        'id': const Uuid().v4(),
+        'kind': 'stock',
+        'productId': id,
+        'stock': updated.stock,
+      });
+      bumpOutboxTick(_ref);
+    }
   }
 
   Future<void> restockVoidedLines(List<({String productId, double qty})> lines) async {
@@ -85,35 +138,60 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
               .toDouble(),
         ),
     ];
+    await _persistCatalog();
     if (!canPersist) return;
+    final online = _ref.read(cloudReachableProvider);
     for (final p in state) {
       if (lines.any((l) => l.product.id == p.id)) {
-        await _repo.updateStock(productId: p.id, stock: p.stock);
+        if (!online) {
+          await LocalPosStore.enqueueOutbox(_storeId!, {
+            'id': const Uuid().v4(),
+            'kind': 'stock',
+            'productId': p.id,
+            'stock': p.stock,
+          });
+          bumpOutboxTick(_ref);
+          continue;
+        }
+        try {
+          await _repo.updateStock(productId: p.id, stock: p.stock);
+        } catch (_) {
+          await LocalPosStore.enqueueOutbox(_storeId!, {
+            'id': const Uuid().v4(),
+            'kind': 'stock',
+            'productId': p.id,
+            'stock': p.stock,
+          });
+          bumpOutboxTick(_ref);
+        }
       }
     }
   }
 
   Future<RetailProduct> addProduct(RetailProduct product) async {
     final storeId = _storeId;
-    if (storeId == null || !isSupabaseReady) {
+    if (storeId == null || !isSupabaseReady || !(_ref.read(cloudReachableProvider))) {
       state = [product, ...state];
       _ref.read(catalogCategoriesProvider.notifier).ensure(product.category);
+      await _persistCatalog();
       return product;
     }
     final saved = await _repo.upsertRetailProduct(storeId: storeId, product: product);
     state = [saved, ...state.where((p) => p.id != saved.id)];
     _ref.read(catalogCategoriesProvider.notifier).ensure(saved.category);
+    await _persistCatalog();
     return saved;
   }
 
   Future<RetailProduct> updateProduct(RetailProduct product) async {
     final storeId = _storeId;
-    if (storeId == null || !isSupabaseReady) {
+    if (storeId == null || !isSupabaseReady || !(_ref.read(cloudReachableProvider))) {
       state = [
         for (final p in state)
           if (p.id == product.id) product else p,
       ];
       _ref.read(catalogCategoriesProvider.notifier).ensure(product.category);
+      await _persistCatalog();
       return product;
     }
     final saved = await _repo.upsertRetailProduct(storeId: storeId, product: product);
@@ -122,6 +200,7 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
         if (p.id == saved.id) saved else p,
     ];
     _ref.read(catalogCategoriesProvider.notifier).ensure(saved.category);
+    await _persistCatalog();
     return saved;
   }
 
@@ -283,17 +362,68 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
   TransactionRepository get _repo => _ref.read(transactionRepositoryProvider);
 
   Future<void> loadForStore(String storeId) async {
-    if (!isSupabaseReady) return;
-    try {
-      state = await _repo.fetchPaidOrders(storeId);
-    } catch (_) {
-      // Keep local list if offline / schema not migrated yet.
+    final cached = await LocalPosStore.loadOrders(storeId);
+    if (cached.isNotEmpty) {
+      state = [for (final m in cached) PosOrder.fromJson(m)];
     }
+
+    if (!isSupabaseReady || !(_ref.read(cloudReachableProvider))) return;
+    try {
+      final remote = await _repo.fetchPaidOrders(storeId);
+      // Keep any unsynced local-only sales at the front.
+      final pending = state.where((o) => !o.synced).toList();
+      final pendingIds = pending.map((o) => o.id).toSet();
+      state = [
+        ...pending,
+        for (final o in remote)
+          if (!pendingIds.contains(o.id)) o,
+      ];
+      await _persistOrders(storeId);
+    } catch (_) {
+      // Keep cached / current list if offline / schema not migrated yet.
+    }
+  }
+
+  Future<void> _persistOrders([String? storeId]) async {
+    final id = storeId ?? _ref.read(activeMembershipProvider)?.storeId;
+    if (id == null) return;
+    await LocalPosStore.saveOrders(id, [for (final o in state) o.toJson()]);
   }
 
   void clearLocal() => state = const [];
 
   void add(PosOrder order) => state = [order, ...state];
+
+  void markSynced(String localId) {
+    state = [
+      for (final o in state)
+        if (o.id == localId)
+          PosOrder(
+            id: o.id,
+            orderNo: o.orderNo,
+            items: o.items,
+            subtotal: o.subtotal,
+            tax: o.tax,
+            total: o.total,
+            paymentMethod: o.paymentMethod,
+            timestampLabel: o.timestampLabel,
+            createdAt: o.createdAt,
+            status: o.status,
+            synced: true,
+          )
+        else
+          o,
+    ];
+    unawaited(_persistOrders());
+  }
+
+  void replaceLocalWithRemote(String localId, PosOrder remote) {
+    state = [
+      for (final o in state)
+        if (o.id == localId) remote else o,
+    ];
+    unawaited(_persistOrders());
+  }
 
   Future<({PosOrder order, String? warning})> completeSale({
     required List<CartLine> lines,
@@ -305,14 +435,37 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
     required double changeGiven,
   }) async {
     final membership = _ref.read(activeMembershipProvider);
-    PosOrder order;
-    String? warning;
-
     if (membership == null) {
       throw AppException('No active store. Sign in and open your store again.');
     }
 
-    if (isSupabaseReady) {
+    final localId = const Uuid().v4();
+    final now = DateTime.now();
+    var order = PosOrder(
+      id: localId,
+      orderNo: '#CP-${now.millisecondsSinceEpoch % 1000000}',
+      items: [
+        for (final l in lines)
+          OrderLine(
+            name: l.product.name,
+            qty: l.quantity,
+            unitPrice: l.product.price,
+            category: l.product.category,
+            productId: l.product.id,
+          ),
+      ],
+      subtotal: subtotal,
+      tax: tax,
+      total: total,
+      paymentMethod: paymentMethod,
+      timestampLabel: 'Just now',
+      createdAt: now,
+      synced: false,
+    );
+    String? warning;
+
+    final online = isSupabaseReady && _ref.read(cloudReachableProvider);
+    if (online) {
       try {
         order = await _repo.createPaidSale(
           storeId: membership.storeId,
@@ -327,51 +480,54 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
           currencyCode: membership.store.currencyCode,
         );
       } catch (e) {
-        // Keep the shift moving, but make the sync failure visible.
-        order = PosOrder(
-          id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
-          orderNo: '#FP-${DateTime.now().millisecondsSinceEpoch % 100000}',
-          items: [
+        warning =
+            'Sale saved on this device — will sync when online. (${friendlyError(e)})';
+        await LocalPosStore.enqueueOutbox(membership.storeId, {
+          'id': localId,
+          'kind': 'sale',
+          'localOrderId': localId,
+          'lines': [
             for (final l in lines)
-              (
-                name: l.product.name,
-                qty: l.quantity,
-                unitPrice: l.product.price,
-                category: l.product.category,
-              ),
+              {'product': l.product.toJson(), 'quantity': l.quantity},
           ],
-          subtotal: subtotal,
-          tax: tax,
-          total: total,
-          paymentMethod: paymentMethod,
-          timestampLabel: 'Just now',
-          createdAt: DateTime.now(),
-        );
-        warning = 'Sale completed on this device, but cloud save failed: ${friendlyError(e)}';
+          'subtotal': subtotal,
+          'tax': tax,
+          'total': total,
+          'paymentMethod': paymentMethod.name,
+          'cashReceived': cashReceived,
+          'changeGiven': changeGiven,
+          'currencyCode': membership.store.currencyCode,
+        });
+        bumpOutboxTick(_ref);
       }
     } else {
-      order = PosOrder(
-        id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
-        orderNo: '#FP-${DateTime.now().millisecondsSinceEpoch % 100000}',
-        items: [
+      warning = 'Offline — sale saved on this tablet and queued to sync.';
+      await LocalPosStore.enqueueOutbox(membership.storeId, {
+        'id': localId,
+        'kind': 'sale',
+        'localOrderId': localId,
+        'lines': [
           for (final l in lines)
-            (
-              name: l.product.name,
-              qty: l.quantity,
-              unitPrice: l.product.price,
-              category: l.product.category,
-            ),
+            {'product': l.product.toJson(), 'quantity': l.quantity},
         ],
-        subtotal: subtotal,
-        tax: tax,
-        total: total,
-        paymentMethod: paymentMethod,
-        timestampLabel: 'Just now',
-        createdAt: DateTime.now(),
-      );
-      warning = 'Offline mode — sale saved on this device only.';
+        'subtotal': subtotal,
+        'tax': tax,
+        'total': total,
+        'paymentMethod': paymentMethod.name,
+        'cashReceived': cashReceived,
+        'changeGiven': changeGiven,
+        'currencyCode': membership.store.currencyCode,
+      });
+      bumpOutboxTick(_ref);
     }
+
     state = [order, ...state];
+    await _persistOrders(membership.storeId);
+
+    // Apply cash sale to cached register drawer immediately (online or offline).
+    if (paymentMethod == PaymentMethod.cash) {
+      await _ref.read(cashRegisterProvider.notifier).applyLocalCashSale(total);
+    }
     return (order: order, warning: warning);
   }
 
@@ -387,20 +543,53 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
     ).hasMatch(order.id);
 
-    if (isUuid && isSupabaseReady) {
-      final lines = await _repo.voidSale(
-        transactionId: order.id,
-        reason: reason,
-      );
-      await _ref.read(posCatalogProvider.notifier).restockVoidedLines(lines);
+    if (isUuid && isSupabaseReady && _ref.read(cloudReachableProvider)) {
+      try {
+        final lines = await _repo.voidSale(
+          transactionId: order.id,
+          reason: reason,
+        );
+        await _ref.read(posCatalogProvider.notifier).restockVoidedLines(lines);
+      } catch (_) {
+        await LocalPosStore.enqueueOutbox(
+          _ref.read(activeMembershipProvider)!.storeId,
+          {
+            'id': const Uuid().v4(),
+            'kind': 'void',
+            'transactionId': order.id,
+            'reason': reason,
+          },
+        );
+        bumpOutboxTick(_ref);
+        // Local restock by name for immediate inventory correctness.
+        final catalog = _ref.read(posCatalogProvider);
+        for (final item in order.items) {
+          final match = catalog.where((p) => p.name == item.name).firstOrNull;
+          if (match != null) {
+            await _ref.read(posCatalogProvider.notifier).restock(match.id, item.qty.toDouble());
+          }
+        }
+      }
     } else {
-      // Local-only sale: match catalog by name and restock.
+      // Local-only / offline sale: match catalog by name and restock.
       final catalog = _ref.read(posCatalogProvider);
       for (final item in order.items) {
         final match = catalog.where((p) => p.name == item.name).firstOrNull;
         if (match != null) {
           await _ref.read(posCatalogProvider.notifier).restock(match.id, item.qty.toDouble());
         }
+      }
+      if (isUuid && isSupabaseReady) {
+        await LocalPosStore.enqueueOutbox(
+          _ref.read(activeMembershipProvider)!.storeId,
+          {
+            'id': const Uuid().v4(),
+            'kind': 'void',
+            'transactionId': order.id,
+            'reason': reason,
+          },
+        );
+        bumpOutboxTick(_ref);
       }
     }
 
@@ -418,14 +607,118 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
             timestampLabel: o.timestampLabel,
             createdAt: o.createdAt,
             status: 'Voided',
+            synced: o.synced,
           )
         else
           o,
     ];
+    await _persistOrders();
 
     // Cash expected drops when a cash sale is voided.
     if (order.paymentMethod == PaymentMethod.cash) {
-      await _ref.read(cashRegisterProvider.notifier).refresh();
+      await _ref.read(cashRegisterProvider.notifier).applyLocalCashSale(-order.total);
+      try {
+        await _ref.read(cashRegisterProvider.notifier).refresh();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> refundSale({
+    required PosOrder order,
+    required List<({String? itemId, String name, int qty})> lines,
+    String? reason,
+  }) async {
+    if (!order.canRefund) {
+      throw StateError('This sale cannot be refunded.');
+    }
+    if (lines.isEmpty) {
+      throw AppException('Select at least one item to refund.');
+    }
+
+    final isUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(order.id);
+
+    var refundAmount = 0.0;
+    final online = isSupabaseReady && _ref.read(cloudReachableProvider);
+
+    if (isUuid && online) {
+      final result = await _repo.refundSale(
+        transactionId: order.id,
+        lines: lines,
+        reason: reason,
+      );
+      refundAmount = result.refundAmount;
+      await _ref.read(posCatalogProvider.notifier).restockVoidedLines(result.restock);
+    } else {
+      // Local / offline refund.
+      for (final line in lines) {
+        final match = order.items.where((i) {
+          if (line.itemId != null && i.itemId != null) return i.itemId == line.itemId;
+          return i.name == line.name;
+        }).firstOrNull;
+        if (match == null) continue;
+        if (line.qty > match.refundableQty) {
+          throw AppException('Cannot refund more than remaining for ${match.name}');
+        }
+        refundAmount += match.unitPrice * line.qty;
+        final catalog = _ref.read(posCatalogProvider);
+        final product = (match.productId != null
+                ? catalog.where((p) => p.id == match.productId).firstOrNull
+                : null) ??
+            catalog.where((p) => p.name == match.name).firstOrNull;
+        if (product != null) {
+          await _ref.read(posCatalogProvider.notifier).restock(product.id, line.qty.toDouble());
+        }
+      }
+    }
+
+    state = [
+      for (final o in state)
+        if (o.id == order.id)
+          () {
+            final updatedItems = [
+              for (final item in o.items)
+                () {
+                  final refundLine = lines.where((l) {
+                    if (l.itemId != null && item.itemId != null) {
+                      return l.itemId == item.itemId;
+                    }
+                    return l.name == item.name;
+                  }).firstOrNull;
+                  if (refundLine == null) return item;
+                  return item.copyWith(refundedQty: item.refundedQty + refundLine.qty);
+                }(),
+            ];
+            final nextRefunded = o.refundedTotal + refundAmount;
+            final fully = updatedItems.every((i) => i.refundableQty <= 0);
+            return PosOrder(
+              id: o.id,
+              orderNo: o.orderNo,
+              items: updatedItems,
+              subtotal: o.subtotal,
+              tax: o.tax,
+              total: o.total,
+              paymentMethod: o.paymentMethod,
+              timestampLabel: o.timestampLabel,
+              createdAt: o.createdAt,
+              status: fully ? 'Refunded' : 'Partial refund',
+              synced: o.synced && online,
+              refundedTotal: nextRefunded,
+            );
+          }()
+        else
+          o,
+    ];
+    await _persistOrders();
+
+    if (order.paymentMethod == PaymentMethod.cash && refundAmount > 0) {
+      await _ref.read(cashRegisterProvider.notifier).applyLocalCashSale(-refundAmount);
+      if (online) {
+        try {
+          await _ref.read(cashRegisterProvider.notifier).refresh();
+        } catch (_) {}
+      }
     }
   }
 }
@@ -521,16 +814,92 @@ class CashRegisterNotifier extends StateNotifier<AsyncValue<RegisterBalance?>> {
 
   Future<void> refresh() async {
     final storeId = _ref.read(activeMembershipProvider)?.storeId;
-    if (storeId == null || !isSupabaseReady) {
+    if (storeId == null) {
       state = const AsyncValue.data(null);
       return;
     }
+
+    // Prefer cached open session when offline / backend unavailable.
+    if (!isSupabaseReady || !(_ref.read(cloudReachableProvider))) {
+      final cached = await _balanceFromCache(storeId);
+      state = AsyncValue.data(cached);
+      return;
+    }
+
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final session = await _repo.fetchOpenSession(storeId);
-      if (session == null) return null;
-      return _repo.computeBalance(session);
+      if (session == null) {
+        await LocalPosStore.clearRegister(storeId);
+        return null;
+      }
+      final balance = await _repo.computeBalance(session);
+      await _cacheBalance(storeId, balance);
+      return balance;
     });
+
+    // If cloud refresh failed, fall back to cache so selling can continue.
+    if (state.hasError || state.valueOrNull == null) {
+      final cached = await _balanceFromCache(storeId);
+      if (cached != null) {
+        state = AsyncValue.data(cached);
+      }
+    }
+  }
+
+  Future<void> applyLocalCashSale(double deltaTotal) async {
+    final current = state.valueOrNull;
+    final storeId = _ref.read(activeMembershipProvider)?.storeId;
+    if (current == null || storeId == null) return;
+    final next = RegisterBalance(
+      session: current.session,
+      cashSales: (current.cashSales + deltaTotal).clamp(0, double.infinity),
+      payIns: current.payIns,
+      payOuts: current.payOuts,
+      expectedInDrawer: (current.expectedInDrawer + deltaTotal).clamp(0, double.infinity),
+      movements: current.movements,
+    );
+    state = AsyncValue.data(next);
+    await _cacheBalance(storeId, next);
+  }
+
+  Future<void> _cacheBalance(String storeId, RegisterBalance balance) async {
+    await LocalPosStore.saveRegister(storeId, {
+      'sessionId': balance.session.id,
+      'storeId': balance.session.storeId,
+      'branchId': balance.session.branchId,
+      'openingFloat': balance.session.openingFloat,
+      'openedAt': balance.session.openedAt.toIso8601String(),
+      'status': balance.session.status,
+      'cashSales': balance.cashSales,
+      'payIns': balance.payIns,
+      'payOuts': balance.payOuts,
+      'expectedInDrawer': balance.expectedInDrawer,
+    });
+  }
+
+  Future<RegisterBalance?> _balanceFromCache(String storeId) async {
+    final raw = await LocalPosStore.loadRegister(storeId);
+    if (raw == null) return null;
+    if ((raw['status'] as String?) != 'open') return null;
+    final openedAt = DateTime.tryParse(raw['openedAt'] as String? ?? '');
+    if (openedAt == null) return null;
+    final session = CashSession(
+      id: raw['sessionId'] as String? ?? 'local-session',
+      storeId: raw['storeId'] as String? ?? storeId,
+      branchId: raw['branchId'] as String? ?? '',
+      openingFloat: (raw['openingFloat'] as num?)?.toDouble() ?? 0,
+      openedAt: openedAt,
+      status: 'open',
+    );
+    return RegisterBalance(
+      session: session,
+      cashSales: (raw['cashSales'] as num?)?.toDouble() ?? 0,
+      payIns: (raw['payIns'] as num?)?.toDouble() ?? 0,
+      payOuts: (raw['payOuts'] as num?)?.toDouble() ?? 0,
+      expectedInDrawer: (raw['expectedInDrawer'] as num?)?.toDouble() ?? 0,
+      movements: const [],
+    );
   }
 
   Future<void> open({required double openingFloat, String? notes}) async {
@@ -576,6 +945,8 @@ class CashRegisterNotifier extends StateNotifier<AsyncValue<RegisterBalance?>> {
       closingCount: closingCount,
       notes: notes,
     );
+    final storeId = _ref.read(activeMembershipProvider)?.storeId;
+    if (storeId != null) await LocalPosStore.clearRegister(storeId);
     await refresh();
     return closed;
   }

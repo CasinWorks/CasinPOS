@@ -1,5 +1,5 @@
-name: foodpos
-description: FoodPOS — point-of-sale and inventory for retail and restaurant businesses.
+name: casinpos
+      description: CasinPOS — retail point of sale for tablets,
 publish_to: "none"
 version: 1.0.0+2
 
@@ -25,6 +25,10 @@ dependencies:
   uuid: ^4.6.0
   url_launcher: ^6.3.2
   web: ^1.1.1
+  connectivity_plus: ^7.3.1
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.6
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:

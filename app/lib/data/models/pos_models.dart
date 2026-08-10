@@ -29,6 +29,36 @@ class RetailProduct {
 
   bool get isLowStock => stock <= lowStockThreshold;
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'sku': sku,
+        'name': name,
+        'category': category,
+        'price': price,
+        'costPrice': costPrice,
+        'weight': weight,
+        'stock': stock,
+        'lowStockThreshold': lowStockThreshold,
+        'imageUrl': imageUrl,
+        'description': description,
+        'barcode': barcode,
+      };
+
+  factory RetailProduct.fromJson(Map<String, dynamic> json) => RetailProduct(
+        id: json['id'] as String? ?? '',
+        sku: json['sku'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        category: json['category'] as String? ?? 'General',
+        price: (json['price'] as num?)?.toDouble() ?? 0,
+        costPrice: (json['costPrice'] as num?)?.toDouble() ?? 0,
+        weight: json['weight'] as String? ?? '',
+        stock: (json['stock'] as num?)?.toDouble() ?? 0,
+        lowStockThreshold: (json['lowStockThreshold'] as num?)?.toDouble() ?? 5,
+        imageUrl: json['imageUrl'] as String? ?? '',
+        description: json['description'] as String? ?? '',
+        barcode: json['barcode'] as String?,
+      );
+
   RetailProduct copyWith({
     String? sku,
     String? name,
@@ -87,6 +117,60 @@ extension PaymentMethodLabel on PaymentMethod {
       };
 }
 
+class OrderLine {
+  const OrderLine({
+    required this.name,
+    required this.qty,
+    required this.unitPrice,
+    required this.category,
+    this.productId,
+    this.refundedQty = 0,
+    this.itemId,
+  });
+
+  final String name;
+  final int qty;
+  final double unitPrice;
+  final String category;
+  final String? productId;
+  final int refundedQty;
+  final String? itemId;
+
+  int get refundableQty => (qty - refundedQty).clamp(0, qty);
+  double get lineTotal => unitPrice * qty;
+  double get refundableTotal => unitPrice * refundableQty;
+
+  OrderLine copyWith({int? refundedQty}) => OrderLine(
+        name: name,
+        qty: qty,
+        unitPrice: unitPrice,
+        category: category,
+        productId: productId,
+        refundedQty: refundedQty ?? this.refundedQty,
+        itemId: itemId,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'qty': qty,
+        'unitPrice': unitPrice,
+        'category': category,
+        'productId': productId,
+        'refundedQty': refundedQty,
+        'itemId': itemId,
+      };
+
+  factory OrderLine.fromJson(Map<String, dynamic> json) => OrderLine(
+        name: json['name'] as String? ?? 'Item',
+        qty: (json['qty'] as num?)?.round() ?? 1,
+        unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
+        category: json['category'] as String? ?? 'General',
+        productId: json['productId'] as String?,
+        refundedQty: (json['refundedQty'] as num?)?.round() ?? 0,
+        itemId: json['itemId'] as String?,
+      );
+}
+
 class PosOrder {
   const PosOrder({
     required this.id,
@@ -99,11 +183,13 @@ class PosOrder {
     required this.timestampLabel,
     required this.createdAt,
     this.status = 'Paid',
+    this.synced = true,
+    this.refundedTotal = 0,
   });
 
   final String id;
   final String orderNo;
-  final List<({String name, int qty, double unitPrice, String category})> items;
+  final List<OrderLine> items;
   final double subtotal;
   final double tax;
   final double total;
@@ -112,8 +198,60 @@ class PosOrder {
   final DateTime createdAt;
   final String status;
 
-  bool get isPaid => status.toLowerCase() == 'paid';
+  /// Whether this sale has been confirmed in Supabase (false = pending outbox).
+  final bool synced;
+  final double refundedTotal;
+
+  bool get isPaid => status.toLowerCase() == 'paid' || status.toLowerCase() == 'partial refund';
   bool get isVoided => status.toLowerCase() == 'voided';
+  bool get isRefunded => status.toLowerCase() == 'refunded';
+  bool get isPartiallyRefunded => status.toLowerCase() == 'partial refund';
+  bool get canRefund =>
+      isPaid && items.any((i) => i.refundableQty > 0) && !isVoided;
+
+  double get netTotal => (total - refundedTotal).clamp(0, double.infinity);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'orderNo': orderNo,
+        'items': [for (final i in items) i.toJson()],
+        'subtotal': subtotal,
+        'tax': tax,
+        'total': total,
+        'paymentMethod': paymentMethod.name,
+        'timestampLabel': timestampLabel,
+        'createdAt': createdAt.toIso8601String(),
+        'status': status,
+        'synced': synced,
+        'refundedTotal': refundedTotal,
+      };
+
+  factory PosOrder.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final methodRaw = json['paymentMethod'] as String? ?? 'cash';
+    return PosOrder(
+      id: json['id'] as String? ?? '',
+      orderNo: json['orderNo'] as String? ?? '',
+      items: rawItems is List
+          ? [
+              for (final raw in rawItems.whereType<Map>())
+                OrderLine.fromJson(Map<String, dynamic>.from(raw)),
+            ]
+          : const [],
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
+      tax: (json['tax'] as num?)?.toDouble() ?? 0,
+      total: (json['total'] as num?)?.toDouble() ?? 0,
+      paymentMethod: PaymentMethod.values.firstWhere(
+        (m) => m.name == methodRaw,
+        orElse: () => PaymentMethod.cash,
+      ),
+      timestampLabel: json['timestampLabel'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      status: json['status'] as String? ?? 'Paid',
+      synced: json['synced'] as bool? ?? true,
+      refundedTotal: (json['refundedTotal'] as num?)?.toDouble() ?? 0,
+    );
+  }
 }
 
 const retailCategories = [

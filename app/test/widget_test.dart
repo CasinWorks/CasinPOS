@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foodpos/core/theme/app_theme.dart';
-import 'package:foodpos/features/onboarding/story_mode.dart';
-import 'package:foodpos/features/shell/pos_shell_page.dart';
+import 'package:casinpos/core/theme/app_theme.dart';
+import 'package:casinpos/features/onboarding/story_mode.dart';
+import 'package:casinpos/features/shell/pos_shell_page.dart';
 
 void main() {
   testWidgets('Retail POS shell renders CasinPOS branding', (tester) async {

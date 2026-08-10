@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../data/models/store_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
+import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../analytics/sales_analytics_view.dart';
 import '../cart_checkout/retail_cart_tray.dart';
@@ -17,7 +18,7 @@ import '../pos_retail/retail_inventory_view.dart';
 import '../pos_retail/retail_pos_view.dart';
 import '../receipts/receipts_audit_view.dart';
 import '../register/cash_register_view.dart';
-import 'foodpos_sidebar.dart';
+import 'casinpos_sidebar.dart';
 import 'phase1_home_page.dart';
 
 /// Retail / Restaurant shell. Retail includes story-mode tutorial.
@@ -88,6 +89,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     final showSidebar = Breakpoints.useSidebar(width);
     final showCart = Breakpoints.useCartTray(width);
     ref.watch(cartDisplaySyncProvider);
+    ref.watch(syncBootstrapProvider);
 
     Widget body;
     switch (tab) {

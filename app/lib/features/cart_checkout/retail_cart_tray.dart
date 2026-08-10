@@ -102,7 +102,7 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
           );
       await ref.read(posCatalogProvider.notifier).deductForSale(cart);
       ref.read(cartProvider.notifier).clear();
-      if (method == PaymentMethod.cash) {
+      if (method == PaymentMethod.cash && result.warning == null) {
         unawaited(ref.read(cashRegisterProvider.notifier).refresh());
       }
 

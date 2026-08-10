@@ -6,6 +6,7 @@ import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/permissions.dart';
+import 'refund_sale_dialog.dart';
 
 class SalesHistoryView extends ConsumerWidget {
   const SalesHistoryView({super.key});
@@ -73,11 +74,39 @@ class SalesHistoryView extends ConsumerWidget {
     }
   }
 
+  Future<void> _refundSale(BuildContext context, WidgetRef ref, PosOrder order) async {
+    final selection = await showRefundSaleDialog(context, order: order);
+    if (selection == null || !context.mounted) return;
+    try {
+      await ref.read(ordersProvider.notifier).refundSale(
+            order: order,
+            lines: selection.lines,
+            reason: selection.reason,
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${order.orderNo} refunded — stock restored'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not refund: $e'),
+          backgroundColor: const Color(0xFFEA580C),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(ordersProvider);
     final role = ref.watch(activeMembershipProvider)?.role;
-    final canVoid = role != null && Permissions.canVoidSales(role);
+    final canManageReturns = role != null && Permissions.canVoidSales(role);
 
     return ColoredBox(
       color: Colors.white,
@@ -89,7 +118,7 @@ class SalesHistoryView extends ConsumerWidget {
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
           ),
           const Text(
-            'Paid sales and voids — managers can void a sale to restock inventory',
+            'Paid, refunded, and voided sales — managers can refund or void',
             style: TextStyle(fontSize: 12, color: AppColors.slate400),
           ),
           const SizedBox(height: 16),
@@ -113,8 +142,10 @@ class SalesHistoryView extends ConsumerWidget {
                     width: 360,
                     child: _SaleHistoryCard(
                       order: o,
-                      canVoid: canVoid && o.isPaid,
+                      canVoid: canManageReturns && o.isPaid && !o.isPartiallyRefunded && !o.isRefunded,
+                      canRefund: canManageReturns && o.canRefund,
                       onVoid: () => _voidSale(context, ref, o),
+                      onRefund: () => _refundSale(context, ref, o),
                     ),
                   ),
               ],
@@ -129,39 +160,72 @@ class _SaleHistoryCard extends StatelessWidget {
   const _SaleHistoryCard({
     required this.order,
     required this.canVoid,
+    required this.canRefund,
     required this.onVoid,
+    required this.onRefund,
   });
 
   final PosOrder order;
   final bool canVoid;
+  final bool canRefund;
   final VoidCallback onVoid;
+  final VoidCallback onRefund;
 
   @override
   Widget build(BuildContext context) {
     final voided = order.isVoided;
+    final refunded = order.isRefunded;
+    final partial = order.isPartiallyRefunded;
+    final muted = voided || refunded;
+
+    final badgeColor = voided
+        ? AppColors.slate200
+        : refunded
+            ? const Color(0xFFFFEDD5)
+            : partial
+                ? const Color(0xFFFEF3C7)
+                : const Color(0xFFD1FAE5);
+    final badgeFg = voided
+        ? AppColors.slate600
+        : refunded
+            ? const Color(0xFF9A3412)
+            : partial
+                ? const Color(0xFF92400E)
+                : const Color(0xFF065F46);
+    final badgeIcon = voided
+        ? Icons.block
+        : refunded
+            ? Icons.keyboard_return_rounded
+            : partial
+                ? Icons.replay_circle_filled_outlined
+                : Icons.check;
+    final badgeLabel = voided
+        ? 'Voided'
+        : refunded
+            ? 'Refunded'
+            : partial
+                ? 'Partial refund'
+                : 'Paid';
 
     return Opacity(
-      opacity: voided ? 0.72 : 1,
+      opacity: muted ? 0.72 : 1,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: voided ? const Color(0xFFF8FAFC) : AppColors.scaffold,
+          color: muted ? const Color(0xFFF8FAFC) : AppColors.scaffold,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: voided ? AppColors.slate300 : const Color(0xFFA7F3D0),
-            width: voided ? 1 : 1.5,
-            strokeAlign: BorderSide.strokeAlignInside,
+            color: muted
+                ? AppColors.slate300
+                : partial
+                    ? const Color(0xFFFCD34D)
+                    : const Color(0xFFA7F3D0),
+            width: muted ? 1 : 1.5,
           ),
         ),
-        foregroundDecoration: voided
-            ? BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.slate300, width: 1),
-              )
-            : null,
         child: Stack(
           children: [
-            if (voided)
+            if (voided || refunded)
               Positioned(
                 top: 0,
                 right: 0,
@@ -170,16 +234,16 @@ class _SaleHistoryCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.slate200,
+                      color: voided ? AppColors.slate200 : const Color(0xFFFED7AA),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text(
-                      'VOIDED',
+                    child: Text(
+                      voided ? 'VOIDED' : 'REFUNDED',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.2,
-                        color: AppColors.slate500,
+                        color: voided ? AppColors.slate500 : const Color(0xFF9A3412),
                       ),
                     ),
                   ),
@@ -199,17 +263,17 @@ class _SaleHistoryCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
-                              decoration: voided ? TextDecoration.lineThrough : null,
+                              decoration: muted ? TextDecoration.lineThrough : null,
                               decorationThickness: 2,
-                              color: voided ? AppColors.slate400 : AppColors.ink,
+                              color: muted ? AppColors.slate400 : AppColors.ink,
                             ),
                           ),
                           Text(
                             'Retail · ${order.paymentMethod.label} · ${order.timestampLabel}',
                             style: TextStyle(
                               fontSize: 10,
-                              color: voided ? AppColors.slate400 : AppColors.slate400,
-                              decoration: voided ? TextDecoration.lineThrough : null,
+                              color: AppColors.slate400,
+                              decoration: muted ? TextDecoration.lineThrough : null,
                             ),
                           ),
                         ],
@@ -218,24 +282,20 @@ class _SaleHistoryCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: voided ? AppColors.slate200 : const Color(0xFFD1FAE5),
+                        color: badgeColor,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            voided ? Icons.block : Icons.check,
-                            size: 12,
-                            color: voided ? AppColors.slate500 : const Color(0xFF047857),
-                          ),
+                          Icon(badgeIcon, size: 12, color: badgeFg),
                           const SizedBox(width: 4),
                           Text(
-                            voided ? 'Voided' : 'Paid',
+                            badgeLabel,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: voided ? AppColors.slate600 : const Color(0xFF065F46),
+                              color: badgeFg,
                             ),
                           ),
                         ],
@@ -248,7 +308,7 @@ class _SaleHistoryCard extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: voided ? const Color(0xFFF1F5F9) : Colors.white,
+                    color: muted ? const Color(0xFFF1F5F9) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.slate100),
                   ),
@@ -261,12 +321,14 @@ class _SaleHistoryCard extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  '${item.qty}x ${item.name}',
+                                  item.refundedQty > 0
+                                      ? '${item.qty}x ${item.name} (↺${item.refundedQty})'
+                                      : '${item.qty}x ${item.name}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    decoration: voided ? TextDecoration.lineThrough : null,
-                                    color: voided ? AppColors.slate400 : AppColors.ink,
+                                    decoration: muted ? TextDecoration.lineThrough : null,
+                                    color: muted ? AppColors.slate400 : AppColors.ink,
                                   ),
                                 ),
                               ),
@@ -275,8 +337,8 @@ class _SaleHistoryCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
-                                  decoration: voided ? TextDecoration.lineThrough : null,
-                                  color: voided ? AppColors.slate400 : AppColors.ink,
+                                  decoration: muted ? TextDecoration.lineThrough : null,
+                                  color: muted ? AppColors.slate400 : AppColors.ink,
                                 ),
                               ),
                             ],
@@ -290,30 +352,49 @@ class _SaleHistoryCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Total: ₱${order.total.toStringAsFixed(2)}',
+                        order.refundedTotal > 0
+                            ? 'Net: ₱${order.netTotal.toStringAsFixed(2)}'
+                            : 'Total: ₱${order.total.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
-                          decoration: voided ? TextDecoration.lineThrough : null,
+                          decoration: muted ? TextDecoration.lineThrough : null,
                           decorationThickness: 2,
-                          color: voided ? AppColors.slate400 : AppColors.ink,
+                          color: muted ? AppColors.slate400 : AppColors.ink,
                         ),
                       ),
                     ),
+                    if (canRefund)
+                      TextButton.icon(
+                        onPressed: onRefund,
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(88, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        ),
+                        icon: const Icon(Icons.keyboard_return_rounded, size: 20, color: Color(0xFFEA580C)),
+                        label: const Text(
+                          'Refund',
+                          style: TextStyle(
+                            color: Color(0xFFEA580C),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     if (canVoid)
                       TextButton.icon(
                         onPressed: onVoid,
                         style: TextButton.styleFrom(
-                          minimumSize: const Size(88, 48),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          minimumSize: const Size(72, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                         ),
-                        icon: const Icon(Icons.undo_rounded, size: 22, color: Color(0xFFE11D48)),
+                        icon: const Icon(Icons.block, size: 20, color: Color(0xFFE11D48)),
                         label: const Text(
                           'Void',
                           style: TextStyle(
                             color: Color(0xFFE11D48),
                             fontWeight: FontWeight.w800,
-                            fontSize: 14,
+                            fontSize: 13,
                           ),
                         ),
                       ),

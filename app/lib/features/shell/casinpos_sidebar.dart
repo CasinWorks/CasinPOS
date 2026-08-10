@@ -7,7 +7,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
+import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/session_providers.dart';
+import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/permissions.dart';
 import '../franchise/franchise_dialog.dart';
@@ -34,6 +36,8 @@ class CasinPosSidebar extends ConsumerWidget {
     final storeName = membership?.store.name ?? 'My Store';
     final type = membership?.store.businessType ?? BusinessType.retail;
     final role = membership?.role.value ?? 'staff';
+    final pendingSync = ref.watch(pendingSyncCountProvider).valueOrNull ?? 0;
+    final online = ref.watch(connectivityOnlineProvider).valueOrNull ?? true;
     String userName = 'Team member';
     try {
       final user = ref.watch(authRepositoryProvider).currentUser;
@@ -94,6 +98,56 @@ class CasinPosSidebar extends ConsumerWidget {
                         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.ink),
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: online
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: online
+                        ? const Color(0xFFA7F3D0)
+                        : const Color(0xFFFED7AA),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                      size: 16,
+                      color: online ? const Color(0xFF047857) : const Color(0xFFC2410C),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        online
+                            ? (pendingSync > 0
+                                ? 'Online · syncing $pendingSync'
+                                : 'Online · synced')
+                            : 'Offline · sales stay on this tablet',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: online
+                              ? const Color(0xFF065F46)
+                              : const Color(0xFF9A3412),
+                        ),
+                      ),
+                    ),
+                    if (pendingSync > 0 && online)
+                      IconButton(
+                        tooltip: 'Sync now',
+                        onPressed: () =>
+                            ref.read(syncOutboxServiceProvider).flush(),
+                        icon: const Icon(Icons.sync, size: 16),
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      ),
                   ],
                 ),
               ),

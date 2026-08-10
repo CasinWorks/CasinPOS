@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:foodpos/core/invite/invite_token.dart';
+import 'package:casinpos/core/invite/invite_token.dart';
 
 void main() {
   group('sanitizeInviteToken', () {
