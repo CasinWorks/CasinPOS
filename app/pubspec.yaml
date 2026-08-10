@@ -1,5 +1,5 @@
 name: casinpos
-      description: "CasinPOS - retail point of sale for tablets"
+description: "CasinPOS - retail point of sale for tablets"
 publish_to: "none"
 version: 1.0.0+2
 
