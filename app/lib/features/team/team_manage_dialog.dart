@@ -78,11 +78,11 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
       _loading = true;
       _error = null;
     });
+    final storeRepo = ref.read(storeRepositoryProvider);
     try {
-      final repo = ref.read(storeRepositoryProvider);
       final results = await Future.wait([
-        repo.listStoreTeam(widget.storeId),
-        repo.storeSeatUsage(widget.storeId),
+        storeRepo.listStoreTeam(widget.storeId),
+        storeRepo.storeSeatUsage(widget.storeId),
       ]);
       if (!mounted) return;
       setState(() {
@@ -183,19 +183,22 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
 
   Future<void> _resendInvite(PendingInviteRow invite) async {
     setState(() => _busyId = invite.id);
+    final storeRepo = ref.read(storeRepositoryProvider);
+    final authRepo = ref.read(authRepositoryProvider);
     try {
-      final row = await ref.read(storeRepositoryProvider).createInvitation(
+      final row = await storeRepo.createInvitation(
             storeId: widget.storeId,
             email: invite.email,
             role: invite.role,
           );
+      if (!mounted) return;
       final token = row['token'] as String? ?? invite.token;
       final link = AppUrl.inviteLink(token);
-      final inviter = ref.read(authRepositoryProvider).currentUser;
+      final inviter = authRepo.currentUser;
       final fullName = (inviter?.userMetadata?['full_name'] as String?)?.trim();
       final inviterName =
           (fullName != null && fullName.isNotEmpty) ? fullName : inviter?.email;
-      final mail = await ref.read(storeRepositoryProvider).sendInviteEmail(
+      final mail = await storeRepo.sendInviteEmail(
             email: invite.email,
             token: token,
             storeName: widget.storeName,
@@ -216,14 +219,14 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
             emailNote: mail.emailed
                 ? null
                 : (mail.message ??
-                    'Configure RESEND_API_KEY on Supabase to auto-email invites.'),
+                    'We couldn’t email them automatically. Copy the join link below.'),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
           ],
         ),
       );
-      await _load();
+      if (mounted) await _load();
     } catch (e) {
       if (!mounted) return;
       final msg = friendlyError(e);
@@ -233,6 +236,13 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
           context,
           reason: UpgradeReason.teamSeats,
           storeName: widget.storeName,
+        );
+      } else if (msg.toLowerCase().contains('ref') &&
+          msg.toLowerCase().contains('disposed')) {
+        showAppMessage(
+          context,
+          'Something went wrong. Close Team and try again.',
+          isError: true,
         );
       } else {
         showAppError(context, e);

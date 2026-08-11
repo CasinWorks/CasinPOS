@@ -7,31 +7,83 @@ import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_share_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../data/models/store_models.dart';
 import '../../data/providers/session_providers.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../../domain/enums.dart';
 import '../billing/upgrade_premium_dialog.dart';
 
-/// Opens invite UI. Uses its own [ConsumerStatefulWidget] so parent `ref`
-/// is never used after Team Manage (or other callers) pop/dispose.
+/// Opens invite UI without holding a [WidgetRef] across async gaps.
 Future<void> showInviteTeammateDialog(BuildContext context) async {
+  final container = ProviderScope.containerOf(context);
+  final membership = container.read(activeMembershipProvider);
+  if (membership == null) {
+    if (context.mounted) {
+      showAppMessage(context, 'No active store.', isError: true);
+    }
+    return;
+  }
+  if (!membership.role.canInviteUsers) {
+    if (context.mounted) {
+      showAppMessage(
+        context,
+        'Only Owner or Admin can invite teammates.',
+        isError: true,
+      );
+    }
+    return;
+  }
+
+  final storeRepo = container.read(storeRepositoryProvider);
+  final authRepo = container.read(authRepositoryProvider);
+
+  if (membership.store.planTier == PlanTier.free) {
+    try {
+      final seats = await storeRepo.storeSeatUsage(membership.storeId);
+      if (!context.mounted) return;
+      if (seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
+        await showUpgradePremiumDialog(
+          context,
+          reason: UpgradeReason.teamSeats,
+          storeName: membership.store.name,
+        );
+        return;
+      }
+    } catch (_) {
+      // RPC invite still enforces.
+    }
+  }
+
+  if (!context.mounted) return;
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => const _InviteTeammateDialog(),
+    builder: (ctx) => _InviteTeammateDialog(
+      membership: membership,
+      storeRepo: storeRepo,
+      authRepo: authRepo,
+    ),
   );
 }
 
-class _InviteTeammateDialog extends ConsumerStatefulWidget {
-  const _InviteTeammateDialog();
+class _InviteTeammateDialog extends StatefulWidget {
+  const _InviteTeammateDialog({
+    required this.membership,
+    required this.storeRepo,
+    required this.authRepo,
+  });
+
+  final StoreMembership membership;
+  final StoreRepository storeRepo;
+  final AuthRepository authRepo;
 
   @override
-  ConsumerState<_InviteTeammateDialog> createState() =>
-      _InviteTeammateDialogState();
+  State<_InviteTeammateDialog> createState() => _InviteTeammateDialogState();
 }
 
-class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
+class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
   final _emailCtrl = TextEditingController();
-  StoreRole _role = StoreRole.staff;
+  late StoreRole _role = StoreRole.staff;
   String? _error;
   String? _token;
   String? _invitedEmail;
@@ -41,56 +93,12 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
   var _loading = false;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _guardSeats());
-  }
-
-  @override
   void dispose() {
     _emailCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _guardSeats() async {
-    final membership = ref.read(activeMembershipProvider);
-    if (membership == null) {
-      if (mounted) Navigator.pop(context);
-      return;
-    }
-    if (!membership.role.canInviteUsers) {
-      if (!mounted) return;
-      showAppMessage(
-        context,
-        'Only Owner or Admin can invite teammates.',
-        isError: true,
-      );
-      Navigator.pop(context);
-      return;
-    }
-    if (membership.store.planTier != PlanTier.free) return;
-    try {
-      final seats = await ref
-          .read(storeRepositoryProvider)
-          .storeSeatUsage(membership.storeId);
-      if (!mounted) return;
-      if (seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
-        await showUpgradePremiumDialog(
-          context,
-          reason: UpgradeReason.teamSeats,
-          storeName: membership.store.name,
-        );
-        if (mounted) Navigator.pop(context);
-      }
-    } catch (_) {
-      // RPC invite still enforces.
-    }
-  }
-
   Future<void> _send() async {
-    final membership = ref.read(activeMembershipProvider);
-    if (membership == null) return;
-
     final email = _emailCtrl.text.trim().toLowerCase();
     if (!email.contains('@')) {
       setState(() => _error = 'Enter a valid email');
@@ -102,12 +110,19 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
       _error = null;
     });
 
+    // Capture locals — never touch Riverpod `ref` in this widget.
+    final storeId = widget.membership.storeId;
+    final storeName = widget.membership.store.name;
+    final role = _role;
+    final storeRepo = widget.storeRepo;
+    final authRepo = widget.authRepo;
+
     try {
-      final row = await ref.read(storeRepositoryProvider).createInvitation(
-            storeId: membership.storeId,
-            email: email,
-            role: _role,
-          );
+      final row = await storeRepo.createInvitation(
+        storeId: storeId,
+        email: email,
+        role: role,
+      );
       if (!mounted) return;
 
       final t = row['token'] as String?;
@@ -118,20 +133,20 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
       }
 
       final link = AppUrl.inviteLink(t);
-      final inviter = ref.read(authRepositoryProvider).currentUser;
+      final inviter = authRepo.currentUser;
       final fullName =
           (inviter?.userMetadata?['full_name'] as String?)?.trim();
       final inviterName =
           (fullName != null && fullName.isNotEmpty) ? fullName : inviter?.email;
 
-      final mail = await ref.read(storeRepositoryProvider).sendInviteEmail(
-            email: email,
-            token: t,
-            storeName: membership.store.name,
-            role: _role.value,
-            inviteUrl: link,
-            inviterName: inviterName,
-          );
+      final mail = await storeRepo.sendInviteEmail(
+        email: email,
+        token: t,
+        storeName: storeName,
+        role: role.value,
+        inviteUrl: link,
+        inviterName: inviterName,
+      );
       if (!mounted) return;
 
       setState(() {
@@ -150,12 +165,18 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
         e,
         fallback: 'Could not send invite. Please try again.',
       );
+      // Never show Riverpod dispose internals in the invite form.
+      if (msg.toLowerCase().contains('ref') &&
+          msg.toLowerCase().contains('disposed')) {
+        setState(() => _error = 'Something went wrong. Close this and try Invite again.');
+        return;
+      }
       if (msg.toLowerCase().contains('upgrade to premium') ||
           msg.toUpperCase().contains('FREE_TEAM_SEAT_LIMIT')) {
         await showUpgradePremiumDialog(
           context,
           reason: UpgradeReason.teamSeats,
-          storeName: membership.store.name,
+          storeName: widget.membership.store.name,
         );
         if (mounted) Navigator.pop(context);
         return;
@@ -168,17 +189,7 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final membership = ref.watch(activeMembershipProvider);
-    if (membership == null) {
-      return AlertDialog(
-        title: const Text('Invite teammate'),
-        content: const Text('No active store.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-        ],
-      );
-    }
-
+    final membership = widget.membership;
     final token = _token;
     final invitedEmail = _invitedEmail;
 
@@ -212,6 +223,7 @@ class _InviteTeammateDialogState extends ConsumerState<_InviteTeammateDialog> {
               ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<StoreRole>(
+                key: ValueKey(_role),
                 initialValue: _role,
                 decoration: const InputDecoration(labelText: 'Role'),
                 items: [
