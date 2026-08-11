@@ -113,7 +113,7 @@ class _Phase1HomePageState extends ConsumerState<Phase1HomePage> {
               children: [
                 if (membership.role.canInviteUsers)
                   OutlinedButton.icon(
-                    onPressed: () => showInviteTeammateDialog(context, ref),
+                    onPressed: () => showInviteTeammateDialog(context),
                     icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
                     label: const Text('Invite teammate'),
                   ),

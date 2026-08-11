@@ -254,8 +254,9 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
       );
       return;
     }
-    Navigator.pop(context);
-    await showInviteTeammateDialog(context, ref);
+    // Keep Team Manage mounted — do not pop then reuse disposed `ref`.
+    await showInviteTeammateDialog(context);
+    if (mounted) await _load();
   }
 
   Future<void> _setMyPin() async {

@@ -500,17 +500,17 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     emptyInviteState
-                        ? 'Open the full invite link from your email (it includes ?token=…). '
-                            'Or paste only the token below — not the bare /invite page URL.'
+                        ? 'Open the join link from your invite email (or that your manager sent you). '
+                            'A blank /invite page won’t work — the link must include the invite.'
                         : signedIn
                             ? (hasToken
                                 ? 'You’re signed in${signedEmail != null ? ' as $signedEmail' : ''}. '
-                                    'Accept to join — your account email must match the invite.'
-                                : 'Paste the invite token from your email or owner. '
+                                    'Tap Accept — you must use the same email that was invited.'
+                                : 'Paste the join link or backup token from your invite. '
                                     'Your signed-in email must match the invite.')
-                            : '1. Open the invite email link (token is filled for you).\n'
+                            : '1. Keep this page open if the join link already filled the field below.\n'
                                 '2. Create an account or sign in with the invited email.\n'
-                                '3. You’re in — Accept runs automatically once you’re signed in.',
+                                '3. You’re in — Accept runs automatically after sign-in.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (emptyInviteState || missingTokenLink) ...[

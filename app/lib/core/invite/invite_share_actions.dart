@@ -35,7 +35,7 @@ class InviteShareActions extends StatelessWidget {
       children: [
         if (emailed == true)
           Text(
-            'Invite email sent to $email.',
+            'We emailed $email a join link.',
             style: const TextStyle(
               color: AppColors.success,
               fontWeight: FontWeight.w600,
@@ -45,61 +45,91 @@ class InviteShareActions extends StatelessWidget {
         else if (emailed == false)
           Text(
             emailNote ??
-                'Email wasn’t sent automatically. Use Copy invite link or Open email draft below.',
+                'Email wasn’t sent. Copy the join link and send it to $email yourself.',
             style: const TextStyle(color: AppColors.slate600, fontSize: 13),
           ),
-        const SizedBox(height: AppSpacing.sm),
-        SelectableText(
-          link,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        const SizedBox(height: AppSpacing.md),
+        const Text(
+          'What they do',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        Wrap(
-          spacing: 4,
-          runSpacing: 0,
-          children: [
-            TextButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: link));
-                if (context.mounted) {
-                  showAppMessage(context, 'Invite link copied');
-                }
-              },
-              icon: const Icon(Icons.link, size: 16),
-              label: const Text('Copy invite link'),
-            ),
-            TextButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: token));
-                if (context.mounted) {
-                  showAppMessage(context, 'Invite token copied');
-                }
-              },
-              icon: const Icon(Icons.copy, size: 16),
-              label: const Text('Copy token'),
-            ),
-            TextButton.icon(
-              onPressed: () async {
-                final mailto = AppUrl.inviteMailto(
-                  toEmail: email,
-                  token: token,
-                  storeName: storeName,
+        const SizedBox(height: 6),
+        Text(
+          '1. Open the join link (from email or from you)\n'
+          '2. Create an account / sign in as $email\n'
+          '3. They’re in — no token paste needed',
+          style: const TextStyle(fontSize: 12, height: 1.4, color: AppColors.slate600),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: link));
+            if (context.mounted) {
+              showAppMessage(context, 'Join link copied');
+            }
+          },
+          icon: const Icon(Icons.link, size: 18),
+          label: const Text('Copy join link'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final mailto = AppUrl.inviteMailto(
+              toEmail: email,
+              token: token,
+              storeName: storeName,
+            );
+            final opened = await openExternalUri(mailto);
+            if (!opened && context.mounted) {
+              await Clipboard.setData(ClipboardData(text: mailto.toString()));
+              if (context.mounted) {
+                showAppMessage(
+                  context,
+                  'Email draft copied — paste into your mail app',
                 );
-                final opened = await openExternalUri(mailto);
-                if (!opened && context.mounted) {
-                  await Clipboard.setData(ClipboardData(text: mailto.toString()));
+              }
+            }
+          },
+          icon: const Icon(Icons.mail_outline, size: 18),
+          label: const Text('Open email draft'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            title: const Text(
+              'Advanced',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            subtitle: const Text(
+              'Only if the join link fails',
+              style: TextStyle(fontSize: 11, color: AppColors.slate500),
+            ),
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SelectableText(
+                  link,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: token));
                   if (context.mounted) {
                     showAppMessage(
                       context,
-                      'Mailto copied — paste into your browser address bar',
+                      'Token copied — they paste it on Join your team',
                     );
                   }
-                }
-              },
-              icon: const Icon(Icons.mail_outline, size: 16),
-              label: const Text('Open email draft'),
-            ),
-          ],
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Copy backup token'),
+              ),
+            ],
+          ),
         ),
       ],
     );
