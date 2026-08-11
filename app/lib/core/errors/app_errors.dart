@@ -142,6 +142,21 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('ADMIN_CANNOT_MANAGE_ADMIN')) {
     return 'Only the Owner can manage another Admin.';
   }
+  if (s.contains('PIN_INVALID')) {
+    return 'PIN must be 4–6 digits.';
+  }
+  if (s.contains('PIN_NOT_SET')) {
+    return 'This teammate has not set a cashier PIN yet. Set one under Team.';
+  }
+  if (s.contains('PIN_LOCKED')) {
+    return 'Too many wrong PIN attempts. Wait a few minutes and try again.';
+  }
+  if (s.contains('PIN_INCORRECT')) {
+    return 'Incorrect PIN.';
+  }
+  if (s.contains('SESSION_NOT_OPEN')) {
+    return 'No open register session to claim.';
+  }
   return null;
 }
 

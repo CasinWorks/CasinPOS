@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../bootstrap.dart';
+import '../../core/errors/app_errors.dart';
 import 'transaction_repository.dart';
 
 class CashSession {
@@ -185,6 +186,31 @@ class CashRegisterRepository {
         .select()
         .single();
     return CashSession.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  /// Claims / re-claims an open session for [userId] after PIN verification (RPC).
+  Future<void> claimSessionWithPin({
+    required String sessionId,
+    required String userId,
+    required String pin,
+  }) async {
+    try {
+      await _client.rpc(
+        'claim_shift_with_pin',
+        params: {
+          'p_session_id': sessionId,
+          'p_user_id': userId,
+          'p_pin': pin,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not claim shift. Please try again.',
+        cause: e,
+      );
+    }
   }
 
   Future<List<CashMovement>> fetchMovements(String sessionId) async {

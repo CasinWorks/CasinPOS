@@ -10,6 +10,7 @@ import '../../data/models/team_models.dart';
 import '../../data/providers/session_providers.dart';
 import '../../domain/enums.dart';
 import '../billing/upgrade_premium_dialog.dart';
+import '../auth/pin_pad.dart';
 import 'invite_teammate_dialog.dart';
 
 Future<void> showTeamManageDialog(BuildContext context, WidgetRef ref) async {
@@ -239,6 +240,71 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     await showInviteTeammateDialog(context, ref);
   }
 
+  Future<void> _setMyPin() async {
+    final pin = await showPinPadDialog(
+      context,
+      title: 'Set cashier PIN',
+      subtitle: '4–6 digits. Used to open/claim the register on this store.',
+      confirmLabel: 'Continue',
+    );
+    if (pin == null || !mounted) return;
+    final confirm = await showPinPadDialog(
+      context,
+      title: 'Confirm PIN',
+      subtitle: 'Enter the same PIN again.',
+      confirmLabel: 'Save PIN',
+    );
+    if (confirm == null || !mounted) return;
+    if (confirm != pin) {
+      showAppMessage(context, 'PINs didn’t match. Try again.', isError: true);
+      return;
+    }
+    setState(() => _busyId = 'pin');
+    try {
+      await ref.read(storeRepositoryProvider).setMyStorePin(
+            storeId: widget.storeId,
+            pin: pin,
+          );
+      await _load();
+      if (mounted) showAppMessage(context, 'Cashier PIN saved');
+    } catch (e) {
+      if (mounted) showAppError(context, e);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  Future<void> _resetPin(TeamMemberRow member) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset PIN?'),
+        content: Text(
+          'Clear the cashier PIN for ${member.displayName}. '
+          'They’ll need to set a new one under Team.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busyId = member.id);
+    try {
+      await ref.read(storeRepositoryProvider).adminClearMemberPin(member.id);
+      await _load();
+      if (mounted) showAppMessage(context, 'PIN cleared');
+    } catch (e) {
+      if (mounted) showAppError(context, e);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final team = _team;
@@ -309,6 +375,10 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: _busyId == 'pin' ? null : _setMyPin,
+          child: const Text('Set my PIN'),
+        ),
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         FilledButton.icon(
           onPressed: _invite,
@@ -341,6 +411,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
               if (m.email != null && m.email!.isNotEmpty && m.email != m.displayName)
                 m.email!,
               if (m.isSelf) 'You',
+              m.hasPin ? 'PIN set' : 'No PIN',
             ].where((e) => e.isNotEmpty).join(' · '),
           ),
           trailing: busy
@@ -352,6 +423,12 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (!m.isSelf && m.hasPin)
+                      IconButton(
+                        tooltip: 'Reset PIN',
+                        onPressed: () => _resetPin(m),
+                        icon: const Icon(Icons.pin_outlined, size: 20),
+                      ),
                     if (editable)
                       SizedBox(
                         width: 120,

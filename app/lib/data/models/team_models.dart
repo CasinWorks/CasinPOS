@@ -10,6 +10,7 @@ class TeamMemberRow {
     this.fullName,
     this.email,
     this.createdAt,
+    this.hasPin = false,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class TeamMemberRow {
   final String? fullName;
   final String? email;
   final DateTime? createdAt;
+  final bool hasPin;
 
   String get displayName {
     final name = fullName?.trim();
@@ -39,6 +41,42 @@ class TeamMemberRow {
       fullName: json['full_name'] as String?,
       email: json['email'] as String?,
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
+      hasPin: json['has_pin'] == true,
+    );
+  }
+}
+
+class ShiftRosterMember {
+  const ShiftRosterMember({
+    required this.userId,
+    required this.memberId,
+    required this.role,
+    required this.hasPin,
+    required this.isSelf,
+    this.fullName,
+  });
+
+  final String userId;
+  final String memberId;
+  final StoreRole role;
+  final bool hasPin;
+  final bool isSelf;
+  final String? fullName;
+
+  String get displayName {
+    final name = fullName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return isSelf ? 'You' : 'Team member';
+  }
+
+  factory ShiftRosterMember.fromJson(Map<String, dynamic> json) {
+    return ShiftRosterMember(
+      userId: json['user_id'] as String,
+      memberId: json['member_id'] as String,
+      role: StoreRole.fromValue(json['role'] as String? ?? 'staff'),
+      hasPin: json['has_pin'] == true,
+      isSelf: json['is_self'] == true,
+      fullName: json['full_name'] as String?,
     );
   }
 }

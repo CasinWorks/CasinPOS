@@ -164,3 +164,17 @@ Effects:
 - Apply Script E for Team manage RPCs
 - Mark these filenames applied in your migration history if you use CLI later (`supabase migration repair` as needed)
 - Auth: paste recovery email template + allow-list `/reset-password` redirect URL
+
+---
+
+## Script F — Cashier PIN (`20260812000100`)
+
+Paste the full contents of:
+
+`supabase/migrations/20260812000100_cashier_pins.sql`
+
+Effects:
+- Private `store_member_pins` table (bcrypt via pgcrypto; no client read)
+- `set_my_store_pin` / `admin_clear_member_pin` / `verify_member_pin` / `claim_shift_with_pin`
+- `list_shift_roster` + `has_pin` on team list
+- Lockout after 5 wrong attempts (5 minutes)

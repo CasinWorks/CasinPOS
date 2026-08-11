@@ -9,6 +9,7 @@ import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../data/repositories/cash_register_repository.dart';
 import '../../../domain/permissions.dart';
+import '../auth/cashier_pin_flow.dart';
 
 class CashRegisterView extends ConsumerStatefulWidget {
   const CashRegisterView({super.key});
@@ -40,6 +41,14 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
       );
       return;
     }
+
+    final stepUp = await confirmManagerStepUp(
+      context,
+      ref,
+      title: 'Open register',
+      body: 'Confirm it’s you before opening the cash drawer.',
+    );
+    if (!stepUp || !mounted) return;
 
     final ctrl = TextEditingController(text: '1000');
     final ok = await showDialog<bool>(
@@ -364,30 +373,22 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (balance.session.claimedBy == null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              await ref
-                                  .read(cashRegisterProvider.notifier)
-                                  .claim(sessionId: balance.session.id);
-                              if (!context.mounted) return;
-                              showAppMessage(context, 'Shift claimed — sales on this drawer are tied to you');
-                            } catch (e) {
-                              if (!context.mounted) return;
-                              showAppError(context, e, fallback: 'Could not claim shift');
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-                          icon: const Icon(Icons.badge_outlined),
-                          label: const Text(
-                            'Claim this shift (cashier accountability)',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: OutlinedButton.icon(
+                        onPressed: () => showSwitchCashierDialog(
+                          context,
+                          ref,
+                          sessionId: balance.session.id,
+                        ),
+                        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                        icon: const Icon(Icons.badge_outlined),
+                        label: const Text(
+                          'Switch cashier (PIN)',
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
+                    ),
                     Row(
                       children: [
                         Expanded(

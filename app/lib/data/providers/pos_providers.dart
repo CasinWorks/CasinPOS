@@ -907,6 +907,19 @@ class CashRegisterNotifier extends StateNotifier<AsyncValue<RegisterBalance?>> {
     await refresh();
   }
 
+  Future<void> claimWithPin({
+    required String sessionId,
+    required String userId,
+    required String pin,
+  }) async {
+    await _repo.claimSessionWithPin(
+      sessionId: sessionId,
+      userId: userId,
+      pin: pin,
+    );
+    await refresh();
+  }
+
   Future<void> open({required double openingFloat, String? notes}) async {
     final storeId = _ref.read(activeMembershipProvider)?.storeId;
     if (storeId == null) throw StateError('No active store');

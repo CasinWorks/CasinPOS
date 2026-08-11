@@ -7,12 +7,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/permissions.dart';
-import '../auth/confirm_password.dart';
+import '../auth/cashier_pin_flow.dart';
 
 /// Returns `true` when an open cash session exists (already open or newly opened).
 ///
 /// Used before checkout. Staff cannot open — they are told a manager must unlock.
-/// Managers+ confirm, re-enter their signed-in password, then enter opening float.
+/// Managers+ confirm with PIN (or password if no PIN), then enter opening float.
 Future<bool> ensureCashRegisterOpenForCheckout(
   BuildContext context,
   WidgetRef ref,
@@ -91,12 +91,11 @@ Future<bool> ensureCashRegisterOpenForCheckout(
   );
   if (confirmed != true || !context.mounted) return false;
 
-  final email = ref.read(authRepositoryProvider).currentUser?.email?.trim() ?? '';
-  final authOk = await confirmSignedInPassword(
+  final authOk = await confirmManagerStepUp(
     context,
     ref,
-    title: 'Manager password',
-    body: 'Re-enter your password for $email to open the register.',
+    title: 'Manager confirm',
+    body: 'Confirm it’s you before opening the register.',
   );
   if (!authOk || !context.mounted) return false;
 
@@ -104,7 +103,6 @@ Future<bool> ensureCashRegisterOpenForCheckout(
   final float = await _askOpeningFloat(context, symbol: symbol);
   if (float == null || !context.mounted) return false;
 
-  // Float dialog is closed — safe to refresh cashRegister without dialog listeners.
   try {
     await ref.read(cashRegisterProvider.notifier).open(openingFloat: float);
     if (!context.mounted) return false;

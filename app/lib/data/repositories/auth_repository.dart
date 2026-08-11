@@ -305,6 +305,127 @@ class StoreRepository {
     }
   }
 
+  Future<void> setMyStorePin({
+    required String storeId,
+    required String pin,
+  }) async {
+    try {
+      await _client.rpc(
+        'set_my_store_pin',
+        params: {
+          'p_store_id': storeId,
+          'p_pin': pin,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not save PIN. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> adminClearMemberPin(String memberId) async {
+    try {
+      await _client.rpc(
+        'admin_clear_member_pin',
+        params: {'p_member_id': memberId},
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not reset PIN. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<bool> myStoreHasPin(String storeId) async {
+    try {
+      final result = await _client.rpc(
+        'my_store_pin_status',
+        params: {'p_store_id': storeId},
+      );
+      final map = Map<String, dynamic>.from(result as Map);
+      return map['has_pin'] == true;
+    } on PostgrestException catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> verifyMemberPin({
+    required String storeId,
+    required String userId,
+    required String pin,
+  }) async {
+    try {
+      await _client.rpc(
+        'verify_member_pin',
+        params: {
+          'p_store_id': storeId,
+          'p_user_id': userId,
+          'p_pin': pin,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'PIN check failed. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<List<ShiftRosterMember>> listShiftRoster(String storeId) async {
+    try {
+      final result = await _client.rpc(
+        'list_shift_roster',
+        params: {'p_store_id': storeId},
+      );
+      final map = Map<String, dynamic>.from(result as Map);
+      final raw = map['members'];
+      if (raw is! List) return const [];
+      return raw
+          .map((e) => ShiftRosterMember.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not load roster. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> claimShiftWithPin({
+    required String sessionId,
+    required String userId,
+    required String pin,
+  }) async {
+    try {
+      await _client.rpc(
+        'claim_shift_with_pin',
+        params: {
+          'p_session_id': sessionId,
+          'p_user_id': userId,
+          'p_pin': pin,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not claim shift. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
   Future<String> acceptInvitation(String token) async {
     if (isInviteUrlMissingToken(token)) {
       throw AppException(kInviteMissingTokenMessage);
