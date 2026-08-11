@@ -9,6 +9,13 @@ Paste these into the Supabase Dashboard (or apply via Management API after Custo
 | Template file | Dashboard location |
 |---------------|-------------------|
 | `confirm_signup.html` + `confirm_signup_subject.txt` | Authentication → Email Templates → **Confirm signup** |
+| `recovery.html` + `recovery_subject.txt` | Authentication → Email Templates → **Reset password** |
+
+Also add redirect URL allow-list entry:
+
+`https://YOUR_APP_ORIGIN/reset-password`
+
+(and local/dev origins if needed).
 
 ## Variables (Go templates)
 

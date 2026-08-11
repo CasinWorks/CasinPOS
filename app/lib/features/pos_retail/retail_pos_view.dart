@@ -258,9 +258,13 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                   ),
                   itemBuilder: (context, i) {
                     final p = filtered[i];
-                    final inCart = ref.watch(cartProvider)
-                        .where((l) => l.product.id == p.id)
-                        .fold<int>(0, (s, l) => s + l.quantity);
+                    final inCart = ref.watch(
+                      cartProvider.select(
+                        (cart) => cart
+                            .where((l) => l.product.id == p.id)
+                            .fold<int>(0, (s, l) => s + l.quantity),
+                      ),
+                    );
                     final remaining = (p.stock - inCart).clamp(0, 999999);
                     final out = remaining <= 0;
                     return _ProductCard(

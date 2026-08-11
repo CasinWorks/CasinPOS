@@ -119,8 +119,10 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     final shell = !showSidebar
         ? Scaffold(
             body: body,
-            floatingActionButton: tab == 'checkout' ? const MobileCartFab() : null,
             bottomNavigationBar: NavigationBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 3,
               selectedIndex: _mobileIndex(tab),
               onDestinationSelected: (i) {
                 ref.read(retailTabProvider.notifier).state = switch (i) {
@@ -161,9 +163,17 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
             ),
           );
 
+    // Keep cart control OUT of Scaffold.floatingActionButton — FAB slot
+    // transitions paint a dark band over NavigationBar on every cart add.
     return Stack(
       children: [
         shell,
+        if (!showSidebar && tab == 'checkout')
+          Positioned(
+            right: 16,
+            bottom: 72 + 16, // NavigationBarTheme height + padding
+            child: const MobileCartFab(),
+          ),
         const RetailStoryOverlay(),
       ],
     );

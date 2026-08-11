@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/providers/session_providers.dart';
 import '../../domain/enums.dart';
+import '../billing/upgrade_premium_dialog.dart';
 
 Future<void> showInviteTeammateDialog(BuildContext context, WidgetRef ref) async {
   final membership = ref.read(activeMembershipProvider);
@@ -166,12 +167,25 @@ Future<void> showInviteTeammateDialog(BuildContext context, WidgetRef ref) async
                               );
                             }
                           } catch (e) {
-                            setLocal(
-                              () => error = friendlyError(
-                                e,
-                                fallback: 'Could not send invite. Please try again.',
-                              ),
+                            final msg = friendlyError(
+                              e,
+                              fallback: 'Could not send invite. Please try again.',
                             );
+                            if (msg.toLowerCase().contains('upgrade to premium') ||
+                                msg.toUpperCase().contains('FREE_TEAM_SEAT_LIMIT')) {
+                              if (ctx.mounted) {
+                                Navigator.pop(ctx);
+                              }
+                              if (context.mounted) {
+                                await showUpgradePremiumDialog(
+                                  context,
+                                  reason: UpgradeReason.teamSeats,
+                                  storeName: membership.store.name,
+                                );
+                              }
+                              return;
+                            }
+                            setLocal(() => error = msg);
                           } finally {
                             setLocal(() => loading = false);
                           }

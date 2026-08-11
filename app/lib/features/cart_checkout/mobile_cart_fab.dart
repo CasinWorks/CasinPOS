@@ -7,7 +7,10 @@ import '../../core/theme/app_colors.dart';
 import '../../data/providers/pos_providers.dart';
 import 'retail_cart_tray.dart';
 
-/// Mobile cart button: badge count + shake + gold confetti on add-to-cart.
+/// Mobile cart button: badge count + shake + confetti on add-to-cart.
+///
+/// Uses a fixed-size [FloatingActionButton] (not extended) so the Scaffold
+/// doesn’t resize/animate a full-width band under the button on every add.
 class MobileCartFab extends ConsumerStatefulWidget {
   const MobileCartFab({super.key});
 
@@ -50,12 +53,12 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
   }
 
   void _celebrate() {
-    _bits = List.generate(22, (_) {
+    _bits = List.generate(18, (_) {
       final angle = -math.pi * 0.15 - _rng.nextDouble() * math.pi * 0.7;
-      final speed = 90 + _rng.nextDouble() * 140;
+      final speed = 70 + _rng.nextDouble() * 110;
       return _ConfettiBit(
         dx: math.cos(angle) * speed,
-        dy: math.sin(angle) * speed - 40,
+        dy: math.sin(angle) * speed - 30,
         spin: (_rng.nextDouble() - 0.5) * 8,
         color: [
           AppColors.accent,
@@ -65,7 +68,7 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
           const Color(0xFFE53935),
           const Color(0xFF43A047),
         ][_rng.nextInt(6)],
-        size: 5 + _rng.nextDouble() * 5,
+        size: 4 + _rng.nextDouble() * 4,
         shape: _rng.nextBool() ? _ConfettiShape.rect : _ConfettiShape.circle,
       );
     });
@@ -79,6 +82,7 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.white,
       builder: (sheetContext) {
         final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
         return SizedBox(
@@ -91,8 +95,11 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
 
   @override
   Widget build(BuildContext context) {
-    final cart = ref.watch(cartProvider);
-    final count = cart.fold<int>(0, (s, l) => s + l.quantity);
+    final count = ref.watch(
+      cartProvider.select(
+        (cart) => cart.fold<int>(0, (s, l) => s + l.quantity),
+      ),
+    );
 
     ref.listen<String?>(cartAddPulseProvider, (prev, next) {
       if (next != null && next != prev) _celebrate();
@@ -105,13 +112,12 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
     ]).animate(CurvedAnimation(parent: _badgePop, curve: Curves.easeOutBack));
 
     return SizedBox(
-      width: 96,
+      width: 72,
       height: 72,
       child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.bottomRight,
+        clipBehavior: Clip.hardEdge,
+        alignment: Alignment.center,
         children: [
-          // Confetti layer
           Positioned.fill(
             child: IgnorePointer(
               child: AnimatedBuilder(
@@ -147,23 +153,21 @@ class _MobileCartFabState extends ConsumerState<MobileCartFab>
                 ),
               );
             },
-            child: FloatingActionButton.extended(
-              heroTag: 'mobile-cart-fab',
+            child: FloatingActionButton(
+              heroTag: null,
               onPressed: _openCart,
               backgroundColor: AppColors.accent,
               foregroundColor: AppColors.ink,
-              elevation: 4,
-              label: Text(
-                count > 0 ? 'Cart ($count)' : 'Cart',
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              icon: const Icon(Icons.shopping_bag_rounded),
+              elevation: 3,
+              highlightElevation: 3,
+              tooltip: count > 0 ? 'Cart ($count)' : 'Cart',
+              child: const Icon(Icons.shopping_bag_rounded),
             ),
           ),
           if (count > 0)
             Positioned(
-              right: -2,
-              top: 0,
+              right: 4,
+              top: 4,
               child: ScaleTransition(
                 scale: badgeScale,
                 child: _CartBadge(count: count),
@@ -240,7 +244,7 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final origin = Offset(size.width * 0.55, size.height * 0.55);
+    final origin = Offset(size.width * 0.5, size.height * 0.55);
     final g = 420.0;
     for (final bit in bits) {
       final t = progress;

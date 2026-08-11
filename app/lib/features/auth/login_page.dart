@@ -96,6 +96,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     validator: (v) =>
                         (v == null || v.length < 6) ? 'Min 6 characters' : null,
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => context.go('/forgot-password'),
+                      child: const Text('Forgot password?'),
+                    ),
+                  ),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),
                     Text(_error!, style: const TextStyle(color: AppColors.danger)),

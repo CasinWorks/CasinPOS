@@ -121,6 +121,27 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('FREE_MONTHLY_LIMIT_REACHED')) {
     return 'Free monthly transaction limit reached (100 sales). Upgrade to Premium or ask CasinPOS support.';
   }
+  if (s.contains('MEMBER_NOT_FOUND')) {
+    return 'That teammate was already removed or isn’t on this store.';
+  }
+  if (s.contains('CANNOT_ASSIGN_OWNER')) {
+    return 'Ownership can’t be assigned here. Contact CasinPOS support for owner transfer.';
+  }
+  if (s.contains('CANNOT_CHANGE_OWNER_ROLE')) {
+    return 'You can’t change the Owner’s role.';
+  }
+  if (s.contains('CANNOT_CHANGE_OWN_ROLE')) {
+    return 'You can’t change your own role.';
+  }
+  if (s.contains('CANNOT_REMOVE_OWNER')) {
+    return 'You can’t remove the store Owner.';
+  }
+  if (s.contains('CANNOT_REMOVE_SELF')) {
+    return 'You can’t remove yourself. Ask another Owner/Admin.';
+  }
+  if (s.contains('ADMIN_CANNOT_MANAGE_ADMIN')) {
+    return 'Only the Owner can manage another Admin.';
+  }
   return null;
 }
 

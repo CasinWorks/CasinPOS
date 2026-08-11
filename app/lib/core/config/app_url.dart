@@ -35,6 +35,9 @@ abstract final class AppUrl {
     return '${publicOrigin()}/invite?token=$t';
   }
 
+  /// Password recovery redirect — must be allow-listed in Supabase Auth URL config.
+  static String resetPasswordLink() => '${publicOrigin()}/reset-password';
+
   /// Friendly alias used in copy for humans; same destination as [inviteLink].
   static String joinLink(String token) {
     final t = Uri.encodeQueryComponent(token.trim());

@@ -7,6 +7,7 @@ import 'core/animations/fluid_ink_intro.dart';
 import 'core/invite/invite_token.dart';
 import 'core/invite/pending_invite_token.dart';
 import 'data/providers/session_providers.dart';
+import 'features/auth/forgot_password_page.dart';
 import 'features/auth/login_page.dart';
 import 'features/customer_display/customer_display_page.dart';
 import 'features/legal/legal_pages.dart';
@@ -38,7 +39,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           loc != '/intro' &&
           loc != '/display' &&
           loc != '/privacy' &&
-          loc != '/terms') {
+          loc != '/terms' &&
+          loc != '/forgot-password' &&
+          loc != '/reset-password') {
         return '/intro';
       }
       if (loc == '/intro') {
@@ -57,14 +60,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final onInvite = loc == '/invite' || loc == '/join' || loc.startsWith('/invite/');
       final onboarding = loc == '/onboarding/store';
       final onCustomerDisplay = loc == '/display';
+      final onPasswordReset = loc == '/forgot-password' || loc == '/reset-password';
+      final recoveryPending = ref.read(passwordRecoveryPendingProvider);
       final pendingToken = readPendingInviteToken();
       final hasPendingInvite = pendingToken != null && pendingToken.isNotEmpty;
 
+      if (recoveryPending && loc != '/reset-password') {
+        return '/reset-password';
+      }
+
       if (session == null) {
-        if (loggingIn || onInvite || loc == '/privacy' || loc == '/terms') {
+        if (loggingIn ||
+            onInvite ||
+            onPasswordReset ||
+            loc == '/privacy' ||
+            loc == '/terms') {
           return null;
         }
         return '/login';
+      }
+
+      if (onPasswordReset) {
+        // Signed-in recovery session stays on reset; forgot-password can exit to `/`.
+        if (loc == '/reset-password') return null;
+        if (loc == '/forgot-password') return '/';
       }
 
       if (membershipsAsync.isLoading) {
@@ -108,6 +127,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordPage(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordPage(),
+      ),
       GoRoute(
         path: '/invite',
         builder: (context, state) => InviteAcceptPage(
@@ -167,6 +194,7 @@ class _RouterRefresh extends ChangeNotifier {
     ref.listen(authUserIdProvider, (_, _) => notifyListeners());
     ref.listen(membershipsProvider, (_, _) => notifyListeners());
     ref.listen(introSeenProvider, (_, _) => notifyListeners());
+    ref.listen(passwordRecoveryPendingProvider, (_, _) => notifyListeners());
   }
 
   final Ref ref;

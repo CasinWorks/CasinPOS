@@ -7,6 +7,7 @@ import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_token.dart';
 import '../../domain/enums.dart';
 import '../models/store_models.dart';
+import '../models/team_models.dart';
 
 class InviteEmailResult {
   const InviteEmailResult({
@@ -62,6 +63,21 @@ class AuthRepository {
     final c = supabaseOrNull;
     if (c == null) return;
     await c.auth.signOut();
+  }
+
+  /// Sends a password-reset email. [redirectTo] must be allow-listed in Supabase Auth.
+  Future<void> resetPasswordForEmail({
+    required String email,
+    required String redirectTo,
+  }) {
+    return _client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<UserResponse> updatePassword(String newPassword) {
+    return _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 }
 
@@ -214,6 +230,77 @@ class StoreRepository {
         emailed: false,
         reason: 'INVOKE_FAILED',
         message: e.toString(),
+      );
+    }
+  }
+
+  Future<StoreTeamSnapshot> listStoreTeam(String storeId) async {
+    try {
+      final result = await _client.rpc(
+        'list_store_team',
+        params: {'p_store_id': storeId},
+      );
+      return StoreTeamSnapshot.fromJson(Map<String, dynamic>.from(result as Map));
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not load team. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> updateMemberRole({
+    required String memberId,
+    required StoreRole role,
+  }) async {
+    try {
+      await _client.rpc(
+        'update_store_member_role',
+        params: {
+          'p_member_id': memberId,
+          'p_role': role.value,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not change role. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> removeMember(String memberId) async {
+    try {
+      await _client.rpc(
+        'remove_store_member',
+        params: {'p_member_id': memberId},
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not remove member. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> revokeInvitation(String invitationId) async {
+    try {
+      await _client.rpc(
+        'revoke_store_invitation',
+        params: {'p_invitation_id': invitationId},
+      );
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not revoke invite. Please try again.',
+        cause: e,
       );
     }
   }

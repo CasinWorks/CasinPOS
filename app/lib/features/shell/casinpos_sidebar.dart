@@ -13,11 +13,12 @@ import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/permissions.dart';
+import '../billing/upgrade_premium_dialog.dart';
 import '../franchise/franchise_dialog.dart';
 import '../onboarding/story_mode.dart';
 import '../onboarding/tutorial_anchors.dart';
 import '../settings/store_settings_dialog.dart';
-import '../team/invite_teammate_dialog.dart';
+import '../team/team_manage_dialog.dart';
 
 class CasinPosSidebar extends ConsumerWidget {
   const CasinPosSidebar({
@@ -34,9 +35,11 @@ class CasinPosSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final membership = ref.watch(activeMembershipProvider);
+    final memberships = ref.watch(membershipsProvider).valueOrNull ?? const [];
     final storeName = membership?.store.name ?? 'My Store';
     final type = membership?.store.businessType ?? BusinessType.retail;
     final role = membership?.role.value ?? 'staff';
+    final plan = membership?.store.planTier;
     final pendingSync = ref.watch(pendingSyncCountProvider).valueOrNull ?? 0;
     final online = ref.watch(connectivityOnlineProvider).valueOrNull ?? true;
     final isPlatformAdmin = ref.watch(isPlatformAdminProvider).valueOrNull ?? false;
@@ -86,23 +89,92 @@ class CasinPosSidebar extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.slate200),
                 ),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Active Store:',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.slate500),
-                    ),
-                    const Spacer(),
-                    Flexible(
-                      child: Text(
-                        storeName,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.ink),
+                child: memberships.length > 1
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'Active Store',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.slate500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: membership?.storeId,
+                              items: [
+                                for (final m in memberships)
+                                  DropdownMenuItem(
+                                    value: m.storeId,
+                                    child: Text(
+                                      m.store.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (storeId) async {
+                                if (storeId == null || storeId == membership?.storeId) {
+                                  return;
+                                }
+                                await ref
+                                    .read(preferredStoreIdProvider.notifier)
+                                    .select(storeId);
+                              },
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          const Text(
+                            'Active Store:',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.slate500,
+                            ),
+                          ),
+                          const Spacer(),
+                          Flexible(
+                            child: Text(
+                              storeName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
+              if (plan == PlanTier.free && membership?.role.canManageBilling == true) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => showUpgradePremiumDialog(
+                      context,
+                      reason: UpgradeReason.general,
+                      storeName: storeName,
+                    ),
+                    icon: const Icon(Icons.workspace_premium_outlined, size: 16),
+                    label: const Text('Upgrade to Premium', style: TextStyle(fontSize: 10)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -283,7 +355,7 @@ class CasinPosSidebar extends ConsumerWidget {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: () => showInviteTeammateDialog(context, ref),
+                          onPressed: () => showTeamManageDialog(context, ref),
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),

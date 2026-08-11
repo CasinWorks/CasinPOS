@@ -141,10 +141,26 @@ Effects:
 
 ---
 
+## Script E — Team manage (`20260811000300`)
+
+Paste the full contents of:
+
+`supabase/migrations/20260811000300_team_manage.sql`
+
+Effects:
+- `list_store_team` — members + pending invites (Owner/Admin)
+- `update_store_member_role` — change role (guards: no owner assign / self / admin-vs-admin)
+- `remove_store_member` — soft-disable member (frees Free seats)
+- `revoke_store_invitation` — cancel pending invite
+
+---
+
 ## After SQL
 
 - Confirm columns: `transaction_items.refunded_quantity`, `transactions.refunded_total`, `stores.business_tin`, `cash_sessions.claimed_by`, `profiles.is_platform_admin`, `stores.suspended_at`
 - Deploy `supabase/functions/delete-account`
 - Promote your email with Script C helper
 - Apply Script D for Free plan seat + 100 txns limits
+- Apply Script E for Team manage RPCs
 - Mark these filenames applied in your migration history if you use CLI later (`supabase migration repair` as needed)
+- Auth: paste recovery email template + allow-list `/reset-password` redirect URL

@@ -38,6 +38,7 @@ class ProductPhoto extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        gaplessPlayback: true,
         errorBuilder: (_, _, _) => _Placeholder(iconSize: iconSize),
       );
     } else {
