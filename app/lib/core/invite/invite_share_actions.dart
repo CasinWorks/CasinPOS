@@ -26,10 +26,20 @@ class InviteShareActions extends StatelessWidget {
   final bool? emailed;
   final String? emailNote;
 
+  String get _link => AppUrl.inviteLink(token);
+
+  String get _instructionsText {
+    final store = (storeName == null || storeName!.trim().isEmpty)
+        ? 'the store'
+        : storeName!.trim();
+    return 'Join $store on CasinPOS\n\n'
+        '1. Open this link:\n$_link\n\n'
+        '2. Create an account or sign in using exactly:\n$email\n\n'
+        '3. You’re in — no token paste needed.\n';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final link = AppUrl.inviteLink(token);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -48,27 +58,74 @@ class InviteShareActions extends StatelessWidget {
             style: const TextStyle(color: AppColors.slate600, fontSize: 13),
           ),
         const SizedBox(height: AppSpacing.md),
-        const Text(
-          'What they do',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '1. Open the join link (from email or from you)\n'
-          '2. Create an account / sign in as $email\n'
-          '3. They’re in — no token paste needed',
-          style: const TextStyle(fontSize: 12, height: 1.4, color: AppColors.slate600),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tell them to do this',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '1. Open the join link below\n'
+                '2. Create an account or sign in as\n   $email\n'
+                '3. Done — CasinPOS joins them automatically',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: Color(0xFF92400E),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Join link',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SelectableText(
+                _link,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         FilledButton.icon(
           onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: link));
+            await Clipboard.setData(ClipboardData(text: _link));
             if (context.mounted) {
               showAppMessage(context, 'Join link copied');
             }
           },
           icon: const Icon(Icons.link, size: 18),
           label: const Text('Copy join link'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: _instructionsText));
+            if (context.mounted) {
+              showAppMessage(context, 'Instructions + link copied');
+            }
+          },
+          icon: const Icon(Icons.checklist_rtl, size: 18),
+          label: const Text('Copy instructions'),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
@@ -107,13 +164,6 @@ class InviteShareActions extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: AppColors.slate500),
             ),
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SelectableText(
-                  link,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-                ),
-              ),
               TextButton.icon(
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: token));
