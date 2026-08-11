@@ -8,6 +8,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../data/providers/connectivity_providers.dart';
+import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
@@ -38,6 +39,7 @@ class CasinPosSidebar extends ConsumerWidget {
     final role = membership?.role.value ?? 'staff';
     final pendingSync = ref.watch(pendingSyncCountProvider).valueOrNull ?? 0;
     final online = ref.watch(connectivityOnlineProvider).valueOrNull ?? true;
+    final isPlatformAdmin = ref.watch(isPlatformAdminProvider).valueOrNull ?? false;
     String userName = 'Team member';
     try {
       final user = ref.watch(authRepositoryProvider).currentUser;
@@ -240,6 +242,13 @@ class CasinPosSidebar extends ConsumerWidget {
                       selected: activeTab == 'support',
                       onTap: () => onSelectTab('support'),
                     ),
+                    if (isPlatformAdmin)
+                      _NavItem(
+                        label: 'Platform Ops',
+                        icon: Icons.admin_panel_settings_outlined,
+                        selected: activeTab == 'ops',
+                        onTap: () => onSelectTab('ops'),
+                      ),
                   ],
                 ),
               ),

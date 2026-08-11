@@ -14,6 +14,7 @@ import '../cart_checkout/retail_cart_tray.dart';
 import '../onboarding/retail_story_overlay.dart';
 import '../onboarding/story_mode.dart';
 import '../orders/sales_history_view.dart';
+import '../platform_ops/platform_ops_view.dart';
 import '../pos_retail/retail_inventory_view.dart';
 import '../pos_retail/retail_pos_view.dart';
 import '../receipts/receipts_audit_view.dart';
@@ -103,6 +104,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         body = const ReceiptsAuditView();
       case 'analytics':
         body = const SalesAnalyticsView();
+      case 'ops':
+        body = const PlatformOpsView();
       case 'notifications':
       case 'support':
         body = _PlaceholderPane(title: tab == 'support' ? 'Support' : 'Notifications');

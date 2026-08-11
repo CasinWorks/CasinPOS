@@ -112,6 +112,9 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('STORE_NOT_FOUND')) {
     return 'Store not found.';
   }
+  if (s.contains('STORE_SUSPENDED')) {
+    return 'This store is suspended. Contact CasinPOS support.';
+  }
   if (s.contains('FREE_MONTHLY_LIMIT_REACHED')) {
     return 'Free monthly transaction limit reached.';
   }

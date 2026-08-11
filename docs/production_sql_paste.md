@@ -104,8 +104,34 @@ grant execute on function public.request_account_deletion() to authenticated;
 
 ---
 
+## Script C — Platform Ops (`20260811000100`)
+
+Paste the full contents of:
+
+`supabase/migrations/20260811000100_platform_ops.sql`
+
+Or if you already applied A/B, run that migration file next.
+
+### Promote yourself as platform admin
+
+After Script C, run (replace the email):
+
+```sql
+select public.platform_set_admin_by_email('YOUR_EMAIL@casinworks.com', true);
+```
+
+Then sign out / sign in. Sidebar → **Platform Ops**.
+
+### Ops actions available
+- Search all customer stores
+- Set Free / Premium (+ monthly limit)
+- Suspend / reinstate (blocks sales via `STORE_SUSPENDED`)
+
+---
+
 ## After SQL
 
-- Confirm columns: `transaction_items.refunded_quantity`, `transactions.refunded_total`, `stores.business_tin`, `cash_sessions.claimed_by`
+- Confirm columns: `transaction_items.refunded_quantity`, `transactions.refunded_total`, `stores.business_tin`, `cash_sessions.claimed_by`, `profiles.is_platform_admin`, `stores.suspended_at`
 - Deploy `supabase/functions/delete-account`
+- Promote your email with Script C helper
 - Mark these filenames applied in your migration history if you use CLI later (`supabase migration repair` as needed)
