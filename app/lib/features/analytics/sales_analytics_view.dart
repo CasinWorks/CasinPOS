@@ -1,14 +1,18 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
+import '../../../core/errors/app_errors.dart';
+import '../../../core/export/export_text_file.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../onboarding/tutorial_anchors.dart';
+import 'sales_report_csv.dart';
 import 'sales_report_pdf.dart';
 
 /// Stack analytics below this screen width (phone + most tablets in portrait).
@@ -78,6 +82,39 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     );
     final doc = await buildSalesReportPdf(data);
     await Printing.layoutPdf(onLayout: (_) => doc.save());
+  }
+
+  Future<void> _exportCsv({
+    required List<PosOrder> orders,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final store = ref.read(activeMembershipProvider)?.store;
+    final periodLabel = switch (_period) {
+      'week' => 'This week',
+      'month' => 'This month',
+      _ => 'Today',
+    };
+    final rangeLabel =
+        '${DateFormat('MMM d, yyyy').format(start)} – ${DateFormat('MMM d, yyyy').format(end.subtract(const Duration(minutes: 1)))}';
+    final data = SalesReportData(
+      storeName: store?.name ?? 'CasinPOS Store',
+      currencySymbol: store?.currencySymbol ?? '₱',
+      periodLabel: periodLabel,
+      rangeLabel: rangeLabel,
+      orders: orders,
+    );
+    final csv = buildSalesReportCsv(data);
+    final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    await exportTextFile(
+      content: csv,
+      filename: 'casinpos_sales_$stamp.csv',
+    );
+    if (!mounted) return;
+    showAppMessage(
+      context,
+      kIsWeb ? 'CSV downloaded (also copied)' : 'CSV copied to clipboard',
+    );
   }
 
   List<FlSpot> _revenueSpots(List<PosOrder> orders, String period) {
@@ -180,12 +217,24 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
   Widget _header({
     required bool stacked,
     required VoidCallback onExportPdf,
+    required VoidCallback onExportCsv,
   }) {
-    final pdfButton = IconButton(
-      tooltip: 'Export owner report PDF',
-      onPressed: onExportPdf,
-      icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white, size: 20),
-      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+    final exportRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Export CSV (sales + VAT)',
+          onPressed: onExportCsv,
+          icon: const Icon(Icons.table_view_outlined, color: Colors.white, size: 20),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        ),
+        IconButton(
+          tooltip: 'Export owner report PDF',
+          onPressed: onExportPdf,
+          icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white, size: 20),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        ),
+      ],
     );
 
     if (stacked) {
@@ -216,7 +265,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                     ),
                   ),
                 ),
-                pdfButton,
+                exportRow,
               ],
             ),
             const SizedBox(height: 10),
@@ -248,7 +297,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
               ),
             ),
           ),
-          pdfButton,
+          exportRow,
           Flexible(
             child: Align(
               alignment: Alignment.centerRight,
@@ -355,6 +404,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     final prevOrders = _inRange(allOrders, prevStart, start);
 
     final revenue = orders.fold<double>(0, (s, o) => s + o.total);
+    final taxCollected = orders.fold<double>(0, (s, o) => s + o.tax);
     final prevRevenue = prevOrders.fold<double>(0, (s, o) => s + o.total);
     final packs = orders.fold<int>(0, (s, o) => s + o.items.fold<int>(0, (a, i) => a + i.qty));
     final avgBasket = orders.isEmpty ? 0.0 : revenue / orders.length;
@@ -396,15 +446,12 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     );
 
     final byProduct = <String, int>{};
-    final byCategory = <String, double>{};
     for (final o in orders) {
       for (final i in o.items) {
         byProduct[i.name] = (byProduct[i.name] ?? 0) + i.qty;
-        byCategory[i.category] = (byCategory[i.category] ?? 0) + i.unitPrice * i.qty;
       }
     }
     final best = byProduct.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final topCat = byCategory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     final byPay = <PaymentMethod, double>{};
     for (final o in orders) {
@@ -443,6 +490,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                 _header(
                   stacked: stacked,
                   onExportPdf: () => _exportPdf(orders: orders, start: start, end: end),
+                  onExportCsv: () => _exportCsv(orders: orders, start: start, end: end),
                 ),
                 const SizedBox(height: 12),
                 _metricsGrid(
@@ -474,11 +522,11 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                       trendPct: basketTrendPct,
                     ),
                     _Metric(
-                      title: 'Top Category',
-                      value: topCat.isEmpty ? '—' : topCat.first.key,
-                      sub: topCat.isEmpty
-                          ? 'Sell to populate'
-                          : '$symbol${topCat.first.value.toStringAsFixed(2)} sales',
+                      title: 'VAT / Tax',
+                      value: '$symbol${taxCollected.toStringAsFixed(2)}',
+                      sub: taxCollected <= 0
+                          ? 'Inclusive mode or no +12% sales yet'
+                          : 'Tax lines on checkouts this period',
                       stacked: stacked,
                     ),
                   ],

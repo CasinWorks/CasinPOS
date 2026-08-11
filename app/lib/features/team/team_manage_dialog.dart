@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_url.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_share_actions.dart';
 import '../../core/theme/app_colors.dart';
@@ -54,6 +55,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   StoreTeamSnapshot? _team;
+  StoreSeatUsage? _seats;
   var _loading = true;
   String? _error;
   String? _busyId;
@@ -77,10 +79,15 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
       _error = null;
     });
     try {
-      final team = await ref.read(storeRepositoryProvider).listStoreTeam(widget.storeId);
+      final repo = ref.read(storeRepositoryProvider);
+      final results = await Future.wait([
+        repo.listStoreTeam(widget.storeId),
+        repo.storeSeatUsage(widget.storeId),
+      ]);
       if (!mounted) return;
       setState(() {
-        _team = team;
+        _team = results[0] as StoreTeamSnapshot;
+        _seats = results[1] as StoreSeatUsage;
         _loading = false;
       });
     } catch (e) {
@@ -236,6 +243,17 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
   }
 
   Future<void> _invite() async {
+    final seats = _seats;
+    if (widget.planTier == PlanTier.free &&
+        seats != null &&
+        seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
+      await showUpgradePremiumDialog(
+        context,
+        reason: UpgradeReason.teamSeats,
+        storeName: widget.storeName,
+      );
+      return;
+    }
     Navigator.pop(context);
     await showInviteTeammateDialog(context, ref);
   }
@@ -310,20 +328,32 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     final team = _team;
     final memberCount = team?.members.length ?? 0;
     final inviteCount = team?.invitations.length ?? 0;
+    final seats = _seats;
+    final seatLimit = AppConstants.freeTeamSeatLimit;
+    final seatsUsed = seats?.seatsUsed ?? memberCount;
+    final overFreeLimit =
+        widget.planTier == PlanTier.free && seatsUsed > seatLimit;
+    final atFreeLimit =
+        widget.planTier == PlanTier.free && seatsUsed >= seatLimit;
 
     return AlertDialog(
       title: const Text('Team'),
       content: SizedBox(
         width: 480,
-        height: 420,
+        height: 440,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               widget.planTier == PlanTier.free
-                  ? 'Free plan: up to 2 people (you + 1 teammate). Manage roles below or invite someone new.'
+                  ? 'Free seats: $seatsUsed / $seatLimit'
+                      '${seats != null && seats.pendingInvites > 0 ? ' · ${seats.pendingInvites} pending invite' : ''}'
+                      '${overFreeLimit ? ' — over limit (remove a teammate or upgrade).' : '.'}'
                   : 'Members and pending invites for ${widget.storeName}.',
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: overFreeLimit ? AppColors.danger : null,
+                    fontWeight: overFreeLimit ? FontWeight.w700 : null,
+                  ),
             ),
             if (widget.planTier == PlanTier.free) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -336,7 +366,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
                     storeName: widget.storeName,
                   ),
                   icon: const Icon(Icons.workspace_premium_outlined, size: 16),
-                  label: const Text('Need more seats?'),
+                  label: Text(atFreeLimit ? 'Upgrade for more seats' : 'Need more seats?'),
                 ),
               ),
             ],
@@ -381,9 +411,15 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
         ),
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         FilledButton.icon(
-          onPressed: _invite,
-          icon: const Icon(Icons.person_add_alt_1, size: 18),
-          label: const Text('Invite'),
+          onPressed: atFreeLimit
+              ? () => showUpgradePremiumDialog(
+                    context,
+                    reason: UpgradeReason.teamSeats,
+                    storeName: widget.storeName,
+                  )
+              : _invite,
+          icon: Icon(atFreeLimit ? Icons.workspace_premium_outlined : Icons.person_add_alt_1, size: 18),
+          label: Text(atFreeLimit ? 'Upgrade' : 'Invite'),
         ),
       ],
     );

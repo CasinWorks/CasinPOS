@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_url.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_share_actions.dart';
 import '../../core/theme/app_colors.dart';
@@ -18,6 +19,27 @@ Future<void> showInviteTeammateDialog(BuildContext context, WidgetRef ref) async
     );
     return;
   }
+
+  if (membership.store.planTier == PlanTier.free) {
+    try {
+      final seats = await ref
+          .read(storeRepositoryProvider)
+          .storeSeatUsage(membership.storeId);
+      if (!context.mounted) return;
+      if (seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
+        await showUpgradePremiumDialog(
+          context,
+          reason: UpgradeReason.teamSeats,
+          storeName: membership.store.name,
+        );
+        return;
+      }
+    } catch (_) {
+      // Fall through — RPC invite still enforces.
+    }
+  }
+
+  if (!context.mounted) return;
 
   final emailCtrl = TextEditingController();
   var role = StoreRole.staff;

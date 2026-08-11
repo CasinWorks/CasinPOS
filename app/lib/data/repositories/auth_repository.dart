@@ -251,6 +251,30 @@ class StoreRepository {
     }
   }
 
+  Future<StoreSeatUsage> storeSeatUsage(String storeId) async {
+    try {
+      final result = await _client.rpc(
+        'store_seat_usage',
+        params: {'p_store_id': storeId},
+      );
+      // Returns SETOF — PostgREST may give a list of one row.
+      if (result is List && result.isNotEmpty) {
+        return StoreSeatUsage.fromJson(Map<String, dynamic>.from(result.first as Map));
+      }
+      if (result is Map) {
+        return StoreSeatUsage.fromJson(Map<String, dynamic>.from(result));
+      }
+      return const StoreSeatUsage(activeMembers: 0, pendingInvites: 0, seatsUsed: 0);
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ??
+            mapKnownBackendError(e.toString()) ??
+            'Could not load seat usage.',
+        cause: e,
+      );
+    }
+  }
+
   Future<void> updateMemberRole({
     required String memberId,
     required StoreRole role,

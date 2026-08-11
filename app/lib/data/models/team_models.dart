@@ -113,6 +113,26 @@ class PendingInviteRow {
   }
 }
 
+class StoreSeatUsage {
+  const StoreSeatUsage({
+    required this.activeMembers,
+    required this.pendingInvites,
+    required this.seatsUsed,
+  });
+
+  final int activeMembers;
+  final int pendingInvites;
+  final int seatsUsed;
+
+  factory StoreSeatUsage.fromJson(Map<String, dynamic> json) {
+    return StoreSeatUsage(
+      activeMembers: (json['active_members'] as num?)?.toInt() ?? 0,
+      pendingInvites: (json['pending_invites'] as num?)?.toInt() ?? 0,
+      seatsUsed: (json['seats_used'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class StoreTeamSnapshot {
   const StoreTeamSnapshot({
     required this.members,

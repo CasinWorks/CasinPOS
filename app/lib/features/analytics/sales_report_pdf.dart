@@ -90,6 +90,20 @@ Future<pw.Document> buildSalesReportPdf(SalesReportData data) async {
             _kpi('Avg ticket', money.format(data.averageTicket)),
           ],
         ),
+        pw.SizedBox(height: 10),
+        pw.Row(
+          children: [
+            _kpi(
+              'VAT / tax',
+              money.format(data.orders.fold<double>(0, (s, o) => s + o.tax)),
+            ),
+            pw.SizedBox(width: 12),
+            _kpi(
+              'Subtotal',
+              money.format(data.orders.fold<double>(0, (s, o) => s + o.subtotal)),
+            ),
+          ],
+        ),
         pw.SizedBox(height: 20),
         pw.Text('By payment method', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 6),
