@@ -214,24 +214,119 @@ class StoreRepository {
               : null,
         },
       );
-      final data = res.data;
-      final map = data is Map
-          ? Map<String, dynamic>.from(data)
-          : <String, dynamic>{};
-      final emailed = map['emailed'] == true;
-      return InviteEmailResult(
-        emailed: emailed,
-        inviteUrl: map['invite_url'] as String?,
-        reason: map['reason'] as String?,
-        message: map['message'] as String? ?? map['error'] as String?,
-      );
+      return _inviteEmailResultFromPayload(res.data, fallbackUrl: inviteUrl);
     } catch (e) {
+      // Non-2xx responses historically threw with a minified dump — parse details.
+      final parsed = _inviteEmailResultFromException(e, fallbackUrl: inviteUrl);
+      if (parsed != null) return parsed;
       return InviteEmailResult(
         emailed: false,
         reason: 'INVOKE_FAILED',
-        message: e.toString(),
+        inviteUrl: inviteUrl,
+        message:
+            'We couldn’t email them automatically. Copy the join link and send it yourself.',
       );
     }
+  }
+
+  static InviteEmailResult _inviteEmailResultFromPayload(
+    Object? data, {
+    String? fallbackUrl,
+  }) {
+    final map = data is Map
+        ? Map<String, dynamic>.from(data)
+        : <String, dynamic>{};
+    final emailed = map['emailed'] == true;
+    final reason = map['reason'] as String?;
+    final rawMessage = map['message'] as String? ?? map['error'] as String?;
+    return InviteEmailResult(
+      emailed: emailed,
+      inviteUrl: map['invite_url'] as String? ?? fallbackUrl,
+      reason: reason,
+      message: emailed
+          ? null
+          : _friendlyInviteEmailMessage(reason: reason, raw: rawMessage),
+    );
+  }
+
+  static InviteEmailResult? _inviteEmailResultFromException(
+    Object e, {
+    String? fallbackUrl,
+  }) {
+    // FunctionException / invoke errors often embed `{details: {...}}` or JSON.
+    final blob = e.toString();
+    Map<String, dynamic>? map;
+
+    // Prefer structured `details` when present on the exception object.
+    try {
+      final details = (e as dynamic).details;
+      if (details is Map) {
+        map = Map<String, dynamic>.from(details);
+      } else if (details is String && details.trim().startsWith('{')) {
+        // ignore — string form handled below
+      }
+    } catch (_) {}
+
+    if (map == null) {
+      final detailsMatch =
+          RegExp(r'details:\s*(\{.*\})\s*,\s*reasonPhrase', dotAll: true)
+              .firstMatch(blob);
+      final jsonCandidate = detailsMatch?.group(1);
+      if (jsonCandidate != null) {
+        try {
+          // details use JS-ish `{emailed: false}` — normalize keys for a light parse.
+          final emailed = RegExp(r'emailed:\s*(true|false)')
+                  .firstMatch(jsonCandidate)
+                  ?.group(1) ==
+              'true';
+          final reason = RegExp(r'reason:\s*([A-Z0-9_]+)')
+              .firstMatch(jsonCandidate)
+              ?.group(1);
+          final inviteUrl = RegExp(r'invite_url:\s*([^,}\s]+)')
+              .firstMatch(jsonCandidate)
+              ?.group(1);
+          final message = RegExp(r'message:\s*([^}]*)\}\s*$')
+              .firstMatch(jsonCandidate)
+              ?.group(1)
+              ?.trim();
+          map = {
+            'emailed': emailed,
+            if (reason != null) 'reason': reason,
+            if (inviteUrl != null) 'invite_url': inviteUrl,
+            if (message != null && message.isNotEmpty) 'message': message,
+          };
+        } catch (_) {}
+      }
+    }
+
+    if (map == null) return null;
+    return _inviteEmailResultFromPayload(map, fallbackUrl: fallbackUrl);
+  }
+
+  static String _friendlyInviteEmailMessage({
+    String? reason,
+    String? raw,
+  }) {
+    const fallback =
+        'We couldn’t email them automatically. Copy the join link and send it yourself.';
+    final r = (reason ?? '').toUpperCase();
+    if (r == 'NO_EMAIL_PROVIDER') {
+      return 'Email sending isn’t configured yet. Copy the join link and send it yourself.';
+    }
+    if (r == 'RESEND_FAILED' || r == 'INVOKE_FAILED') {
+      return fallback;
+    }
+    final cleaned = (raw ?? '').trim();
+    if (cleaned.isEmpty) return fallback;
+    // Never surface FunctionException / minified dumps in the invite UI.
+    if (cleaned.contains('minified:') ||
+        cleaned.contains('status: 502') ||
+        cleaned.contains('FunctionException') ||
+        cleaned.contains('details:')) {
+      return fallback;
+    }
+    if (cleaned.length > 160) return fallback;
+    return cleaned;
   }
 
   Future<StoreTeamSnapshot> listStoreTeam(String storeId) async {

@@ -44,8 +44,7 @@ class InviteShareActions extends StatelessWidget {
           )
         else if (emailed == false)
           Text(
-            emailNote ??
-                'Email wasn’t sent. Copy the join link and send it to $email yourself.',
+            _cleanEmailNote(emailNote, email),
             style: const TextStyle(color: AppColors.slate600, fontSize: 13),
           ),
         const SizedBox(height: AppSpacing.md),
@@ -134,4 +133,20 @@ class InviteShareActions extends StatelessWidget {
       ],
     );
   }
+}
+
+String _cleanEmailNote(String? emailNote, String email) {
+  const fallback =
+      'Email wasn’t sent. Copy the join link and send it yourself.';
+  final raw = (emailNote ?? '').trim();
+  if (raw.isEmpty) return '$fallback ($email)';
+  if (raw.contains('minified:') ||
+      raw.contains('status: 502') ||
+      raw.contains('FunctionException') ||
+      raw.contains('details:') ||
+      raw.contains('RESEND_FAILED') ||
+      raw.length > 160) {
+    return '$fallback ($email)';
+  }
+  return raw;
 }

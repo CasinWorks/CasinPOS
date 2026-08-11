@@ -312,8 +312,9 @@ Deno.serve(async (req) => {
         emailed: false,
         reason: "RESEND_FAILED",
         invite_url: inviteUrl,
-        message: "Email provider rejected the send. Use Copy invite link as backup.",
-      }, 502);
+        message:
+          "We couldn’t email them automatically. Copy the join link and send it yourself.",
+      });
     }
 
     return json({
