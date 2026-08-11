@@ -162,6 +162,8 @@ Effects:
 - Promote your email with Script C helper
 - Apply Script D for Free plan seat + 100 txns limits
 - Apply Script E for Team manage RPCs
+- Apply Script F (+ F2 if PIN crypt fails) for Cashier PIN
+- Apply Script G for Platform Ops depth; deploy `platform-reset-password`
 - Mark these filenames applied in your migration history if you use CLI later (`supabase migration repair` as needed)
 - Auth: paste recovery email template + allow-list `/reset-password` redirect URL
 
@@ -188,3 +190,26 @@ If **Set my PIN** fails after Script F, paste:
 `supabase/migrations/20260812000200_cashier_pin_pgcrypto_path.sql`
 
 Supabase keeps `crypt` / `gen_salt` in the `extensions` schema; this updates PIN RPCs to include it on `search_path`.
+
+---
+
+## Script G — Platform Ops depth (`20260813000100`)
+
+Paste the full contents of:
+
+`supabase/migrations/20260813000100_platform_ops_depth.sql`
+
+Effects:
+- `platform_support_notes` + `platform_list_support_notes` / `platform_add_support_note`
+- `store_messages` + `store_message_reads` + send/list/mark-read RPCs
+- `platform_admin_audit` + `platform_log_audit`
+- Tenants see messages under sidebar **Notifications**
+
+Then deploy:
+
+```bash
+supabase functions deploy platform-reset-password
+```
+
+Optional secrets (same as invites): `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `PUBLIC_APP_URL`.
+Without Resend, ops UI copies the recovery link when reset is triggered.

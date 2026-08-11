@@ -23,3 +23,23 @@ final platformTenantsProvider = FutureProvider<List<PlatformTenant>>((ref) async
   final q = ref.watch(platformTenantSearchProvider);
   return ref.watch(platformAdminRepositoryProvider).listTenants(search: q);
 });
+
+final platformSupportNotesProvider =
+    FutureProvider.family<List<PlatformSupportNote>, String>((ref, storeId) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) return const [];
+  return ref.watch(platformAdminRepositoryProvider).listSupportNotes(storeId);
+});
+
+final platformStoreMessagesAdminProvider =
+    FutureProvider.family<List<PlatformStoreMessage>, String>((ref, storeId) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) return const [];
+  return ref.watch(platformAdminRepositoryProvider).listStoreMessagesAdmin(storeId);
+});
+
+final myStoreMessagesProvider =
+    FutureProvider.family<List<PlatformStoreMessage>, String>((ref, storeId) async {
+  ref.watch(authUserIdProvider);
+  return ref.watch(platformAdminRepositoryProvider).listMyStoreMessages(storeId);
+});

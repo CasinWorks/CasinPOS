@@ -432,9 +432,140 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
         ));
   }
 
+  Future<void> _addNote() async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add support note'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          maxLength: 4000,
+          decoration: const InputDecoration(
+            hintText: 'Internal only — owner cannot see this',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    final body = ctrl.text.trim();
+    ctrl.dispose();
+    if (ok != true || body.isEmpty) return;
+    await _run(() async {
+      await ref.read(platformAdminRepositoryProvider).addSupportNote(storeId: t.id, body: body);
+      ref.invalidate(platformSupportNotesProvider(t.id));
+    });
+  }
+
+  Future<void> _messageStore() async {
+    final subjectCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Message store'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: subjectCtrl,
+              decoration: const InputDecoration(labelText: 'Subject'),
+              maxLength: 120,
+            ),
+            TextField(
+              controller: bodyCtrl,
+              maxLines: 5,
+              maxLength: 4000,
+              decoration: const InputDecoration(
+                labelText: 'Message',
+                hintText: 'Visible to all active members in Notifications',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    final subject = subjectCtrl.text.trim();
+    final body = bodyCtrl.text.trim();
+    subjectCtrl.dispose();
+    bodyCtrl.dispose();
+    if (ok != true || subject.isEmpty || body.isEmpty) return;
+    await _run(() async {
+      await ref.read(platformAdminRepositoryProvider).sendStoreMessage(
+            storeId: t.id,
+            subject: subject,
+            body: body,
+          );
+      ref.invalidate(platformStoreMessagesAdminProvider(t.id));
+    });
+  }
+
+  Future<void> _resetOwnerPassword() async {
+    final email = t.ownerEmail?.trim();
+    if (email == null || email.isEmpty) {
+      showAppMessage(context, 'No owner email on this tenant', isError: true);
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send password reset?'),
+        content: Text(
+          'Email a recovery link to $email (store owner). '
+          'Requires the platform-reset-password Edge Function (and Resend for delivery).',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send reset')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(platformAdminRepositoryProvider).sendOwnerPasswordReset(
+            storeId: t.id,
+            email: email,
+            userId: t.ownerId,
+          );
+      if (!mounted) return;
+      if (result.emailed) {
+        showAppMessage(context, 'Reset email sent to ${result.email ?? email}');
+      } else if (result.resetUrl != null && result.resetUrl!.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: result.resetUrl!));
+        if (!mounted) return;
+        showAppMessage(
+          context,
+          'Email not sent (${result.reason ?? 'no provider'}). Reset link copied.',
+        );
+      } else {
+        showAppMessage(
+          context,
+          result.message ?? 'Reset queued without email delivery',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      if (mounted) showAppError(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('MMM d, yyyy · h:mm a');
+    final notesAsync = ref.watch(platformSupportNotesProvider(t.id));
+    final messagesAsync = ref.watch(platformStoreMessagesAdminProvider(t.id));
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -496,7 +627,95 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
                 ),
                 child: Text(t.isSuspended ? 'Reinstate' : 'Suspend'),
               ),
+              OutlinedButton(
+                onPressed: _busy ? null : _addNote,
+                child: const Text('Add note'),
+              ),
+              OutlinedButton(
+                onPressed: _busy ? null : _messageStore,
+                child: const Text('Message store'),
+              ),
+              OutlinedButton(
+                onPressed: _busy ? null : _resetOwnerPassword,
+                child: const Text('Reset owner password'),
+              ),
             ],
+          ),
+          const SizedBox(height: 24),
+          const Text('Support notes', style: TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          const Text(
+            'Internal — not visible to the store',
+            style: TextStyle(fontSize: 11, color: AppColors.slate500),
+          ),
+          const SizedBox(height: 8),
+          notesAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+            ),
+            error: (e, _) => Text(friendlyError(e), style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+            data: (notes) {
+              if (notes.isEmpty) {
+                return const Text('No notes yet.', style: TextStyle(fontSize: 12, color: AppColors.slate500));
+              }
+              return Column(
+                children: [
+                  for (final n in notes)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(n.body, style: const TextStyle(fontSize: 13, height: 1.35)),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${n.authorName ?? n.authorEmail ?? 'Admin'} · ${fmt.format(n.createdAt)}',
+                              style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          const Text('Messages to store', style: TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          messagesAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (e, _) => Text(friendlyError(e), style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+            data: (messages) {
+              if (messages.isEmpty) {
+                return const Text('No messages yet.', style: TextStyle(fontSize: 12, color: AppColors.slate500));
+              }
+              return Column(
+                children: [
+                  for (final m in messages)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(m.subject, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                            Text(m.body, style: const TextStyle(fontSize: 12, height: 1.35, color: AppColors.slate500)),
+                            Text(
+                              fmt.format(m.createdAt),
+                              style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
