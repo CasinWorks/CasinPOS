@@ -92,7 +92,7 @@ class StoreSummary {
       currencyCode: json['currency_code'] as String? ?? 'PHP',
       currencySymbol: json['currency_symbol'] as String? ?? '₱',
       transactionsThisPeriod: json['transactions_this_period'] as int? ?? 0,
-      monthlyTransactionLimit: json['monthly_transaction_limit'] as int? ?? 50,
+      monthlyTransactionLimit: json['monthly_transaction_limit'] as int? ?? 100,
       acceptGcash: json['accept_gcash'] as bool? ?? true,
       acceptMaya: json['accept_maya'] as bool? ?? true,
       acceptCard: json['accept_card'] as bool? ?? true,

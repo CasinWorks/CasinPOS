@@ -129,9 +129,22 @@ Then sign out / sign in. Sidebar → **Platform Ops**.
 
 ---
 
+## Script D — Free seats + 100 txns (`20260811000200`)
+
+Paste the full contents of:
+
+`supabase/migrations/20260811000200_free_plan_seats_and_100_txns.sql`
+
+Effects:
+- Free monthly paid sales default **100** (existing free stores on 50 are bumped to 100)
+- Free team seats = **2** (owner + 1 teammate); invite/accept blocked beyond that
+
+---
+
 ## After SQL
 
 - Confirm columns: `transaction_items.refunded_quantity`, `transactions.refunded_total`, `stores.business_tin`, `cash_sessions.claimed_by`, `profiles.is_platform_admin`, `stores.suspended_at`
 - Deploy `supabase/functions/delete-account`
 - Promote your email with Script C helper
+- Apply Script D for Free plan seat + 100 txns limits
 - Mark these filenames applied in your migration history if you use CLI later (`supabase migration repair` as needed)

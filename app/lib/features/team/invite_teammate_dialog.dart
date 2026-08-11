@@ -43,7 +43,9 @@ Future<void> showInviteTeammateDialog(BuildContext context, WidgetRef ref) async
                 children: [
                   Text(
                     token == null
-                        ? 'We’ll email them a join link. They must create/sign in with this exact email.'
+                        ? membership.store.planTier == PlanTier.free
+                            ? 'Free plan: you + 1 teammate only (2 seats). We’ll email them a join link — they must use this exact email.'
+                            : 'We’ll email them a join link. They must create/sign in with this exact email.'
                         : resent
                             ? 'Invite already pending — we resent the email. Share the link if they still don’t see it.'
                             : 'Share the link if they didn’t get email. They open it → sign up with the invited email → done.',

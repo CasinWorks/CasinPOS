@@ -115,8 +115,11 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('STORE_SUSPENDED')) {
     return 'This store is suspended. Contact CasinPOS support.';
   }
+  if (s.contains('FREE_TEAM_SEAT_LIMIT')) {
+    return 'Free plan allows 2 people on this store (you + 1 teammate). Upgrade to Premium for more staff.';
+  }
   if (s.contains('FREE_MONTHLY_LIMIT_REACHED')) {
-    return 'Free monthly transaction limit reached.';
+    return 'Free monthly transaction limit reached (100 sales). Upgrade to Premium or ask CasinPOS support.';
   }
   return null;
 }

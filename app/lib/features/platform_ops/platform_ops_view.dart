@@ -351,7 +351,7 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
 
   Future<void> _setPlan(PlanTier plan) async {
     final limitCtrl = TextEditingController(
-      text: plan == PlanTier.premium ? '100000' : '50',
+      text: plan == PlanTier.premium ? '100000' : '100',
     );
     final ok = await showDialog<bool>(
       context: context,
