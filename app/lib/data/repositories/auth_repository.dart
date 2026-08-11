@@ -318,10 +318,13 @@ class StoreRepository {
         },
       );
     } on PostgrestException catch (e) {
+      final mapped = mapKnownBackendError(e.message) ??
+          mapKnownBackendError('${e.message} ${e.details} ${e.hint}');
       throw AppException(
-        mapKnownBackendError(e.message) ??
-            mapKnownBackendError(e.toString()) ??
-            'Could not save PIN. Please try again.',
+        mapped ??
+            (e.message.trim().isNotEmpty
+                ? e.message
+                : 'Could not save PIN. Please try again.'),
         cause: e,
       );
     }

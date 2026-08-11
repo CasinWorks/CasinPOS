@@ -172,7 +172,7 @@ create or replace function public.set_my_store_pin(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_member_id uuid;
@@ -256,7 +256,7 @@ create or replace function public.verify_member_pin(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_pin public.store_member_pins%rowtype;
@@ -332,7 +332,7 @@ create or replace function public.claim_shift_with_pin(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_session public.cash_sessions%rowtype;

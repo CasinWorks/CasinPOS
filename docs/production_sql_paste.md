@@ -178,3 +178,13 @@ Effects:
 - `set_my_store_pin` / `admin_clear_member_pin` / `verify_member_pin` / `claim_shift_with_pin`
 - `list_shift_roster` + `has_pin` on team list
 - Lockout after 5 wrong attempts (5 minutes)
+
+---
+
+## Script F2 — PIN pgcrypto path fix (`20260812000200`)
+
+If **Set my PIN** fails after Script F, paste:
+
+`supabase/migrations/20260812000200_cashier_pin_pgcrypto_path.sql`
+
+Supabase keeps `crypt` / `gen_salt` in the `extensions` schema; this updates PIN RPCs to include it on `search_path`.
