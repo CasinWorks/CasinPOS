@@ -21,7 +21,6 @@ class CreateStorePage extends ConsumerStatefulWidget {
 class _CreateStorePageState extends ConsumerState<CreateStorePage> {
   final _name = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  BusinessType _type = BusinessType.retail;
   bool _loading = false;
   String? _error;
 
@@ -40,7 +39,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
     try {
       await ref.read(storeRepositoryProvider).createStore(
             name: _name.text,
-            businessType: _type,
+            businessType: BusinessType.retail,
             currencyCode: AppConstants.defaultCurrencyCode,
             currencySymbol: AppConstants.defaultCurrencySymbol,
           );
@@ -77,7 +76,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Just two things to start. Business type is permanent — pick carefully.',
+                    'Name your retail store to start selling. Restaurant mode is coming later.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -86,57 +85,40 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       labelText: 'Store name',
-                      hintText: 'e.g. Cascade Café',
+                      hintText: 'e.g. Cascade Mini Mart',
                     ),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Store name is required' : null,
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  Text(
-                    'Business type (cannot change later)',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _TypeCard(
-                          title: 'Retail',
-                          subtitle: 'SKU catalog, inventory, POS',
-                          selected: _type == BusinessType.retail,
-                          accent: AppColors.retailDark,
-                          icon: Icons.storefront_rounded,
-                          onTap: () => setState(() => _type = BusinessType.retail),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: _TypeCard(
-                          title: 'Restaurant / Food',
-                          subtitle: 'Menu, floor plan, bookings',
-                          selected: _type == BusinessType.restaurant,
-                          accent: AppColors.restaurant,
-                          icon: Icons.restaurant_menu_rounded,
-                          onTap: () => setState(() => _type = BusinessType.restaurant),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
+                      color: AppColors.retailDark.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
+                      border: Border.all(color: AppColors.slate200),
                     ),
-                    child: const Text(
-                      'This choice is permanent. Retail cannot become Restaurant later (and the reverse).',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF92400E),
-                      ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.storefront_rounded, color: AppColors.retailDark),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Retail POS',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'SKU catalog, inventory, and checkout',
+                                style: TextStyle(fontSize: 12, color: AppColors.slate500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -179,57 +161,6 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeCard extends StatelessWidget {
-  const _TypeCard({
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    required this.accent,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final Color accent;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? accent.withValues(alpha: 0.08) : AppColors.scaffold,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-            border: Border.all(
-              color: selected ? accent : AppColors.slate200,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: accent),
-              const SizedBox(height: AppSpacing.sm),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-            ],
           ),
         ),
       ),
