@@ -10,6 +10,7 @@ import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../analytics/sales_analytics_view.dart';
+import '../cart_checkout/mobile_cart_fab.dart';
 import '../cart_checkout/retail_cart_tray.dart';
 import '../onboarding/retail_story_overlay.dart';
 import '../onboarding/story_mode.dart';
@@ -118,26 +119,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     final shell = !showSidebar
         ? Scaffold(
             body: body,
-            floatingActionButton: FloatingActionButton.extended(
-              onPressed: () {
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (sheetContext) {
-                    final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
-                    return SizedBox(
-                      height: maxHeight,
-                      child: const RetailCartTray(),
-                    );
-                  },
-                );
-              },
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.ink,
-              label: const Text('Cart'),
-              icon: const Icon(Icons.shopping_bag),
-            ),
+            floatingActionButton: tab == 'checkout' ? const MobileCartFab() : null,
             bottomNavigationBar: NavigationBar(
               selectedIndex: _mobileIndex(tab),
               onDestinationSelected: (i) {
