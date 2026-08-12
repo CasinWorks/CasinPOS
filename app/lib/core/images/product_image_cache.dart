@@ -1,9 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-/// Disk cache for product photos on iOS / Android (and web where supported).
+/// Disk cache for product photos on iOS / Android.
 ///
 /// Photos stay on device for [stalePeriod] so reopening the app does not
-/// re-download every catalog image.
+/// re-download every catalog image. Web uses the browser cache instead.
 abstract final class ProductImageCache {
   static const key = 'casinposProductImages';
 
@@ -15,8 +16,9 @@ abstract final class ProductImageCache {
     ),
   );
 
-  /// Warm the disk cache in the background after catalog load.
+  /// Warm the disk cache in the background after catalog load (native only).
   static Future<void> prefetch(Iterable<String?> urls) async {
+    if (kIsWeb) return;
     final seen = <String>{};
     for (final raw in urls) {
       final url = raw?.trim() ?? '';
@@ -30,6 +32,7 @@ abstract final class ProductImageCache {
   }
 
   static Future<void> remove(String? url) async {
+    if (kIsWeb) return;
     final u = url?.trim() ?? '';
     if (u.isEmpty) return;
     try {

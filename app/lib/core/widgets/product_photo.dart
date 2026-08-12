@@ -1,12 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../core/images/product_image_cache.dart';
 import '../../core/theme/app_colors.dart';
 
-/// Renders a catalog photo from URL (disk-cached), pending bytes, or placeholder.
+/// Renders a catalog photo from URL (disk-cached on iOS/Android), bytes, or placeholder.
 class ProductPhoto extends StatelessWidget {
   const ProductPhoto({
     super.key,
@@ -35,22 +36,40 @@ class ProductPhoto extends StatelessWidget {
     if (bytes != null) {
       child = Image.memory(bytes!, width: width, height: height, fit: fit);
     } else if (_hasUrl) {
-      final dpr = MediaQuery.devicePixelRatioOf(context);
-      final memW = width != null ? (width! * dpr).round() : null;
-      final memH = height != null ? (height! * dpr).round() : null;
-      child = CachedNetworkImage(
-        imageUrl: imageUrl!.trim(),
-        cacheManager: ProductImageCache.instance,
-        width: width,
-        height: height,
-        fit: fit,
-        memCacheWidth: memW,
-        memCacheHeight: memH,
-        fadeInDuration: const Duration(milliseconds: 120),
-        fadeOutDuration: const Duration(milliseconds: 80),
-        placeholder: (_, _) => _Placeholder(iconSize: iconSize, loading: true),
-        errorWidget: (_, _, _) => _Placeholder(iconSize: iconSize),
-      );
+      final url = imageUrl!.trim();
+      // Web: CacheManager/sqflite path is unreliable — use browser network cache.
+      // iOS/Android: disk-cache so reopen does not re-download every photo.
+      if (kIsWeb) {
+        child = Image.network(
+          url,
+          width: width,
+          height: height,
+          fit: fit,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => _Placeholder(iconSize: iconSize),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return _Placeholder(iconSize: iconSize, loading: true);
+          },
+        );
+      } else {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final memW = width != null ? (width! * dpr).round() : null;
+        final memH = height != null ? (height! * dpr).round() : null;
+        child = CachedNetworkImage(
+          imageUrl: url,
+          cacheManager: ProductImageCache.instance,
+          width: width,
+          height: height,
+          fit: fit,
+          memCacheWidth: memW,
+          memCacheHeight: memH,
+          fadeInDuration: const Duration(milliseconds: 120),
+          fadeOutDuration: const Duration(milliseconds: 80),
+          placeholder: (_, _) => _Placeholder(iconSize: iconSize, loading: true),
+          errorWidget: (_, _, _) => _Placeholder(iconSize: iconSize),
+        );
+      }
     } else {
       child = _Placeholder(iconSize: iconSize);
     }
