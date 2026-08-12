@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/images/product_image_cache.dart';
 import '../../core/theme/app_colors.dart';
 
-/// Renders a catalog photo from URL, pending bytes, or a placeholder.
+/// Renders a catalog photo from URL (disk-cached), pending bytes, or placeholder.
 class ProductPhoto extends StatelessWidget {
   const ProductPhoto({
     super.key,
@@ -33,13 +35,21 @@ class ProductPhoto extends StatelessWidget {
     if (bytes != null) {
       child = Image.memory(bytes!, width: width, height: height, fit: fit);
     } else if (_hasUrl) {
-      child = Image.network(
-        imageUrl!,
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final memW = width != null ? (width! * dpr).round() : null;
+      final memH = height != null ? (height! * dpr).round() : null;
+      child = CachedNetworkImage(
+        imageUrl: imageUrl!.trim(),
+        cacheManager: ProductImageCache.instance,
         width: width,
         height: height,
         fit: fit,
-        gaplessPlayback: true,
-        errorBuilder: (_, _, _) => _Placeholder(iconSize: iconSize),
+        memCacheWidth: memW,
+        memCacheHeight: memH,
+        fadeInDuration: const Duration(milliseconds: 120),
+        fadeOutDuration: const Duration(milliseconds: 80),
+        placeholder: (_, _) => _Placeholder(iconSize: iconSize, loading: true),
+        errorWidget: (_, _, _) => _Placeholder(iconSize: iconSize),
       );
     } else {
       child = _Placeholder(iconSize: iconSize);
@@ -57,16 +67,23 @@ class ProductPhoto extends StatelessWidget {
 }
 
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.iconSize});
+  const _Placeholder({required this.iconSize, this.loading = false});
 
   final double iconSize;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.slate200,
       child: Center(
-        child: Icon(Icons.image_outlined, size: iconSize, color: AppColors.slate400),
+        child: loading
+            ? SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(Icons.image_outlined, size: iconSize, color: AppColors.slate400),
       ),
     );
   }

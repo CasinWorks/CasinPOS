@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../bootstrap.dart';
 import '../../core/errors/app_errors.dart';
+import '../../core/images/product_image_cache.dart';
 import '../cart_display_sync.dart';
 import '../local/local_pos_store.dart';
 import '../models/demo_catalog.dart';
@@ -67,6 +68,10 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
       await LocalPosStore.saveCatalog(
         storeId,
         [for (final p in products) p.toJson()],
+      );
+      // Warm photo disk cache so reopen / POS grid is instant offline-friendly.
+      unawaited(
+        ProductImageCache.prefetch(products.map((p) => p.imageUrl)),
       );
     } catch (_) {
       // Keep cached / current catalog if cloud fetch fails.

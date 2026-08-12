@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/errors/app_errors.dart';
+import '../../../core/images/product_image_cache.dart';
 import '../../../core/input/numeric_formatters.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/product_photo.dart';
@@ -161,6 +163,7 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
         _imageUrl = url;
         _uploading = false;
       });
+      unawaited(ProductImageCache.prefetch([url]));
     } catch (e) {
       if (!mounted) return;
       setState(() {
