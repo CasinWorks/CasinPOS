@@ -59,6 +59,12 @@ String friendlyError(Object error, {String fallback = 'Something went wrong. Ple
 /// Maps known RPC / auth exception codes to short UI copy. Returns null if unknown.
 String? mapKnownBackendError(String raw) {
   final s = raw.toUpperCase();
+  if (s.contains('42501') ||
+      s.contains('ROW-LEVEL SECURITY') ||
+      s.contains('ROW LEVEL SECURITY')) {
+    return 'Couldn’t save — you don’t have permission for this store’s inventory. '
+        'Sign out/in, or ask the store owner to re-invite you.';
+  }
   if (s.contains('FORBIDDEN')) {
     return 'You don’t have permission to do that.';
   }

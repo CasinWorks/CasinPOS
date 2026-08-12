@@ -26,7 +26,7 @@ enum StoreRole {
   bool get canManageBilling => this == owner;
   bool get canInviteUsers => this == owner || this == admin;
   bool get canManageCatalog =>
-      this == owner || this == admin || this == manager;
+      this == owner || this == admin || this == manager || this == staff;
   bool get canViewFullAnalytics =>
       this == owner || this == admin || this == manager;
   bool get canViewPersonalAnalytics => true;

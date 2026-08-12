@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/app_errors.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/product_photo.dart';
@@ -79,7 +80,7 @@ class _RetailInventoryViewState extends ConsumerState<RetailInventoryView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not save product: $e'),
+          content: Text('Could not save product: ${friendlyError(e)}'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFFE11D48),
         ),
@@ -105,7 +106,7 @@ class _RetailInventoryViewState extends ConsumerState<RetailInventoryView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not update product: $e'),
+          content: Text('Could not update product: ${friendlyError(e)}'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFFE11D48),
         ),

@@ -213,3 +213,16 @@ supabase functions deploy platform-reset-password
 
 Optional secrets (same as invites): `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `PUBLIC_APP_URL`.
 Without Resend, ops UI copies the recovery link when reset is triggered.
+
+---
+
+## Script H — Products RLS fix (`20260814000100`)
+
+If **Add / edit product** fails with `42501` / row-level security on `products`, paste:
+
+`supabase/migrations/20260814000100_products_rls_fix.sql`
+
+Effects:
+- Replaces brittle `FOR ALL` write policies on `products` and `categories`
+- Explicit INSERT / UPDATE / DELETE with `WITH CHECK`
+- Any **active store member** can manage inventory (retail day-to-day)
