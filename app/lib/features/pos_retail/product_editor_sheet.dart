@@ -165,7 +165,8 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
       if (!mounted) return;
       setState(() {
         _uploading = false;
-        _error = 'Photo upload failed. Create the product-images bucket in Supabase, then retry.\n$e';
+        _error =
+            'Photo upload failed. Apply Script I (product-images bucket + storage RLS) in Supabase, then retry.';
       });
     }
   }

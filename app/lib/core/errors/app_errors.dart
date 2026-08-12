@@ -65,6 +65,10 @@ String? mapKnownBackendError(String raw) {
     return 'Couldn’t save — you don’t have permission for this store’s inventory. '
         'Sign out/in, or ask the store owner to re-invite you.';
   }
+  if (s.contains('STORAGEEXCEPTION') ||
+      (s.contains('UNAUTHORIZED') && s.contains('STORAGE'))) {
+    return 'Photo upload failed. Apply Script I in Supabase (product-images bucket), then retry.';
+  }
   if (s.contains('FORBIDDEN')) {
     return 'You don’t have permission to do that.';
   }

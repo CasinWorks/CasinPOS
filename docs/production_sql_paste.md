@@ -226,3 +226,16 @@ Effects:
 - Replaces brittle `FOR ALL` write policies on `products` and `categories`
 - Explicit INSERT / UPDATE / DELETE with `WITH CHECK`
 - Any **active store member** can manage inventory (retail day-to-day)
+
+---
+
+## Script I — Product images storage (`20260814000200`)
+
+If **photo upload** fails with Storage `403` / row-level security, paste:
+
+`supabase/migrations/20260814000200_product_images_storage_fix.sql`
+
+Effects:
+- Creates public `product-images` bucket (5 MB, jpeg/png/webp/gif) if missing
+- Storage INSERT/UPDATE/DELETE allowed for active members of that store
+- Paths must be `{store_id}/{product_id}/filename`
