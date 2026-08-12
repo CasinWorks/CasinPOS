@@ -147,12 +147,10 @@ class _RetailInventoryViewState extends ConsumerState<RetailInventoryView> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not delete product: $e'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFFE11D48),
-        ),
+      showAppError(
+        context,
+        e,
+        fallback: 'Could not delete this product. Check your connection and try again.',
       );
     }
   }
@@ -478,7 +476,8 @@ class _InventoryProductCard extends StatelessWidget {
           ],
         ),
         Text(
-          'SKU ${product.sku} · Cost ₱${product.costPrice.toStringAsFixed(0)} · Retail ₱${product.price.toStringAsFixed(0)}',
+          'SKU ${product.sku} · Cost ₱${product.costPrice.toStringAsFixed(0)} · Retail ₱${product.price.toStringAsFixed(0)}'
+          '${product.isOnSale ? ' · Sale ₱${product.effectivePrice.toStringAsFixed(0)}' : ''}',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(

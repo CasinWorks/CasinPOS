@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/app_errors.dart';
 import '../../core/responsive/adaptive_scaffold.dart';
 import '../../core/responsive/breakpoints.dart';
 import '../../core/theme/app_colors.dart';
@@ -40,7 +41,14 @@ class _Phase1HomePageState extends ConsumerState<Phase1HomePage> {
           );
       ref.invalidate(membershipsProvider);
     } catch (e) {
-      if (mounted) setState(() => _switchError = e.toString());
+      if (mounted) {
+        setState(
+          () => _switchError = friendlyError(
+            e,
+            fallback: 'Couldn’t switch to retail. Check your connection and try again.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _switching = false);
     }

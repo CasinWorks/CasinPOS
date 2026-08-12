@@ -294,7 +294,10 @@ Future<void> showStoreSettingsDialog(BuildContext context, WidgetRef ref) async 
                           } catch (e) {
                             if (ctx.mounted) {
                               setLocal(() {
-                                error = e.toString();
+                                error = friendlyError(
+                                  e,
+                                  fallback: 'Could not save settings. Please try again.',
+                                );
                                 saving = false;
                               });
                             }

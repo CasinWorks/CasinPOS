@@ -16,6 +16,7 @@ import '../../../core/widgets/product_photo.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
+import 'barcode_scanner_sheet.dart';
 import 'sku_generator.dart';
 
 Future<RetailProduct?> showProductEditorSheet(
@@ -47,17 +48,22 @@ class _ProductEditorSheet extends ConsumerStatefulWidget {
 class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
   late final TextEditingController _name;
   late final TextEditingController _sku;
+  late final TextEditingController _barcode;
   late final TextEditingController _category;
   late final TextEditingController _price;
   late final TextEditingController _cost;
   late final TextEditingController _stock;
   late final TextEditingController _lowStock;
   late final TextEditingController _unit;
+  late final TextEditingController _salePrice;
   late String _productId;
   String? _imageUrl;
   Uint8List? _previewBytes;
   String? _error;
   bool _uploading = false;
+  bool _saleEnabled = false;
+  DateTime? _saleStartsAt;
+  DateTime? _saleEndsAt;
   /// Once the user edits SKU, stop overwriting it from the name.
   late bool _skuLocked;
 
@@ -72,6 +78,7 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     _productId = e?.id ?? const Uuid().v4();
     _name = TextEditingController(text: e?.name ?? '');
     _sku = TextEditingController(text: e?.sku ?? '');
+    _barcode = TextEditingController(text: e?.barcode ?? '');
     _category = TextEditingController(
       text: e?.category ?? widget.initialCategory?.trim() ?? 'General',
     );
@@ -82,6 +89,12 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
       text: (e?.lowStockThreshold ?? 10).toStringAsFixed(0),
     );
     _unit = TextEditingController(text: e?.weight ?? 'Unit');
+    _salePrice = TextEditingController(
+      text: e?.salePrice == null ? '' : e!.salePrice!.toStringAsFixed(2),
+    );
+    _saleEnabled = e?.salePrice != null;
+    _saleStartsAt = e?.saleStartsAt;
+    _saleEndsAt = e?.saleEndsAt;
     _imageUrl = (e?.imageUrl.trim().isNotEmpty ?? false) ? e!.imageUrl : null;
     // New products auto-sync SKU; edits keep the existing SKU unless empty.
     _skuLocked = e != null && (e.sku.trim().isNotEmpty);
@@ -117,13 +130,40 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
   void dispose() {
     _name.dispose();
     _sku.dispose();
+    _barcode.dispose();
     _category.dispose();
     _price.dispose();
     _cost.dispose();
     _stock.dispose();
     _lowStock.dispose();
     _unit.dispose();
+    _salePrice.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickSaleDateTime({required bool start}) async {
+    final initial = (start ? _saleStartsAt : _saleEndsAt) ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final combined =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() {
+      if (start) {
+        _saleStartsAt = combined;
+      } else {
+        _saleEndsAt = combined;
+      }
+    });
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -168,8 +208,11 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
       if (!mounted) return;
       setState(() {
         _uploading = false;
-        _error =
-            'Photo upload failed. Apply Script I (product-images bucket + storage RLS) in Supabase, then retry.';
+        _error = friendlyError(
+          e,
+          fallback:
+              'Photo upload failed. Check your connection and try again.',
+        );
       });
     }
   }
@@ -180,6 +223,16 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.gif')) return 'image/gif';
     return 'image/jpeg';
+  }
+
+  Future<void> _scanBarcode() async {
+    final code = await scanBarcodeForProduct(context);
+    if (!mounted || code == null || code.isEmpty) return;
+    setState(() {
+      _barcode.text = code;
+      _error = null;
+    });
+    showAppMessage(context, 'Barcode saved: $code');
   }
 
   void _clearPhoto() {
@@ -218,6 +271,25 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     final stock = stockInt.toDouble();
     final low = lowInt.toDouble();
 
+    double? salePrice;
+    if (_saleEnabled) {
+      salePrice = NumericInput.tryParseMoney(_salePrice.text);
+      if (salePrice == null || salePrice < 0) {
+        setState(() => _error = 'Enter a valid sale price');
+        showAppMessage(context, 'Enter a valid sale price', isError: true);
+        return;
+      }
+      if (salePrice >= price) {
+        setState(() => _error = 'Sale price must be lower than retail price');
+        showAppMessage(
+          context,
+          'Sale price must be lower than retail price',
+          isError: true,
+        );
+        return;
+      }
+    }
+
     final existing = widget.existing;
     final category = _category.text.trim().isEmpty ? 'General' : _category.text.trim();
     ref.read(catalogCategoriesProvider.notifier).ensure(category);
@@ -239,7 +311,10 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
       lowStockThreshold: low,
       imageUrl: _imageUrl ?? '',
       description: existing?.description ?? '',
-      barcode: existing?.barcode,
+      barcode: _barcode.text.trim().isEmpty ? null : _barcode.text.trim(),
+      salePrice: salePrice,
+      saleStartsAt: _saleEnabled ? _saleStartsAt : null,
+      saleEndsAt: _saleEnabled ? _saleEndsAt : null,
     );
     Navigator.pop(context, product);
   }
@@ -374,6 +449,23 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                     ),
                     const SizedBox(height: 10),
                     TextField(
+                      controller: _barcode,
+                      textInputAction: TextInputAction.next,
+                      keyboardType: TextInputType.visiblePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Barcode',
+                        hintText: 'Optional — scan package barcode',
+                        helperText:
+                            'Used by POS Scan. Leave blank if you only use SKU search.',
+                        suffixIcon: IconButton(
+                          tooltip: 'Scan barcode',
+                          onPressed: _scanBarcode,
+                          icon: const Icon(Icons.qr_code_scanner, size: 20),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: _category,
                       textCapitalization: TextCapitalization.words,
                       textInputAction: TextInputAction.next,
@@ -448,6 +540,74 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                       controller: _unit,
                       decoration: const InputDecoration(labelText: 'Unit (e.g. Unit, kg, pack)'),
                     ),
+                    const SizedBox(height: 10),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('On sale'),
+                      subtitle: const Text(
+                        'Timed sale price shown on POS while active',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      value: _saleEnabled,
+                      onChanged: (v) => setState(() => _saleEnabled = v),
+                    ),
+                    if (_saleEnabled) ...[
+                      TextField(
+                        controller: _salePrice,
+                        keyboardType: NumericInput.moneyKeyboard,
+                        inputFormatters: NumericInput.money(),
+                        decoration: const InputDecoration(
+                          labelText: 'Sale price',
+                          helperText: 'Must be lower than retail price',
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Sale starts'),
+                        subtitle: Text(
+                          _saleStartsAt == null
+                              ? 'Starts immediately when saved'
+                              : _saleStartsAt!.toLocal().toString().substring(0, 16),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_saleStartsAt != null)
+                              IconButton(
+                                onPressed: () => setState(() => _saleStartsAt = null),
+                                icon: const Icon(Icons.clear),
+                              ),
+                            IconButton(
+                              onPressed: () => _pickSaleDateTime(start: true),
+                              icon: const Icon(Icons.event),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Sale ends'),
+                        subtitle: Text(
+                          _saleEndsAt == null
+                              ? 'No end date'
+                              : _saleEndsAt!.toLocal().toString().substring(0, 16),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_saleEndsAt != null)
+                              IconButton(
+                                onPressed: () => setState(() => _saleEndsAt = null),
+                                icon: const Icon(Icons.clear),
+                              ),
+                            IconButton(
+                              onPressed: () => _pickSaleDateTime(start: false),
+                              icon: const Icon(Icons.event),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 10),
                       Text(_error!, style: const TextStyle(color: Color(0xFFE11D48), fontSize: 12)),

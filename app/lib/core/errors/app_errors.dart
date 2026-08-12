@@ -16,12 +16,27 @@ class StockLimitException extends AppException {
   StockLimitException(super.message);
 }
 
-String friendlyError(Object error, {String fallback = 'Something went wrong. Please try again.'}) {
+/// Default copy when the device can't reach Supabase / the internet.
+const kOfflineFriendlyMessage =
+    'You’re offline or the server can’t be reached. Check your connection and try again.';
+
+const kOfflineQueuedSaleMessage =
+    'Sale saved on this device — it will sync when you’re back online.';
+
+String friendlyError(
+  Object error, {
+  String fallback = 'Something went wrong. Please try again.',
+}) {
   if (error is AppException) return error.message;
 
   // Prefer structured Postgrest / Function fields when present (avoids raw dumps).
   final structured = _structuredErrorBlob(error);
   final raw = structured ?? error.toString();
+  final typeName = error.runtimeType.toString();
+
+  final offline = _offlineOrNetworkMessage('$typeName $raw');
+  if (offline != null) return offline;
+
   final mapped = mapKnownBackendError(raw);
   if (mapped != null) return mapped;
 
@@ -33,27 +48,133 @@ String friendlyError(Object error, {String fallback = 'Something went wrong. Ple
       .replaceFirst(RegExp(r'^PostgrestException\([^)]*\):\s*'), '')
       .replaceFirst(RegExp(r'^PostgrestException:\s*'), '')
       .replaceFirst(RegExp(r'^PostgresException\([^)]*\):\s*'), '')
-      .replaceFirst(RegExp(r'^PostgresException:\s*'), '');
+      .replaceFirst(RegExp(r'^PostgresException:\s*'), '')
+      .replaceFirst(RegExp(r'^AuthException\([^)]*\):\s*'), '')
+      .replaceFirst(RegExp(r'^AuthException:\s*'), '')
+      .replaceFirst(RegExp(r'^AuthApiException\([^)]*\):\s*'), '')
+      .replaceFirst(RegExp(r'^AuthApiException:\s*'), '')
+      .replaceFirst(RegExp(r'^AuthRetryableFetchException:\s*'), '')
+      .replaceFirst(RegExp(r'^ClientException:\s*'), '')
+      .replaceFirst(RegExp(r'^SocketException:\s*'), '')
+      .replaceFirst(RegExp(r'^HttpException:\s*'), '')
+      .replaceFirst(RegExp(r'^TimeoutException:\s*'), '')
+      .trim();
+
+  final offlineCleaned = _offlineOrNetworkMessage(cleaned);
+  if (offlineCleaned != null) return offlineCleaned;
+
   final remapped = mapKnownBackendError(cleaned);
   if (remapped != null) return remapped;
-  if (cleaned.trim().isEmpty) return fallback;
-  // Never surface raw unique-constraint / Postgres noise.
-  if (RegExp(r'23505|duplicate key value|store_invitations_pending_unique', caseSensitive: false)
-      .hasMatch(cleaned)) {
-    return 'That invite is already pending. Try again to resend the email.';
-  }
-  if (RegExp(
-        r'PostgresException|PostgrestException|violates unique constraint|PGRST|severityException',
-        caseSensitive: false,
-      ).hasMatch(raw) ||
-      RegExp(
-        r'PostgresException|PostgrestException|violates unique constraint|PGRST',
-        caseSensitive: false,
-      ).hasMatch(cleaned)) {
+  if (cleaned.isEmpty) return fallback;
+
+  // Never surface raw unique-constraint / Postgres / HTTP / platform noise.
+  if (_looksLikeSystemNoise(raw) || _looksLikeSystemNoise(cleaned)) {
     return fallback;
   }
-  if (cleaned.length > 220) return '${cleaned.substring(0, 220)}…';
-  return cleaned;
+
+  // Allow only short, plain product copy (no stack-ish / code-ish dumps).
+  if (cleaned.length <= 160 && !_looksLikeSystemNoise(cleaned)) {
+    return cleaned;
+  }
+  return fallback;
+}
+
+/// True when [raw] looks like a connectivity / DNS / TLS failure.
+String? _offlineOrNetworkMessage(String raw) {
+  final s = raw.toLowerCase();
+  const needles = [
+    'socketexception',
+    'clientexception',
+    'httpexception',
+    'timeoutexception',
+    'handshakeexception',
+    'tls exception',
+    'failed host lookup',
+    'network is unreachable',
+    'network unreachable',
+    'connection refused',
+    'connection reset',
+    'connection closed',
+    'connection abort',
+    'software caused connection abort',
+    'broken pipe',
+    'nodename nor servname',
+    'name or service not known',
+    'temporary failure in name resolution',
+    'errno = 7',
+    'errno = 8',
+    'errno = 51',
+    'errno = 61',
+    'errno = 101',
+    'errno = 104',
+    'errno = 110',
+    'errno = 111',
+    'xmlhttprequest error',
+    'failed to fetch',
+    'network request failed',
+    'networkerror',
+    'authretryablefetchexception',
+    'os error:',
+    'no address associated with hostname',
+    'unreachable host',
+    'host is down',
+    'timed out',
+    'connection timed out',
+    'receive timed out',
+    'send timed out',
+  ];
+  for (final n in needles) {
+    if (s.contains(n)) return kOfflineFriendlyMessage;
+  }
+  return null;
+}
+
+bool _looksLikeSystemNoise(String raw) {
+  final s = raw.toLowerCase();
+  const needles = [
+    'socketexception',
+    'clientexception',
+    'httpexception',
+    'timeoutexception',
+    'handshakeexception',
+    'postgresexception',
+    'postgrestexception',
+    'functionexception',
+    'authapiexception',
+    'authretryable',
+    'platformexception',
+    'missingpluginexception',
+    'formatexception',
+    'typeerror',
+    'nosuchmethod',
+    'rangeerror',
+    'stateerror',
+    'assertion failed',
+    'stack overflow',
+    'null check operator',
+    'violates unique constraint',
+    'duplicate key value',
+    '23505',
+    'pgrst',
+    'sqlstate',
+    'minified:',
+    'status: 5',
+    'statuscode',
+    'http 5',
+    'errno =',
+    '#0 ',
+    'package:',
+    'dart:',
+    'flutter error',
+    'another exception was thrown',
+  ];
+  for (final n in needles) {
+    if (s.contains(n)) return true;
+  }
+  // Looks like a JSON / code dump.
+  if (raw.contains('{') && raw.contains('}') && raw.length > 80) return true;
+  if (RegExp(r'\b[A-Z][a-zA-Z]+Exception\b').hasMatch(raw)) return true;
+  return false;
 }
 
 /// Maps known RPC / auth exception codes to short UI copy. Returns null if unknown.
@@ -107,7 +228,9 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('INVITE_NOT_FOUND')) {
     return 'Invite not found. Check the link/token, or ask your store owner to resend it.';
   }
-  if (s.contains('NOT_AUTHENTICATED')) {
+  if (s.contains('NOT_AUTHENTICATED') ||
+      s.contains('SUPABASE IS NOT INITIALIZED') ||
+      s.contains('NOT SIGNED IN')) {
     return 'Please sign in and try again.';
   }
   if (s.contains('STORE_NAME_REQUIRED')) {
@@ -167,6 +290,15 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('SESSION_NOT_OPEN')) {
     return 'No open register session to claim.';
   }
+  if (s.contains('INVALID LOGIN CREDENTIALS')) {
+    return 'Wrong email or password.';
+  }
+  if (s.contains('EMAIL NOT CONFIRMED') || s.contains('EMAIL_NOT_CONFIRMED')) {
+    return 'Confirm your email first (check inbox/spam), then sign in.';
+  }
+  if (s.contains('USER ALREADY REGISTERED')) {
+    return 'That email is already registered. Sign in instead.';
+  }
   return null;
 }
 
@@ -179,6 +311,7 @@ String? _structuredErrorBlob(Object error) {
       if (e.code != null) '${e.code}',
       if (e.details != null) '${e.details}',
       if (e.hint != null) '${e.hint}',
+      if (e.statusCode != null) '${e.statusCode}',
     ];
     if (parts.isEmpty) return null;
     return parts.join(' ');
@@ -207,7 +340,12 @@ void showAppError(
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(friendlyError(error, fallback: fallback ?? 'Something went wrong. Please try again.')),
+      content: Text(
+        friendlyError(
+          error,
+          fallback: fallback ?? 'Something went wrong. Please try again.',
+        ),
+      ),
       behavior: SnackBarBehavior.floating,
       backgroundColor: const Color(0xFFE11D48),
       duration: const Duration(seconds: 4),

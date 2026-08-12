@@ -317,9 +317,12 @@ class _CashRegisterViewState extends ConsumerState<CashRegisterView> {
                 child: Center(child: CircularProgressIndicator()),
               ),
               error: (e, _) => _ErrorCard(
-                message: '$e',
+                message: friendlyError(
+                  e,
+                  fallback: 'Couldn’t load the register. Check your connection and try again.',
+                ),
                 onRetry: () => ref.read(cashRegisterProvider.notifier).refresh(),
-                hint: 'If this mentions cash_sessions, run migration 20260809000500 in Supabase SQL.',
+                hint: 'If this keeps failing after reconnecting, contact CasinPOS support.',
               ),
               data: (balance) {
                 if (balance == null) {

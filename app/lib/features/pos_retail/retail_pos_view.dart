@@ -62,6 +62,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF151515), Color(0xFF3D2E00), Color(0xFF151515)],
+                stops: [0.0, 0.5, 1.0],
               ),
               borderRadius: BorderRadius.circular(24),
             ),
@@ -399,20 +400,68 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                               color: AppColors.slate900.withValues(alpha: 0.92),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: AppColors.retail.withValues(alpha: 0.55),
+                                color: product.isOnSale
+                                    ? const Color(0xFFF97316)
+                                    : AppColors.retail.withValues(alpha: 0.55),
                               ),
                             ),
-                            child: Text(
-                              '$currencySymbol${product.price.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: AppColors.retail,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                letterSpacing: -0.2,
+                            child: product.isOnSale
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '$currencySymbol${product.price.toStringAsFixed(0)}',
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.65),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 10,
+                                          decoration: TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$currencySymbol${product.effectivePrice.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          color: Color(0xFFFDBA74),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 13,
+                                          letterSpacing: -0.2,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    '$currencySymbol${product.price.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: AppColors.retail,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        if (product.isOnSale)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEA580C),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'SALE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 9,
+                                  letterSpacing: 0.4,
+                                ),
                               ),
                             ),
                           ),
-                        ),
                         if (outOfStock)
                           Positioned.fill(
                             child: DecoratedBox(

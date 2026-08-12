@@ -54,6 +54,8 @@ class CasinPosSidebar extends ConsumerWidget {
     final items = <({String id, String label, IconData icon, int? badge})>[
       (id: 'checkout', label: 'Retail POS', icon: Icons.point_of_sale_rounded, badge: null),
       (id: 'inventory', label: 'Store Inventory', icon: Icons.inventory_2_outlined, badge: null),
+      if (membership?.role.canInviteUsers == true)
+        (id: 'promos', label: 'Promos / Codes', icon: Icons.local_offer_outlined, badge: null),
       (id: 'register', label: 'Cash Register', icon: Icons.account_balance_wallet_outlined, badge: null),
       (id: 'orders', label: 'Sales History', icon: Icons.bookmark_outline, badge: orderCount),
       (id: 'receipts', label: 'Receipts Audit', icon: Icons.receipt_long_outlined, badge: null),

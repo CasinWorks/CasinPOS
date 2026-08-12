@@ -101,7 +101,7 @@ class _FluidInkIntroState extends State<FluidInkIntro>
       color: AppColors.inkIntroBg,
       child: DecoratedBox(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
@@ -109,6 +109,7 @@ class _FluidInkIntroState extends State<FluidInkIntro>
               Color(0xFFFFF3C4),
               Color(0xFFFFE082),
             ],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: Stack(

@@ -78,6 +78,9 @@ class ProductRepository {
       'weight_label': product.weight,
       'stock': product.stock,
       'low_stock_threshold': product.lowStockThreshold,
+      'sale_price': product.salePrice,
+      'sale_starts_at': product.saleStartsAt?.toUtc().toIso8601String(),
+      'sale_ends_at': product.saleEndsAt?.toUtc().toIso8601String(),
       'is_active': true,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
@@ -130,6 +133,9 @@ class ProductRepository {
       imageUrl: (json['image_path'] as String?) ?? '',
       description: (json['description'] as String?) ?? '',
       barcode: json['barcode'] as String?,
+      salePrice: json['sale_price'] == null ? null : _num(json['sale_price']),
+      saleStartsAt: DateTime.tryParse(json['sale_starts_at'] as String? ?? ''),
+      saleEndsAt: DateTime.tryParse(json['sale_ends_at'] as String? ?? ''),
     );
   }
 

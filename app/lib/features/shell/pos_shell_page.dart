@@ -18,10 +18,12 @@ import '../notifications/store_notifications_view.dart';
 import '../platform_ops/platform_ops_view.dart';
 import '../pos_retail/retail_inventory_view.dart';
 import '../pos_retail/retail_pos_view.dart';
+import '../promos/discount_codes_view.dart';
 import '../receipts/receipts_audit_view.dart';
 import '../register/cash_register_view.dart';
 import '../support/store_support_view.dart';
 import 'casinpos_sidebar.dart';
+import 'mobile_account_sheet.dart';
 import 'phase1_home_page.dart';
 
 /// Retail / Restaurant shell. Retail includes story-mode tutorial.
@@ -98,6 +100,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     switch (tab) {
       case 'inventory':
         body = const RetailInventoryView();
+      case 'promos':
+        body = const DiscountCodesView();
       case 'register':
         body = const CashRegisterView();
       case 'orders':
@@ -118,9 +122,38 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         );
     }
 
+    final storeName = membership?.store.name ?? 'CasinPOS';
     final shell = !showSidebar
         ? Scaffold(
-            body: body,
+            // Keep content below Dynamic Island / status bar; nav bar owns the bottom.
+            body: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            storeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const MobileAccountButton(),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: body),
+                ],
+              ),
+            ),
             bottomNavigationBar: NavigationBar(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,

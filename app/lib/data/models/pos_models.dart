@@ -12,6 +12,9 @@ class RetailProduct {
     required this.imageUrl,
     this.description = '',
     this.barcode,
+    this.salePrice,
+    this.saleStartsAt,
+    this.saleEndsAt,
   });
 
   final String id;
@@ -26,8 +29,25 @@ class RetailProduct {
   final String imageUrl;
   final String description;
   final String? barcode;
+  final double? salePrice;
+  final DateTime? saleStartsAt;
+  final DateTime? saleEndsAt;
 
   bool get isLowStock => stock <= lowStockThreshold;
+
+  /// True when [salePrice] is set and now is inside the optional start/end window.
+  bool isOnSaleAt([DateTime? now]) {
+    final sale = salePrice;
+    if (sale == null || sale < 0 || sale >= price) return false;
+    final n = now ?? DateTime.now();
+    if (saleStartsAt != null && n.isBefore(saleStartsAt!)) return false;
+    if (saleEndsAt != null && n.isAfter(saleEndsAt!)) return false;
+    return true;
+  }
+
+  bool get isOnSale => isOnSaleAt();
+
+  double get effectivePrice => isOnSale ? salePrice! : price;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -42,6 +62,9 @@ class RetailProduct {
         'imageUrl': imageUrl,
         'description': description,
         'barcode': barcode,
+        'salePrice': salePrice,
+        'saleStartsAt': saleStartsAt?.toUtc().toIso8601String(),
+        'saleEndsAt': saleEndsAt?.toUtc().toIso8601String(),
       };
 
   factory RetailProduct.fromJson(Map<String, dynamic> json) => RetailProduct(
@@ -57,6 +80,9 @@ class RetailProduct {
         imageUrl: json['imageUrl'] as String? ?? '',
         description: json['description'] as String? ?? '',
         barcode: json['barcode'] as String?,
+        salePrice: (json['salePrice'] as num?)?.toDouble(),
+        saleStartsAt: DateTime.tryParse(json['saleStartsAt'] as String? ?? ''),
+        saleEndsAt: DateTime.tryParse(json['saleEndsAt'] as String? ?? ''),
       );
 
   RetailProduct copyWith({
@@ -71,6 +97,10 @@ class RetailProduct {
     String? imageUrl,
     String? description,
     String? barcode,
+    double? salePrice,
+    DateTime? saleStartsAt,
+    DateTime? saleEndsAt,
+    bool clearSale = false,
   }) {
     return RetailProduct(
       id: id,
@@ -85,6 +115,106 @@ class RetailProduct {
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
       barcode: barcode ?? this.barcode,
+      salePrice: clearSale ? null : (salePrice ?? this.salePrice),
+      saleStartsAt: clearSale ? null : (saleStartsAt ?? this.saleStartsAt),
+      saleEndsAt: clearSale ? null : (saleEndsAt ?? this.saleEndsAt),
+    );
+  }
+}
+
+enum DiscountKind { percent, fixed }
+
+class DiscountCode {
+  const DiscountCode({
+    required this.id,
+    required this.storeId,
+    required this.code,
+    required this.kind,
+    required this.value,
+    this.isActive = true,
+    this.startsAt,
+    this.endsAt,
+  });
+
+  final String id;
+  final String storeId;
+  final String code;
+  final DiscountKind kind;
+  final double value;
+  final bool isActive;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+
+  bool isValidAt([DateTime? now]) {
+    if (!isActive) return false;
+    final n = now ?? DateTime.now();
+    if (startsAt != null && n.isBefore(startsAt!)) return false;
+    if (endsAt != null && n.isAfter(endsAt!)) return false;
+    return value > 0;
+  }
+
+  String get label {
+    final upper = code.toUpperCase();
+    return kind == DiscountKind.percent
+        ? '$upper (${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1)}%)'
+        : '$upper (₱${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} off)';
+  }
+
+  double amountOff(double gross) {
+    if (gross <= 0 || !isValidAt()) return 0;
+    if (kind == DiscountKind.percent) {
+      return (gross * (value.clamp(0, 100) / 100)).clamp(0, gross);
+    }
+    return value.clamp(0, gross);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'storeId': storeId,
+        'code': code,
+        'kind': kind.name,
+        'value': value,
+        'isActive': isActive,
+        'startsAt': startsAt?.toUtc().toIso8601String(),
+        'endsAt': endsAt?.toUtc().toIso8601String(),
+      };
+
+  factory DiscountCode.fromJson(Map<String, dynamic> json) {
+    final kindRaw = (json['kind'] as String? ?? 'percent').toLowerCase();
+    return DiscountCode(
+      id: json['id'] as String? ?? '',
+      storeId: json['storeId'] as String? ?? json['store_id'] as String? ?? '',
+      code: (json['code'] as String? ?? '').trim().toUpperCase(),
+      kind: kindRaw == 'fixed' ? DiscountKind.fixed : DiscountKind.percent,
+      value: (json['value'] as num?)?.toDouble() ?? 0,
+      isActive: json['isActive'] as bool? ?? json['is_active'] as bool? ?? true,
+      startsAt: DateTime.tryParse(
+        (json['startsAt'] ?? json['starts_at']) as String? ?? '',
+      ),
+      endsAt: DateTime.tryParse(
+        (json['endsAt'] ?? json['ends_at']) as String? ?? '',
+      ),
+    );
+  }
+
+  DiscountCode copyWith({
+    String? code,
+    DiscountKind? kind,
+    double? value,
+    bool? isActive,
+    DateTime? startsAt,
+    DateTime? endsAt,
+    bool clearWindow = false,
+  }) {
+    return DiscountCode(
+      id: id,
+      storeId: storeId,
+      code: code ?? this.code,
+      kind: kind ?? this.kind,
+      value: value ?? this.value,
+      isActive: isActive ?? this.isActive,
+      startsAt: clearWindow ? null : (startsAt ?? this.startsAt),
+      endsAt: clearWindow ? null : (endsAt ?? this.endsAt),
     );
   }
 }
@@ -98,7 +228,7 @@ class CartLine {
   final RetailProduct product;
   final int quantity;
 
-  double get lineTotal => product.price * quantity;
+  double get lineTotal => product.effectivePrice * quantity;
 
   CartLine copyWith({RetailProduct? product, int? quantity}) => CartLine(
         product: product ?? this.product,
@@ -185,6 +315,8 @@ class PosOrder {
     this.status = 'Paid',
     this.synced = true,
     this.refundedTotal = 0,
+    this.discountCode,
+    this.discountAmount = 0,
   });
 
   final String id;
@@ -201,6 +333,8 @@ class PosOrder {
   /// Whether this sale has been confirmed in Supabase (false = pending outbox).
   final bool synced;
   final double refundedTotal;
+  final String? discountCode;
+  final double discountAmount;
 
   bool get isPaid => status.toLowerCase() == 'paid' || status.toLowerCase() == 'partial refund';
   bool get isVoided => status.toLowerCase() == 'voided';
@@ -224,6 +358,8 @@ class PosOrder {
         'status': status,
         'synced': synced,
         'refundedTotal': refundedTotal,
+        'discountCode': discountCode,
+        'discountAmount': discountAmount,
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> json) {
@@ -250,6 +386,8 @@ class PosOrder {
       status: json['status'] as String? ?? 'Paid',
       synced: json['synced'] as bool? ?? true,
       refundedTotal: (json['refundedTotal'] as num?)?.toDouble() ?? 0,
+      discountCode: json['discountCode'] as String?,
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0,
     );
   }
 }

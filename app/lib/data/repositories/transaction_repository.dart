@@ -203,6 +203,8 @@ class TransactionRepository {
     required double cashReceived,
     required double changeGiven,
     required String currencyCode,
+    String? discountCode,
+    double discountAmount = 0,
   }) async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) throw StateError('Not signed in.');
@@ -226,6 +228,8 @@ class TransactionRepository {
       'payment_method': paymentMethod.name,
       'cash_received': paymentMethod == PaymentMethod.cash ? cashReceived : null,
       'change_given': paymentMethod == PaymentMethod.cash ? changeGiven : null,
+      'discount_code': discountCode,
+      'discount_amount': discountAmount,
       'staff_id': uid,
       'paid_at': now.toIso8601String(),
     });
@@ -238,7 +242,7 @@ class TransactionRepository {
             'product_id': _isUuid(line.product.id) ? line.product.id : null,
             'name_snapshot': line.product.name,
             'quantity': line.quantity,
-            'unit_price': line.product.price,
+            'unit_price': line.product.effectivePrice,
             'line_total': line.lineTotal,
             'additions': [],
           },
@@ -253,7 +257,7 @@ class TransactionRepository {
           OrderLine(
             name: l.product.name,
             qty: l.quantity,
-            unitPrice: l.product.price,
+            unitPrice: l.product.effectivePrice,
             category: l.product.category,
             productId: l.product.id,
           ),
@@ -264,6 +268,8 @@ class TransactionRepository {
       paymentMethod: paymentMethod,
       timestampLabel: 'Just now',
       createdAt: now.toLocal(),
+      discountCode: discountCode,
+      discountAmount: discountAmount,
     );
   }
 
@@ -319,6 +325,8 @@ class TransactionRepository {
       createdAt: paidAt,
       status: status,
       refundedTotal: refundedTotal,
+      discountCode: json['discount_code'] as String?,
+      discountAmount: ((json['discount_amount'] as num?) ?? 0).toDouble(),
     );
   }
 

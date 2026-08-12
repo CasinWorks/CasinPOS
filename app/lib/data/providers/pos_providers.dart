@@ -11,6 +11,7 @@ import '../local/local_pos_store.dart';
 import '../models/demo_catalog.dart';
 import '../models/pos_models.dart';
 import '../repositories/cash_register_repository.dart';
+import '../repositories/discount_code_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/transaction_repository.dart';
 import 'connectivity_providers.dart';
@@ -19,6 +20,10 @@ import 'session_providers.dart';
 
 final productRepositoryProvider = Provider<ProductRepository>(
   (ref) => ProductRepository(),
+);
+
+final discountCodeRepositoryProvider = Provider<DiscountCodeRepository>(
+  (ref) => DiscountCodeRepository(),
 );
 
 final transactionRepositoryProvider = Provider<TransactionRepository>(
@@ -53,7 +58,12 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
         for (final p in state) {
           cats.ensure(p.category);
         }
+        // Serve photos from disk immediately; only missing URLs hit the network.
+        unawaited(
+          ProductImageCache.prefetch(state.map((p) => p.imageUrl)),
+        );
       }
+      unawaited(_ref.read(discountCodesProvider.notifier).loadForStore(storeId));
 
       if (!isSupabaseReady) return;
       if (!(_ref.read(cloudReachableProvider))) return;
@@ -73,6 +83,7 @@ class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
       unawaited(
         ProductImageCache.prefetch(products.map((p) => p.imageUrl)),
       );
+      unawaited(_ref.read(discountCodesProvider.notifier).loadForStore(storeId));
     } catch (_) {
       // Keep cached / current catalog if cloud fetch fails.
     } finally {
@@ -438,6 +449,8 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
     required PaymentMethod paymentMethod,
     required double cashReceived,
     required double changeGiven,
+    String? discountCode,
+    double discountAmount = 0,
   }) async {
     final membership = _ref.read(activeMembershipProvider);
     if (membership == null) {
@@ -454,7 +467,7 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
           OrderLine(
             name: l.product.name,
             qty: l.quantity,
-            unitPrice: l.product.price,
+            unitPrice: l.product.effectivePrice,
             category: l.product.category,
             productId: l.product.id,
           ),
@@ -466,8 +479,29 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
       timestampLabel: 'Just now',
       createdAt: now,
       synced: false,
+      discountCode: discountCode,
+      discountAmount: discountAmount,
     );
     String? warning;
+
+    final outboxPayload = {
+      'id': localId,
+      'kind': 'sale',
+      'localOrderId': localId,
+      'lines': [
+        for (final l in lines)
+          {'product': l.product.toJson(), 'quantity': l.quantity},
+      ],
+      'subtotal': subtotal,
+      'tax': tax,
+      'total': total,
+      'paymentMethod': paymentMethod.name,
+      'cashReceived': cashReceived,
+      'changeGiven': changeGiven,
+      'currencyCode': membership.store.currencyCode,
+      'discountCode': discountCode,
+      'discountAmount': discountAmount,
+    };
 
     final online = isSupabaseReady && _ref.read(cloudReachableProvider);
     if (online) {
@@ -483,53 +517,23 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
           cashReceived: cashReceived,
           changeGiven: changeGiven,
           currencyCode: membership.store.currencyCode,
+          discountCode: discountCode,
+          discountAmount: discountAmount,
         );
       } catch (e) {
-        warning =
-            'Sale saved on this device — will sync when online. (${friendlyError(e)})';
-        await LocalPosStore.enqueueOutbox(membership.storeId, {
-          'id': localId,
-          'kind': 'sale',
-          'localOrderId': localId,
-          'lines': [
-            for (final l in lines)
-              {'product': l.product.toJson(), 'quantity': l.quantity},
-          ],
-          'subtotal': subtotal,
-          'tax': tax,
-          'total': total,
-          'paymentMethod': paymentMethod.name,
-          'cashReceived': cashReceived,
-          'changeGiven': changeGiven,
-          'currencyCode': membership.store.currencyCode,
-        });
+        warning = kOfflineQueuedSaleMessage;
+        await LocalPosStore.enqueueOutbox(membership.storeId, outboxPayload);
         bumpOutboxTick(_ref);
       }
     } else {
-      warning = 'Offline — sale saved on this tablet and queued to sync.';
-      await LocalPosStore.enqueueOutbox(membership.storeId, {
-        'id': localId,
-        'kind': 'sale',
-        'localOrderId': localId,
-        'lines': [
-          for (final l in lines)
-            {'product': l.product.toJson(), 'quantity': l.quantity},
-        ],
-        'subtotal': subtotal,
-        'tax': tax,
-        'total': total,
-        'paymentMethod': paymentMethod.name,
-        'cashReceived': cashReceived,
-        'changeGiven': changeGiven,
-        'currencyCode': membership.store.currencyCode,
-      });
+      warning = kOfflineQueuedSaleMessage;
+      await LocalPosStore.enqueueOutbox(membership.storeId, outboxPayload);
       bumpOutboxTick(_ref);
     }
 
     state = [order, ...state];
     await _persistOrders(membership.storeId);
 
-    // Apply cash sale to cached register drawer immediately (online or offline).
     if (paymentMethod == PaymentMethod.cash) {
       await _ref.read(cashRegisterProvider.notifier).applyLocalCashSale(total);
     }
@@ -734,22 +738,37 @@ class CheckoutSettings {
   const CheckoutSettings({
     this.paymentMethod = PaymentMethod.cash,
     this.vatMode = VatMode.inclusive,
-    this.discountPercent = 0,
+    this.discountCode,
+    this.discountKind,
+    this.discountValue = 0,
   });
 
   final PaymentMethod paymentMethod;
   final VatMode vatMode;
-  final double discountPercent;
+  final String? discountCode;
+  final DiscountKind? discountKind;
+  final double discountValue;
+
+  bool get hasDiscount =>
+      discountCode != null &&
+      discountCode!.isNotEmpty &&
+      discountValue > 0 &&
+      discountKind != null;
 
   CheckoutSettings copyWith({
     PaymentMethod? paymentMethod,
     VatMode? vatMode,
-    double? discountPercent,
+    String? discountCode,
+    DiscountKind? discountKind,
+    double? discountValue,
+    bool clearDiscount = false,
   }) {
     return CheckoutSettings(
       paymentMethod: paymentMethod ?? this.paymentMethod,
       vatMode: vatMode ?? this.vatMode,
-      discountPercent: discountPercent ?? this.discountPercent,
+      discountCode: clearDiscount ? null : (discountCode ?? this.discountCode),
+      discountKind: clearDiscount ? null : (discountKind ?? this.discountKind),
+      discountValue: clearDiscount ? 0 : (discountValue ?? this.discountValue),
     );
   }
 }
@@ -759,8 +778,110 @@ class CheckoutSettingsNotifier extends StateNotifier<CheckoutSettings> {
 
   void setPayment(PaymentMethod m) => state = state.copyWith(paymentMethod: m);
   void setVat(VatMode m) => state = state.copyWith(vatMode: m);
-  void setDiscount(double p) => state = state.copyWith(discountPercent: p);
+
+  void applyDiscountCode(DiscountCode code) {
+    state = state.copyWith(
+      discountCode: code.code,
+      discountKind: code.kind,
+      discountValue: code.value,
+    );
+  }
+
+  void clearDiscount() => state = state.copyWith(clearDiscount: true);
+
+  /// Legacy percent-only helper (tests / chips). Prefer [applyDiscountCode].
+  void setDiscount(double p) {
+    if (p <= 0) {
+      clearDiscount();
+      return;
+    }
+    state = state.copyWith(
+      discountCode: 'CUSTOM',
+      discountKind: DiscountKind.percent,
+      discountValue: p,
+    );
+  }
 }
+
+class DiscountCodesNotifier extends StateNotifier<List<DiscountCode>> {
+  DiscountCodesNotifier(this._ref) : super(const []);
+
+  final Ref _ref;
+  final _repo = DiscountCodeRepository();
+  String? _loadedStoreId;
+
+  Future<void> loadForStore(String storeId) async {
+    _loadedStoreId = storeId;
+    final cached = await LocalPosStore.loadDiscountCodes(storeId);
+    if (cached.isNotEmpty && mounted) {
+      state = [for (final m in cached) DiscountCode.fromJson(m)];
+    }
+
+    if (!isSupabaseReady || !(_ref.read(cloudReachableProvider))) return;
+    try {
+      final codes = await _repo.listForStore(storeId);
+      if (!mounted || _loadedStoreId != storeId) return;
+      state = codes;
+      await LocalPosStore.saveDiscountCodes(
+        storeId,
+        [for (final c in codes) c.toJson()],
+      );
+    } catch (_) {
+      // Keep cached codes when cloud unavailable / table not migrated.
+    }
+  }
+
+  Future<void> refresh() async {
+    final storeId = _ref.read(activeMembershipProvider)?.storeId;
+    if (storeId == null) return;
+    await loadForStore(storeId);
+  }
+
+  Future<DiscountCode> upsert(DiscountCode code) async {
+    final saved = await _repo.upsert(code);
+    state = [
+      saved,
+      for (final c in state.where((c) => c.id != saved.id)) c,
+    ];
+    final storeId = saved.storeId;
+    await LocalPosStore.saveDiscountCodes(
+      storeId,
+      [for (final c in state) c.toJson()],
+    );
+    return saved;
+  }
+
+  Future<void> remove(String id) async {
+    await _repo.delete(id);
+    state = [for (final c in state.where((c) => c.id != id)) c];
+    final storeId = _ref.read(activeMembershipProvider)?.storeId;
+    if (storeId != null) {
+      await LocalPosStore.saveDiscountCodes(
+        storeId,
+        [for (final c in state) c.toJson()],
+      );
+    }
+  }
+
+  DiscountCode? findActiveCode(String raw) {
+    final needle = raw.trim().toUpperCase();
+    if (needle.isEmpty) return null;
+    for (final c in state) {
+      if (c.code == needle && c.isValidAt()) return c;
+    }
+    return null;
+  }
+}
+
+final discountCodesProvider =
+    StateNotifierProvider<DiscountCodesNotifier, List<DiscountCode>>(
+  (ref) => DiscountCodesNotifier(ref),
+);
+
+/// Active (valid now) codes for cart chips.
+final activeDiscountCodesProvider = Provider<List<DiscountCode>>((ref) {
+  return ref.watch(discountCodesProvider).where((c) => c.isValidAt()).toList();
+});
 
 final posCatalogProvider =
     StateNotifierProvider<PosCatalogNotifier, List<RetailProduct>>(
@@ -1005,7 +1126,15 @@ final cartTotalsProvider = Provider<CartTotals>((ref) {
   final cart = ref.watch(cartProvider);
   final settings = ref.watch(checkoutSettingsProvider);
   final gross = cart.fold<double>(0, (s, l) => s + l.lineTotal);
-  final discount = gross * (settings.discountPercent / 100);
+  var discount = 0.0;
+  if (settings.hasDiscount) {
+    if (settings.discountKind == DiscountKind.percent) {
+      discount = gross * (settings.discountValue.clamp(0, 100) / 100);
+    } else {
+      discount = settings.discountValue.clamp(0, gross);
+    }
+  }
+  discount = discount.clamp(0, gross);
   final afterDiscount = gross - discount;
 
   if (settings.vatMode == VatMode.inclusive) {
@@ -1041,7 +1170,7 @@ final cartDisplaySyncProvider = Provider<void>((ref) {
             CartDisplayLine(
               name: line.product.name,
               quantity: line.quantity,
-              unitPrice: line.product.price,
+              unitPrice: line.product.effectivePrice,
               lineTotal: line.lineTotal,
             ),
         ],

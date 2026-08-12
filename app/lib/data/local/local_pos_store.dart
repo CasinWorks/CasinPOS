@@ -73,4 +73,21 @@ abstract final class LocalPosStore {
     final current = await loadOutbox(storeId);
     await saveOutbox(storeId, [for (final i in current) if (i['id'] != id) i]);
   }
+
+  static Future<void> saveDiscountCodes(
+    String storeId,
+    List<Map<String, dynamic>> codes,
+  ) async {
+    await kv.write(_k(storeId, 'discount_codes'), jsonEncode(codes));
+  }
+
+  static Future<List<Map<String, dynamic>>> loadDiscountCodes(String storeId) async {
+    final raw = await kv.read(_k(storeId, 'discount_codes'));
+    if (raw == null || raw.isEmpty) return const [];
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+    return [
+      for (final e in decoded.whereType<Map>()) Map<String, dynamic>.from(e),
+    ];
+  }
 }

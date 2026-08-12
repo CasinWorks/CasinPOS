@@ -239,3 +239,16 @@ Effects:
 - Creates public `product-images` bucket (5 MB, jpeg/png/webp/gif) if missing
 - Storage INSERT/UPDATE/DELETE allowed for active members of that store
 - Paths must be `{store_id}/{product_id}/filename`
+
+---
+
+## Script J — Product sales + discount codes (`20260815000100`)
+
+Paste:
+
+`supabase/migrations/20260815000100_product_sales_and_discount_codes.sql`
+
+Effects:
+- `products.sale_price` / `sale_starts_at` / `sale_ends_at` for timed product sales
+- `discount_codes` table (percent or fixed ₱) with Owner/Admin write RLS
+- `transactions.discount_code` / `discount_amount` for checkout audit

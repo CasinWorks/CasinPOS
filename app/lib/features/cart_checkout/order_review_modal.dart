@@ -126,7 +126,7 @@ class _OrderReviewDialog extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '$currencySymbol${line.product.price.toStringAsFixed(2)} each',
+                                '$currencySymbol${line.product.effectivePrice.toStringAsFixed(2)} each',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.slate500,

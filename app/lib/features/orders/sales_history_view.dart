@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
@@ -64,13 +65,7 @@ class SalesHistoryView extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not void: $e'),
-          backgroundColor: const Color(0xFFE11D48),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showAppError(context, e, fallback: 'Could not void this sale. Please try again.');
     }
   }
 
@@ -92,13 +87,7 @@ class SalesHistoryView extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not refund: $e'),
-          backgroundColor: const Color(0xFFEA580C),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showAppError(context, e, fallback: 'Could not refund this sale. Please try again.');
     }
   }
 

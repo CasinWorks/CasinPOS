@@ -116,6 +116,8 @@ class SyncOutboxService {
       cashReceived: (item['cashReceived'] as num?)?.toDouble() ?? 0,
       changeGiven: (item['changeGiven'] as num?)?.toDouble() ?? 0,
       currencyCode: item['currencyCode'] as String? ?? 'PHP',
+      discountCode: item['discountCode'] as String?,
+      discountAmount: (item['discountAmount'] as num?)?.toDouble() ?? 0,
     );
 
     final localId = item['localOrderId'] as String? ?? item['id'] as String?;

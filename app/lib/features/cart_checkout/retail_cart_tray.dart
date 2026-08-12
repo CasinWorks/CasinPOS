@@ -92,6 +92,7 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
     try {
       ref.read(cartProvider.notifier).assertWithinStock();
 
+      final settings = ref.read(checkoutSettingsProvider);
       final result = await ref.read(ordersProvider.notifier).completeSale(
             lines: cart,
             subtotal: totals.subtotal,
@@ -100,9 +101,12 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
             paymentMethod: method,
             cashReceived: received,
             changeGiven: change,
+            discountCode: settings.hasDiscount ? settings.discountCode : null,
+            discountAmount: totals.discount,
           );
       await ref.read(posCatalogProvider.notifier).deductForSale(cart);
       ref.read(cartProvider.notifier).clear();
+      ref.read(checkoutSettingsProvider.notifier).clearDiscount();
       if (method == PaymentMethod.cash && result.warning == null) {
         unawaited(ref.read(cashRegisterProvider.notifier).refresh());
       }
@@ -365,12 +369,22 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                           const SizedBox(width: 6),
                           FilledButton(
                             onPressed: () {
-                              final code = _promoCtrl.text.trim().toUpperCase();
-                              if (code == 'SENIOR20') {
-                                ref.read(checkoutSettingsProvider.notifier).setDiscount(20);
-                              } else if (code == 'PROMO10') {
-                                ref.read(checkoutSettingsProvider.notifier).setDiscount(10);
+                              final raw = _promoCtrl.text.trim();
+                              final match = ref
+                                  .read(discountCodesProvider.notifier)
+                                  .findActiveCode(raw);
+                              if (match == null) {
+                                showAppMessage(
+                                  context,
+                                  'Invalid or expired discount code.',
+                                  isError: true,
+                                );
+                                return;
                               }
+                              ref
+                                  .read(checkoutSettingsProvider.notifier)
+                                  .applyDiscountCode(match);
+                              showAppMessage(context, 'Applied ${match.label}');
                             },
                             style: FilledButton.styleFrom(
                               minimumSize: const Size(72, 52),
@@ -382,41 +396,73 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ActionChip(
-                            label: const Text(
-                              'SENIOR20 (20%)',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                            onPressed: () => ref.read(checkoutSettingsProvider.notifier).setDiscount(20),
-                          ),
-                          ActionChip(
-                            label: const Text(
-                              'PROMO10 (10%)',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                            onPressed: () => ref.read(checkoutSettingsProvider.notifier).setDiscount(10),
-                          ),
-                          if (settings.discountPercent > 0)
-                            ActionChip(
-                              label: const Text(
-                                'Clear',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                              onPressed: () => ref.read(checkoutSettingsProvider.notifier).setDiscount(0),
-                            ),
-                        ],
+                      Builder(
+                        builder: (context) {
+                          final activeCodes = ref.watch(activeDiscountCodesProvider);
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final code in activeCodes.take(6))
+                                ActionChip(
+                                  label: Text(
+                                    code.label,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
+                                  onPressed: () {
+                                    _promoCtrl.text = code.code;
+                                    ref
+                                        .read(checkoutSettingsProvider.notifier)
+                                        .applyDiscountCode(code);
+                                  },
+                                ),
+                              if (settings.hasDiscount)
+                                ActionChip(
+                                  label: const Text(
+                                    'Clear',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
+                                  onPressed: () {
+                                    _promoCtrl.clear();
+                                    ref
+                                        .read(checkoutSettingsProvider.notifier)
+                                        .clearDiscount();
+                                  },
+                                ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
-                      _TotalRow(label: 'Subtotal', value: '₱${totals.subtotal.toStringAsFixed(2)}'),
                       _TotalRow(
-                        label: settings.vatMode == VatMode.inclusive ? 'Tax / VAT' : 'Tax (12% VAT)',
+                        label: 'Subtotal',
+                        value: '₱${(totals.subtotal + totals.discount).toStringAsFixed(2)}',
+                      ),
+                      if (totals.discount > 0)
+                        _TotalRow(
+                          label: settings.discountCode != null
+                              ? 'Discount (${settings.discountCode})'
+                              : 'Discount',
+                          value: '-₱${totals.discount.toStringAsFixed(2)}',
+                        ),
+                      _TotalRow(
+                        label: settings.vatMode == VatMode.inclusive
+                            ? 'Tax / VAT'
+                            : 'Tax (12% VAT)',
                         value: settings.vatMode == VatMode.inclusive
                             ? 'Inclusive in item price'
                             : '₱${totals.tax.toStringAsFixed(2)}',
@@ -560,7 +606,7 @@ class _CartLineTileState extends ConsumerState<_CartLineTile>
                   ],
                 ),
                 Text(
-                  '₱${line.product.price.toStringAsFixed(2)}',
+                  '₱${line.product.effectivePrice.toStringAsFixed(2)}',
                   style: const TextStyle(fontSize: 10, color: AppColors.slate500, fontWeight: FontWeight.w700),
                 ),
                 Row(
