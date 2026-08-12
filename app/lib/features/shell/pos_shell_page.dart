@@ -21,6 +21,7 @@ import '../pos_retail/retail_inventory_view.dart';
 import '../pos_retail/retail_pos_view.dart';
 import '../receipts/receipts_audit_view.dart';
 import '../register/cash_register_view.dart';
+import '../support/store_support_view.dart';
 import 'casinpos_sidebar.dart';
 import 'phase1_home_page.dart';
 
@@ -111,7 +112,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
       case 'notifications':
         body = const StoreNotificationsView();
       case 'support':
-        body = _PlaceholderPane(title: 'Support');
+        body = const StoreSupportView();
       default:
         body = RetailPosView(
           onOpenInventory: () => ref.read(retailTabProvider.notifier).state = 'inventory',
@@ -189,19 +190,4 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         'analytics' => 4,
         _ => 0,
       };
-}
-
-class _PlaceholderPane extends StatelessWidget {
-  const _PlaceholderPane({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '$title — coming soon',
-        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.slate400),
-      ),
-    );
-  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/support_contact.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/brand_mark.dart';
 import '../../core/widgets/powered_by_casinworks.dart';
@@ -115,7 +116,7 @@ class PrivacyPolicyPage extends StatelessWidget {
         (
           heading: 'Contact',
           body:
-              'Questions about privacy: support@casinworks.com (or your CasinWorks contact email).',
+              'Questions about privacy: ${SupportContact.email}.',
         ),
       ],
     );
@@ -168,7 +169,7 @@ class TermsOfServicePage extends StatelessWidget {
         ),
         (
           heading: 'Contact',
-          body: 'Questions: support@casinworks.com',
+          body: 'Questions: ${SupportContact.email}',
         ),
       ],
     );

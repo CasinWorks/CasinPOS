@@ -20,7 +20,7 @@ Also linked from Sign in, Sign up, and Store settings → Privacy / Terms.
 Requires production migrations + Edge Function `delete-account` deployed.
 
 **Support / web path (for App Store review notes):**  
-Email support with the signed-in account email and request deletion within 7 days. Soft path also exists via in-app delete.
+Email `christianjoshuacasin@gmail.com` with the signed-in account email and request deletion within 7 days. Soft path also exists via in-app delete. In-app **Support** tab opens the same address.
 
 ## Suggested listing copy
 
@@ -86,9 +86,10 @@ Export PNG; avoid demo passwords on screen. Use a demo store with realistic prod
 ## Review notes (paste into App Store Connect)
 
 ```
-Demo account: <provide test email/password>
+Demo account: (enter in App Store Connect only)
 
 Account deletion: Store settings → Delete my account
+Support: Sidebar → Support → email christianjoshuacasin@gmail.com
 Privacy: https://casin-pos-black.vercel.app/privacy
 Terms: https://casin-pos-black.vercel.app/terms
 

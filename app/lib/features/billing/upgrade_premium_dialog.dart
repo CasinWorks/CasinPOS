@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/support_contact.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
@@ -36,7 +37,7 @@ class _UpgradePremiumDialog extends StatelessWidget {
   final UpgradeReason reason;
   final String? storeName;
 
-  static const _supportEmail = 'support@casinworks.com';
+  static const _supportEmail = SupportContact.email;
 
   String get _headline => switch (reason) {
         UpgradeReason.teamSeats => 'Need more team seats?',
