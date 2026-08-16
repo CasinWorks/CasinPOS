@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../bootstrap.dart';
@@ -1187,3 +1188,40 @@ final cartDisplaySyncProvider = Provider<void>((ref) {
   ref.listen(activeMembershipProvider, (_, _) => publish());
   publish();
 });
+
+const _kPosShowProductImages = 'casinpos.pos_show_product_images';
+const _kPosCatalogStyleAsked = 'casinpos.pos_catalog_style_asked';
+
+/// Whether Retail POS product tiles show photos (persisted).
+class PosShowProductImagesNotifier extends StateNotifier<bool> {
+  PosShowProductImagesNotifier() : super(true) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_kPosShowProductImages) ?? true;
+  }
+
+  Future<void> setShowImages(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPosShowProductImages, value);
+    await prefs.setBool(_kPosCatalogStyleAsked, true);
+  }
+
+  Future<bool> shouldPromptStyleChoice() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kPosCatalogStyleAsked) != true;
+  }
+
+  Future<void> markStyleAsked() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPosCatalogStyleAsked, true);
+  }
+}
+
+final posShowProductImagesProvider =
+    StateNotifierProvider<PosShowProductImagesNotifier, bool>(
+  (ref) => PosShowProductImagesNotifier(),
+);

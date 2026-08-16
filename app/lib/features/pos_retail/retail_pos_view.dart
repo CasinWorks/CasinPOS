@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +25,7 @@ class RetailPosView extends ConsumerStatefulWidget {
 class _RetailPosViewState extends ConsumerState<RetailPosView> {
   String _category = 'All';
   final _search = TextEditingController();
+  var _stylePromptScheduled = false;
 
   @override
   void dispose() {
@@ -30,13 +33,57 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
     super.dispose();
   }
 
+  Future<void> _maybePromptCatalogStyle() async {
+    if (!mounted) return;
+    final notifier = ref.read(posShowProductImagesProvider.notifier);
+    final shouldAsk = await notifier.shouldPromptStyleChoice();
+    if (!shouldAsk || !mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    final choice = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('How should products look?'),
+        content: const Text(
+          'For clearer checkout — especially for older cashiers — '
+          'you can hide photos and show large names and prices only.\n\n'
+          'You can switch anytime with Photos / Text only next to the categories.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Keep photos'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Text only (easier to read)'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (choice == null) {
+      await notifier.markStyleAsked();
+      return;
+    }
+    await notifier.setShowImages(choice);
+  }
+
   @override
   Widget build(BuildContext context) {
     final products = ref.watch(posCatalogProvider);
+    final showImages = ref.watch(posShowProductImagesProvider);
     final categoryFilters = ref.watch(retailCategoryFiltersProvider);
     if (_category != 'All' && !categoryFilters.contains(_category)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _category = 'All');
+      });
+    }
+    if (!_stylePromptScheduled) {
+      _stylePromptScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_maybePromptCatalogStyle());
       });
     }
     final store = ref.watch(activeMembershipProvider)?.store;
@@ -165,10 +212,11 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
           TextField(
             controller: _search,
             onChanged: (_) => setState(() {}),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             decoration: InputDecoration(
               hintText: 'Scan barcode, SKU or product name...',
-              prefixIcon: const Icon(Icons.search, size: 18),
+              hintStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              prefixIcon: const Icon(Icons.search, size: 22),
               filled: true,
               fillColor: const Color(0xFFF1F1F1),
               border: OutlineInputBorder(
@@ -182,16 +230,40 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                FilterChip(
+                  avatar: Icon(
+                    showImages ? Icons.image_outlined : Icons.text_fields_rounded,
+                    size: 18,
+                    color: showImages ? AppColors.slate700 : Colors.white,
+                  ),
+                  label: Text(showImages ? 'Photos' : 'Text only'),
+                  selected: !showImages,
+                  selectedColor: AppColors.slate900,
+                  checkmarkColor: Colors.white,
+                  labelStyle: TextStyle(
+                    color: showImages ? AppColors.slate800 : Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                  onSelected: (_) {
+                    ref
+                        .read(posShowProductImagesProvider.notifier)
+                        .setShowImages(!showImages);
+                  },
+                ),
+                const SizedBox(width: 10),
                 for (final cat in categoryFilters) ...[
                   ChoiceChip(
-                    label: Text(cat, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                    label: Text(cat),
                     selected: _category == cat,
                     selectedColor: AppColors.slate900,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
                     labelStyle: TextStyle(
-                      color: _category == cat ? Colors.white : AppColors.slate700,
+                      color: _category == cat ? Colors.white : AppColors.slate800,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 10),
                     onSelected: (_) => setState(() => _category = cat),
                     showCheckmark: false,
                   ),
@@ -237,16 +309,25 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
               anchor: TutorialAnchor.productArea,
               child: LayoutBuilder(
               builder: (context, constraints) {
-                // Tablet POS: prefer denser tiles so more SKUs fit without huge scrolling.
                 final w = constraints.maxWidth;
-                final cols = w >= 1100
-                    ? 5
-                    : w >= 820
+                // Dense grid so cashiers see many products without long scrolling.
+                final cols = showImages
+                    ? (w >= 1000
                         ? 4
-                        : w >= 520
+                        : w >= 700
                             ? 3
-                            : 2;
-                final aspect = w >= 820 ? 0.78 : 0.72;
+                            : w >= 480
+                                ? 2
+                                : 1)
+                    : (w >= 1000
+                        ? 4
+                        : w >= 680
+                            ? 3
+                            : 2);
+                // Shorter tiles = more rows on screen; still room for photo + readable type.
+                final aspect = showImages
+                    ? (w >= 900 ? 0.92 : 0.88)
+                    : (w >= 900 ? 1.55 : 1.35);
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -273,6 +354,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                       currencySymbol: symbol,
                       outOfStock: out,
                       remaining: remaining.toDouble(),
+                      showImage: showImages,
                       onAdd: () {
                         try {
                           ref.read(cartProvider.notifier).add(p);
@@ -299,6 +381,7 @@ class _ProductCard extends StatefulWidget {
     this.currencySymbol = '₱',
     this.outOfStock = false,
     this.remaining = 0,
+    this.showImage = true,
   });
 
   final RetailProduct product;
@@ -306,6 +389,7 @@ class _ProductCard extends StatefulWidget {
   final String currencySymbol;
   final bool outOfStock;
   final double remaining;
+  final bool showImage;
 
   @override
   State<_ProductCard> createState() => _ProductCardState();
@@ -347,6 +431,7 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
     final outOfStock = widget.outOfStock;
     final remaining = widget.remaining;
     final currencySymbol = widget.currencySymbol;
+    final showImage = widget.showImage;
 
     return ScaleTransition(
       scale: _scale,
@@ -363,9 +448,9 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
           child: Opacity(
             opacity: outOfStock ? 0.72 : 1,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: outOfStock
                       ? AppColors.slate200
@@ -375,78 +460,76 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                 ),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    flex: 4,
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: ProductPhoto(
-                            imageUrl: product.imageUrl,
-                            width: double.infinity,
-                            height: double.infinity,
-                            borderRadius: 12,
-                            iconSize: 28,
+                  if (showImage)
+                    Expanded(
+                      flex: 6,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: ProductPhoto(
+                              imageUrl: product.imageUrl,
+                              width: double.infinity,
+                              height: double.infinity,
+                              borderRadius: 10,
+                              fit: BoxFit.cover,
+                              iconSize: 28,
+                            ),
                           ),
-                        ),
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.slate900.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: product.isOnSale
-                                    ? const Color(0xFFF97316)
-                                    : AppColors.retail.withValues(alpha: 0.55),
+                          if (product.isOnSale)
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEA580C),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text(
+                                  'SALE',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 10,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: product.isOnSale
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '$currencySymbol${product.price.toStringAsFixed(0)}',
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.65),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 10,
-                                          decoration: TextDecoration.lineThrough,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '$currencySymbol${product.effectivePrice.toStringAsFixed(0)}',
-                                        style: const TextStyle(
-                                          color: Color(0xFFFDBA74),
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 13,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Text(
-                                    '$currencySymbol${product.price.toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      color: AppColors.retail,
+                          if (outOfStock)
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'OUT OF STOCK',
+                                    style: TextStyle(
+                                      color: Colors.white,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                      letterSpacing: -0.2,
+                                      fontSize: 11,
                                     ),
                                   ),
-                          ),
-                        ),
-                        if (product.isOnSale)
-                          Positioned(
-                            top: 6,
-                            right: 6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  else if (product.isOnSale || outOfStock)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 6,
+                        children: [
+                          if (product.isOnSale)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEA580C),
                                 borderRadius: BorderRadius.circular(999),
@@ -456,141 +539,110 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900,
-                                  fontSize: 9,
-                                  letterSpacing: 0.4,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),
-                          ),
-                        if (outOfStock)
-                          Positioned.fill(
-                            child: DecoratedBox(
+                          if (outOfStock)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.black45,
-                                borderRadius: BorderRadius.circular(12),
+                                color: const Color(0xFFE11D48),
+                                borderRadius: BorderRadius.circular(999),
                               ),
-                              child: const Center(
-                                child: Text(
-                                  'OUT OF STOCK',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 10,
-                                    letterSpacing: 0.6,
-                                  ),
+                              child: const Text(
+                                'OUT OF STOCK',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      height: 1.15,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Opacity(
-                    opacity: 0.55,
-                    child: Row(
+                  if (showImage) const SizedBox(height: 6),
+                  Expanded(
+                    flex: showImage ? 4 : 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Flexible(
-                          child: Text(
-                            product.sku,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.slate500,
-                            ),
+                        Text(
+                          product.name,
+                          maxLines: showImage ? 2 : 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: showImage ? 15 : 17,
+                            fontWeight: FontWeight.w900,
+                            height: 1.15,
+                            color: AppColors.ink,
+                            letterSpacing: -0.2,
                           ),
                         ),
-                        if (product.weight.trim().isNotEmpty) ...[
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: AppColors.slate100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              product.weight,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.slate500,
-                              ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$currencySymbol${product.effectivePrice.toStringAsFixed(0)}',
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: showImage ? 22 : 26,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                            color: product.isOnSale
+                                ? const Color(0xFFC2410C)
+                                : AppColors.slate900,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        if (product.isOnSale)
+                          Text(
+                            '$currencySymbol${product.price.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.slate500.withValues(alpha: 0.9),
+                              decoration: TextDecoration.lineThrough,
                             ),
                           ),
-                        ],
-                        if (product.category.trim().isNotEmpty) ...[
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              product.category,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.slate400,
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                outOfStock
+                                    ? 'No stock'
+                                    : '${remaining.toStringAsFixed(0)} left',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: outOfStock
+                                      ? const Color(0xFFE11D48)
+                                      : product.isLowStock
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF047857),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            FilledButton(
+                              onPressed: outOfStock ? null : _handleAdd,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.slate900,
+                                foregroundColor: AppColors.retail,
+                                disabledBackgroundColor: AppColors.slate300,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                minimumSize: const Size(64, 34),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                              ),
+                              child: Text(outOfStock ? 'Sold' : '+ Add'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          outOfStock
-                              ? 'No units left'
-                              : '${remaining.toStringAsFixed(0)} left',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: outOfStock
-                                ? const Color(0xFFE11D48)
-                                : product.isLowStock
-                                    ? const Color(0xFFE11D48)
-                                    : const Color(0xFF047857),
-                          ),
-                        ),
-                      ),
-                      if (!outOfStock && product.isLowStock)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 2),
-                          child: Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFF59E0B)),
-                        ),
-                      FilledButton(
-                        onPressed: outOfStock ? null : _handleAdd,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.slate900,
-                          foregroundColor: AppColors.retail,
-                          disabledBackgroundColor: AppColors.slate300,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          minimumSize: const Size(64, 36),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                        ),
-                        child: Text(outOfStock ? 'Sold' : '+ Add'),
-                      ),
-                    ],
                   ),
                 ],
               ),

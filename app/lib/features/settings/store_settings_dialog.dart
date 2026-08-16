@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/providers/session_providers.dart';
+import '../../data/providers/ui_prefs_providers.dart';
 import '../../domain/enums.dart';
 import '../onboarding/story_mode.dart';
 
@@ -326,6 +327,16 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
           ),
         ),
         const SizedBox(height: 20),
+        Text('Display (this device)', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          'Optional text size for POS, inventory, and menus. '
+          'Saved on this device only — does not change prices or store data.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
+        ),
+        const SizedBox(height: 10),
+        _textSizeControls(),
+        const SizedBox(height: 12),
         Text('Payment methods', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
@@ -403,6 +414,55 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
           label: const Text(
             'Delete my account',
             style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _textSizeControls() {
+    final scale = ref.watch(appTextScaleProvider);
+    final notifier = ref.read(appTextScaleProvider.notifier);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final preset in AppTextScaleNotifier.presets)
+              ChoiceChip(
+                label: Text(appTextScaleLabel(preset)),
+                selected: (scale - preset).abs() < 0.03,
+                onSelected: (_) => notifier.setScale(preset),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Text('A', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Slider(
+                value: scale.clamp(
+                  AppTextScaleNotifier.min,
+                  AppTextScaleNotifier.max,
+                ),
+                min: AppTextScaleNotifier.min,
+                max: AppTextScaleNotifier.max,
+                divisions: 10,
+                label: '${(scale * 100).round()}%',
+                onChanged: notifier.setScale,
+              ),
+            ),
+            const Text('A', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          ],
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: scale == 1.0 ? null : () => notifier.reset(),
+            child: const Text('Reset to default'),
           ),
         ),
       ],
