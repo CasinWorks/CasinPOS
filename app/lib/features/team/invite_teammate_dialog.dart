@@ -118,10 +118,25 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
     final authRepo = widget.authRepo;
 
     try {
+      List<String>? branchIds;
+      if (role == StoreRole.branchManager) {
+        final branches = await storeRepo.listStoreBranches(storeId);
+        if (!mounted) return;
+        if (branches.isEmpty) {
+          setState(() {
+            _loading = false;
+            _error = 'No branches found. Create a branch first.';
+          });
+          return;
+        }
+        // Default: all listed branches (Free = Main only).
+        branchIds = branches.map((b) => b.id).toList();
+      }
       final row = await storeRepo.createInvitation(
         storeId: storeId,
         email: email,
         role: role,
+        branchIds: branchIds,
       );
       if (!mounted) return;
 
@@ -230,9 +245,10 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
                   for (final r in [
                     if (membership.role == StoreRole.owner) StoreRole.admin,
                     StoreRole.manager,
+                    StoreRole.branchManager,
                     StoreRole.staff,
                   ])
-                    DropdownMenuItem(value: r, child: Text(r.value)),
+                    DropdownMenuItem(value: r, child: Text(r.label)),
                 ],
                 onChanged: _loading
                     ? null
@@ -240,6 +256,13 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
                         if (v != null) setState(() => _role = v);
                       },
               ),
+              if (_role == StoreRole.branchManager) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Branch Manager needs at least one branch. On Free plan there is usually one Main branch — we’ll assign it automatically after invite if you leave this as Branch Manager.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
+                ),
+              ],
             ],
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),

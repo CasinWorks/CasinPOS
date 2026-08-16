@@ -9,6 +9,7 @@ import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../analytics/sales_analytics_view.dart';
+import '../reports/reports_hub_view.dart';
 import '../cart_checkout/mobile_cart_fab.dart';
 import '../cart_checkout/retail_cart_tray.dart';
 import '../onboarding/retail_story_overlay.dart';
@@ -110,6 +111,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         body = const ReceiptsAuditView();
       case 'analytics':
         body = const SalesAnalyticsView();
+      case 'reports':
+        body = const ReportsHubView();
       case 'ops':
         body = const PlatformOpsView();
       case 'notifications':
@@ -165,7 +168,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                   1 => 'inventory',
                   2 => 'orders',
                   3 => 'receipts',
-                  _ => 'analytics',
+                  _ => 'reports',
                 };
               },
               destinations: const [
@@ -173,7 +176,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                 NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
                 NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
                 NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Receipts'),
-                NavigationDestination(icon: Icon(Icons.trending_up), label: 'Stats'),
+                NavigationDestination(icon: Icon(Icons.assessment_outlined), label: 'Reports'),
               ],
             ),
           )
@@ -219,7 +222,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         'inventory' => 1,
         'orders' => 2,
         'receipts' => 3,
-        'analytics' => 4,
+        'reports' || 'analytics' => 4,
         _ => 0,
       };
 }

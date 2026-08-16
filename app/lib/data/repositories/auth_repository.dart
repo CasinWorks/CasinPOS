@@ -96,7 +96,7 @@ class StoreRepository {
 
     final rows = await _client
         .from('store_members')
-        .select('id, store_id, role, stores(*)')
+        .select('id, store_id, role, branch_ids, stores(*)')
         .eq('user_id', uid)
         .eq('status', 'active');
 
@@ -130,6 +130,7 @@ class StoreRepository {
     required String storeId,
     required String email,
     required StoreRole role,
+    List<String>? branchIds,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     try {
@@ -139,7 +140,8 @@ class StoreRepository {
           'p_store_id': storeId,
           'p_email': normalizedEmail,
           'p_role': role.value,
-          'p_branch_ids': null,
+          'p_branch_ids':
+              (branchIds == null || branchIds.isEmpty) ? null : branchIds,
         },
       );
       final map = Map<String, dynamic>.from(result as Map);
@@ -373,6 +375,7 @@ class StoreRepository {
   Future<void> updateMemberRole({
     required String memberId,
     required StoreRole role,
+    List<String>? branchIds,
   }) async {
     try {
       await _client.rpc(
@@ -380,6 +383,7 @@ class StoreRepository {
         params: {
           'p_member_id': memberId,
           'p_role': role.value,
+          if (branchIds != null) 'p_branch_ids': branchIds,
         },
       );
     } on PostgrestException catch (e) {
@@ -387,6 +391,25 @@ class StoreRepository {
         mapKnownBackendError(e.message) ??
             mapKnownBackendError(e.toString()) ??
             'Could not change role. Please try again.',
+        cause: e,
+      );
+    }
+  }
+
+  Future<List<({String id, String name})>> listStoreBranches(String storeId) async {
+    try {
+      final result = await _client.rpc(
+        'list_store_branches',
+        params: {'p_store_id': storeId},
+      );
+      if (result is! List) return const [];
+      return result.whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        return (id: m['id'] as String, name: m['name'] as String? ?? 'Branch');
+      }).toList();
+    } on PostgrestException catch (e) {
+      throw AppException(
+        mapKnownBackendError(e.message) ?? 'Could not load branches.',
         cause: e,
       );
     }
@@ -643,10 +666,20 @@ class StoreRepository {
     required String storeId,
     required String name,
   }) async {
-    await _client.from('stores').update({
-      'name': name.trim(),
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', storeId);
+    final row = await _client
+        .from('stores')
+        .update({
+          'name': name.trim(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', storeId)
+        .select('id')
+        .maybeSingle();
+    if (row == null) {
+      throw AppException(
+        'Couldn’t update store name. Only Owner/Admin can change store settings.',
+      );
+    }
   }
 
   Future<void> updatePaymentMethods({
@@ -655,12 +688,22 @@ class StoreRepository {
     required bool acceptMaya,
     required bool acceptCard,
   }) async {
-    await _client.from('stores').update({
-      'accept_gcash': acceptGcash,
-      'accept_maya': acceptMaya,
-      'accept_card': acceptCard,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', storeId);
+    final row = await _client
+        .from('stores')
+        .update({
+          'accept_gcash': acceptGcash,
+          'accept_maya': acceptMaya,
+          'accept_card': acceptCard,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', storeId)
+        .select('id')
+        .maybeSingle();
+    if (row == null) {
+      throw AppException(
+        'Couldn’t update payment methods. Only Owner/Admin can change store settings.',
+      );
+    }
   }
 
   Future<void> updateReceiptFields({
@@ -668,12 +711,24 @@ class StoreRepository {
     String? businessTin,
     String? businessAddress,
   }) async {
-    await _client.from('stores').update({
-      'business_tin': businessTin?.trim().isEmpty == true ? null : businessTin?.trim(),
-      'business_address':
-          businessAddress?.trim().isEmpty == true ? null : businessAddress?.trim(),
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', storeId);
+    final tin = businessTin?.trim();
+    final address = businessAddress?.trim();
+    final row = await _client
+        .from('stores')
+        .update({
+          'business_tin': (tin == null || tin.isEmpty) ? null : tin,
+          'business_address': (address == null || address.isEmpty) ? null : address,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', storeId)
+        .select('id, business_tin, business_address')
+        .maybeSingle();
+    if (row == null) {
+      throw AppException(
+        'Couldn’t save TIN/address. Only Owner/Admin can change receipt fields, '
+        'or run Script B in Supabase if those columns are missing.',
+      );
+    }
   }
 
   /// Soft cleanup + Edge Function hard delete (App Store requirement).

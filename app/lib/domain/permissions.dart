@@ -25,7 +25,7 @@ abstract final class Permissions {
       role.canViewFullAnalytics;
 
   static bool canViewAggregateBranches(StoreRole role, PlanTier plan) =>
-      role.canViewFullAnalytics && plan.allowsMultiBranch;
+      role.canSelectBranchScope && plan.allowsMultiBranch;
 
   /// Void / reverse a completed sale (restock + mark voided).
   static bool canVoidSales(StoreRole role) =>
@@ -33,5 +33,11 @@ abstract final class Permissions {
 
   /// Open / unlock the cash register for a shift.
   static bool canOpenCashRegister(StoreRole role) =>
-      role == StoreRole.owner || role == StoreRole.admin || role == StoreRole.manager;
+      role == StoreRole.owner ||
+      role == StoreRole.admin ||
+      role == StoreRole.manager ||
+      role == StoreRole.branchManager;
+
+  /// Reports / dashboards (owner, admin, manager, branch_manager).
+  static bool canViewReports(StoreRole role) => role.canViewFullAnalytics;
 }

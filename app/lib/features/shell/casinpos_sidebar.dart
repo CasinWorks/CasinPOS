@@ -59,6 +59,8 @@ class CasinPosSidebar extends ConsumerWidget {
       (id: 'register', label: 'Cash Register', icon: Icons.account_balance_wallet_outlined, badge: null),
       (id: 'orders', label: 'Sales History', icon: Icons.bookmark_outline, badge: orderCount),
       (id: 'receipts', label: 'Receipts Audit', icon: Icons.receipt_long_outlined, badge: null),
+      if (membership != null && Permissions.canViewReports(membership.role))
+        (id: 'reports', label: 'Reports', icon: Icons.assessment_outlined, badge: null),
       (id: 'analytics', label: 'Sales Statistics', icon: Icons.trending_up, badge: null),
     ];
 

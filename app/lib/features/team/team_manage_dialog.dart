@@ -103,6 +103,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     final roles = <StoreRole>[
       if (widget.actorRole == StoreRole.owner) StoreRole.admin,
       StoreRole.manager,
+      StoreRole.branchManager,
       StoreRole.staff,
     ];
     if (!roles.contains(member.role) && member.role != StoreRole.owner) {
@@ -123,9 +124,20 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     if (role == member.role) return;
     setState(() => _busyId = member.id);
     try {
+      List<String>? branchIds;
+      if (role == StoreRole.branchManager) {
+        final branches = await ref
+            .read(storeRepositoryProvider)
+            .listStoreBranches(widget.storeId);
+        if (branches.isEmpty) {
+          throw AppException('No branches found for this store.');
+        }
+        branchIds = branches.map((b) => b.id).toList();
+      }
       await ref.read(storeRepositoryProvider).updateMemberRole(
             memberId: member.id,
             role: role,
+            branchIds: branchIds,
           );
       await _load();
       if (mounted) showAppMessage(context, 'Role updated');
@@ -489,7 +501,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
                           ),
                           items: [
                             for (final r in _assignableRoles(m))
-                              DropdownMenuItem(value: r, child: Text(r.value)),
+                              DropdownMenuItem(value: r, child: Text(r.label)),
                           ],
                           onChanged: (v) {
                             if (v != null) _changeRole(m, v);

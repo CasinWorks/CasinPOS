@@ -56,7 +56,7 @@ class PlatformTenant {
       businessType: BusinessType.fromValue(json['business_type'] as String? ?? 'retail'),
       planTier: PlanTier.fromValue(json['plan_tier'] as String? ?? 'free'),
       transactionsThisPeriod: (json['transactions_this_period'] as num?)?.toInt() ?? 0,
-      monthlyTransactionLimit: (json['monthly_transaction_limit'] as num?)?.toInt() ?? 100,
+      monthlyTransactionLimit: (json['monthly_transaction_limit'] as num?)?.toInt() ?? 1000,
       createdAt: parseTs(json['created_at']) ?? DateTime.now(),
       billingPeriodStart: parseTs(json['billing_period_start']),
       suspendedAt: parseTs(json['suspended_at']),

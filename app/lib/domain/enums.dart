@@ -15,21 +15,47 @@ enum StoreRole {
   owner('owner'),
   admin('admin'),
   manager('manager'),
+  branchManager('branch_manager'),
   staff('staff');
 
   const StoreRole(this.value);
   final String value;
 
   static StoreRole fromValue(String value) =>
-      StoreRole.values.firstWhere((e) => e.value == value);
+      StoreRole.values.firstWhere(
+        (e) => e.value == value,
+        orElse: () => StoreRole.staff,
+      );
+
+  /// Spec "root_owner" — store-wide Owner.
+  bool get isRootOwner => this == owner;
 
   bool get canManageBilling => this == owner;
   bool get canInviteUsers => this == owner || this == admin;
   bool get canManageCatalog =>
-      this == owner || this == admin || this == manager || this == staff;
+      this == owner ||
+      this == admin ||
+      this == manager ||
+      this == branchManager ||
+      this == staff;
   bool get canViewFullAnalytics =>
-      this == owner || this == admin || this == manager;
+      this == owner || this == admin || this == manager || this == branchManager;
   bool get canViewPersonalAnalytics => true;
+
+  /// Can pick "All Branches" vs a single branch in reports.
+  bool get canSelectBranchScope =>
+      this == owner || this == admin || this == manager;
+
+  /// Locked to assigned branch_ids (no merged "All" selector).
+  bool get isBranchScoped => this == branchManager;
+
+  String get label => switch (this) {
+        StoreRole.owner => 'Owner',
+        StoreRole.admin => 'Admin',
+        StoreRole.manager => 'Manager',
+        StoreRole.branchManager => 'Branch Manager',
+        StoreRole.staff => 'Staff',
+      };
 }
 
 enum PlanTier {

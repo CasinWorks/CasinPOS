@@ -19,12 +19,15 @@ Future<void> showMobileAccountSheet(BuildContext context, WidgetRef ref) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => const _MobileAccountSheet(),
+    builder: (sheetContext) => _MobileAccountSheet(hostContext: context),
   );
 }
 
 class _MobileAccountSheet extends ConsumerWidget {
-  const _MobileAccountSheet();
+  const _MobileAccountSheet({required this.hostContext});
+
+  /// Parent context (shell) — safe after this sheet is popped.
+  final BuildContext hostContext;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +44,13 @@ class _MobileAccountSheet extends ConsumerWidget {
           user?.email ??
           'Team member';
     } catch (_) {}
+
+    void openAfterClose(VoidCallback action) {
+      Navigator.pop(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (hostContext.mounted) action();
+      });
+    }
 
     return SafeArea(
       child: Padding(
@@ -105,30 +115,27 @@ class _MobileAccountSheet extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.settings_outlined),
               title: const Text('Store settings'),
-              onTap: () {
-                Navigator.pop(context);
-                showStoreSettingsDialog(context, ref);
-              },
+              onTap: () => openAfterClose(
+                () => showStoreSettingsDialog(hostContext, ref),
+              ),
             ),
             if (membership?.role.canInviteUsers == true)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.local_offer_outlined),
                 title: const Text('Promos / discount codes'),
-                onTap: () {
-                  Navigator.pop(context);
+                onTap: () => openAfterClose(() {
                   ref.read(retailTabProvider.notifier).state = 'promos';
-                },
+                }),
               ),
             if (membership?.role.canInviteUsers == true)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.group_outlined),
                 title: const Text('Invite / Manage team'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showTeamManageDialog(context, ref);
-                },
+                onTap: () => openAfterClose(
+                  () => showTeamManageDialog(hostContext, ref),
+                ),
               ),
             const Divider(height: 20),
             ListTile(
@@ -146,7 +153,7 @@ class _MobileAccountSheet extends ConsumerWidget {
                 try {
                   await ref.read(authRepositoryProvider).signOut();
                 } catch (_) {}
-                if (context.mounted) context.go('/login');
+                if (hostContext.mounted) hostContext.go('/login');
               },
             ),
           ],

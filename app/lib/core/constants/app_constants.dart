@@ -1,6 +1,6 @@
 /// Product / freemium constants.
 abstract final class AppConstants {
-  static const freeMonthlyTransactionLimit = 100;
+  static const freeMonthlyTransactionLimit = 1000;
   /// Free = owner + 1 teammate.
   static const freeTeamSeatLimit = 2;
   static const defaultCurrencyCode = 'PHP';

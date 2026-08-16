@@ -50,7 +50,7 @@ class _UpgradePremiumDialog extends StatelessWidget {
           'Free includes you + 1 teammate. Premium unlocks more staff seats. '
               'Send a request and CasinPOS will flip your plan in Platform Ops.',
         UpgradeReason.monthlyTransactions =>
-          'Free includes 100 paid sales per month. Premium removes that cap. '
+          'Free includes 1,000 paid sales per month. Premium removes that cap. '
               'Send a request and CasinPOS will upgrade your store.',
         UpgradeReason.general =>
           'Premium unlocks more seats, higher monthly sales limit, and franchise tools. '

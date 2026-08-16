@@ -508,7 +508,10 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                             controller: _cost,
                             keyboardType: NumericInput.moneyKeyboard,
                             inputFormatters: NumericInput.money(),
-                            decoration: const InputDecoration(labelText: 'Cost price'),
+                            decoration: const InputDecoration(
+                              labelText: 'Cost / unit cost (COGS)',
+                              helperText: 'Used in profitability reports',
+                            ),
                           ),
                         ),
                       ],

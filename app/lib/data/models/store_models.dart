@@ -92,7 +92,7 @@ class StoreSummary {
       currencyCode: json['currency_code'] as String? ?? 'PHP',
       currencySymbol: json['currency_symbol'] as String? ?? '₱',
       transactionsThisPeriod: json['transactions_this_period'] as int? ?? 0,
-      monthlyTransactionLimit: json['monthly_transaction_limit'] as int? ?? 100,
+      monthlyTransactionLimit: json['monthly_transaction_limit'] as int? ?? 1000,
       acceptGcash: json['accept_gcash'] as bool? ?? true,
       acceptMaya: json['accept_maya'] as bool? ?? true,
       acceptCard: json['accept_card'] as bool? ?? true,
@@ -188,20 +188,33 @@ class StoreMembership {
     required this.storeId,
     required this.role,
     required this.store,
+    this.branchIds = const [],
   });
 
   final String id;
   final String storeId;
   final StoreRole role;
   final StoreSummary store;
+  /// Empty = all branches (non–branch-manager). Branch managers always scoped.
+  final List<String> branchIds;
+
+  bool get hasBranchScope => branchIds.isNotEmpty;
 
   factory StoreMembership.fromJson(Map<String, dynamic> json) {
     final storeJson = json['stores'] as Map<String, dynamic>;
+    final rawBranches = json['branch_ids'];
+    final branchIds = <String>[];
+    if (rawBranches is List) {
+      for (final e in rawBranches) {
+        if (e != null) branchIds.add(e.toString());
+      }
+    }
     return StoreMembership(
       id: json['id'] as String,
       storeId: json['store_id'] as String,
       role: StoreRole.fromValue(json['role'] as String),
       store: StoreSummary.fromJson(storeJson),
+      branchIds: branchIds,
     );
   }
 }

@@ -190,6 +190,12 @@ String? mapKnownBackendError(String raw) {
       (s.contains('UNAUTHORIZED') && s.contains('STORAGE'))) {
     return 'Photo upload failed. Apply Script I in Supabase (product-images bucket), then retry.';
   }
+  if (s.contains('BUSINESS_TIN') ||
+      s.contains('BUSINESS_ADDRESS') ||
+      (s.contains('SCHEMA CACHE') &&
+          (s.contains('TIN') || s.contains('ADDRESS')))) {
+    return 'Receipt TIN/address columns are missing. Run Script B in the Supabase SQL Editor, then try again.';
+  }
   if (s.contains('FORBIDDEN')) {
     return 'You don’t have permission to do that.';
   }
@@ -252,7 +258,7 @@ String? mapKnownBackendError(String raw) {
     return 'Free plan allows 2 people on this store (you + 1 teammate). Upgrade to Premium for more staff.';
   }
   if (s.contains('FREE_MONTHLY_LIMIT_REACHED')) {
-    return 'Free monthly transaction limit reached (100 sales). Upgrade to Premium or ask CasinPOS support.';
+    return 'Free monthly transaction limit reached (1,000 sales). Upgrade to Premium or ask CasinPOS support.';
   }
   if (s.contains('MEMBER_NOT_FOUND')) {
     return 'That teammate was already removed or isn’t on this store.';
@@ -275,8 +281,11 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('ADMIN_CANNOT_MANAGE_ADMIN')) {
     return 'Only the Owner can manage another Admin.';
   }
-  if (s.contains('PIN_INVALID')) {
-    return 'PIN must be 4–6 digits.';
+  if (s.contains('BRANCH_IDS_REQUIRED')) {
+    return 'Pick at least one branch for Branch Manager.';
+  }
+  if (s.contains('BRANCH_IDS_INVALID')) {
+    return 'That branch is invalid for this store.';
   }
   if (s.contains('PIN_NOT_SET')) {
     return 'This teammate has not set a cashier PIN yet. Set one under Team.';

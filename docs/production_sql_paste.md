@@ -252,3 +252,127 @@ Effects:
 - `products.sale_price` / `sale_starts_at` / `sale_ends_at` for timed product sales
 - `discount_codes` table (percent or fixed ₱) with Owner/Admin write RLS
 - `transactions.discount_code` / `discount_amount` for checkout audit
+
+---
+
+## Script K — Receipt TIN/address + store update RLS (`20260816000100`)
+
+If **Store settings → TIN / business address** won’t save (or receipts stay blank), paste:
+
+```sql
+alter table public.stores
+  add column if not exists business_tin text,
+  add column if not exists business_address text;
+
+comment on column public.stores.business_tin is 'BIR TIN shown on receipts';
+comment on column public.stores.business_address is 'Business address shown on receipts';
+
+drop policy if exists stores_update_owner_admin on public.stores;
+create policy stores_update_owner_admin on public.stores
+  for update
+  using (
+    public.has_store_role(id, array['owner', 'admin']::public.store_role[])
+  )
+  with check (
+    public.has_store_role(id, array['owner', 'admin']::public.store_role[])
+  );
+```
+
+Effects:
+- Ensures `stores.business_tin` / `business_address` exist
+- Owner/Admin can UPDATE stores with explicit `WITH CHECK` (needed for save + reload)
+
+---
+
+## Script L — Free plan 1,000 txns/month (`20260817000100`)
+
+Paste:
+
+```sql
+alter table public.stores
+  alter column monthly_transaction_limit set default 1000;
+
+update public.stores
+set
+  monthly_transaction_limit = 1000,
+  updated_at = now()
+where plan_tier = 'free'
+  and monthly_transaction_limit in (50, 100);
+
+create or replace function public.platform_set_store_plan(
+  p_store_id uuid,
+  p_plan_tier public.plan_tier,
+  p_monthly_limit int default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit int;
+begin
+  if not public.is_platform_admin() then
+    raise exception 'FORBIDDEN' using errcode = 'P0001';
+  end if;
+
+  if not exists (select 1 from public.stores where id = p_store_id) then
+    raise exception 'STORE_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  v_limit := coalesce(
+    p_monthly_limit,
+    case when p_plan_tier = 'premium' then 100000 else 1000 end
+  );
+
+  update public.stores
+  set
+    plan_tier = p_plan_tier,
+    monthly_transaction_limit = greatest(1, v_limit),
+    updated_at = now()
+  where id = p_store_id;
+
+  update public.subscriptions
+  set
+    plan_tier = p_plan_tier,
+    status = 'active',
+    provider = 'manual',
+    updated_at = now()
+  where store_id = p_store_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'store_id', p_store_id,
+    'plan_tier', p_plan_tier,
+    'monthly_transaction_limit', v_limit
+  );
+end;
+$$;
+```
+
+Effects:
+- New Free stores default to **1,000** paid sales/month
+- Existing Free stores still on 50 or 100 are bumped to **1,000**
+- Platform Ops “Set Free” default limit becomes 1,000
+
+---
+
+## Script M — Branch Manager + Reports (`20260818000100` + `20260818000200`)
+
+**Run in two steps** (enum first, then rest):
+
+1. Paste `supabase/migrations/20260818000100_branch_manager_role_enum.sql` → Run  
+2. Paste `supabase/migrations/20260818000200_branch_manager_and_reports.sql` → Run  
+
+If step 2 previously failed on `update_store_member_role` return type, re-run the **updated** file (it now `DROP`s the old `void` function first). Or paste this first, then re-run step 2:
+
+```sql
+drop function if exists public.update_store_member_role(uuid, public.store_role);
+drop function if exists public.update_store_member_role(uuid, public.store_role, uuid[]);
+```
+
+Effects:
+- Adds `branch_manager` role (scoped via `store_members.branch_ids`)
+- Branch-scoped helpers + transaction SELECT RLS for branch managers
+- Product `supplier_name` / `last_restocked_at` (COGS uses existing `cost_price`)
+- RPCs: `list_store_branches`, `report_inventory`, `report_sales_lines`, `report_profitability`, `report_dashboard_stats`
