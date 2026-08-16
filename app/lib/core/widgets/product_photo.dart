@@ -62,8 +62,28 @@ class ProductPhoto extends StatelessWidget {
 
             final url = imageUrl!.trim();
             // Decode at display size so grid thumbs stay light in memory.
-            final memW = w != null ? (w * MediaQuery.devicePixelRatioOf(context)).round() : null;
-            final memH = h != null ? (h * MediaQuery.devicePixelRatioOf(context)).round() : null;
+            // Only pass ONE mem-cache axis — setting both stretches the bitmap.
+            final dpr = MediaQuery.devicePixelRatioOf(context);
+            final int? memW;
+            final int? memH;
+            if (w != null && h != null) {
+              if (w >= h) {
+                memW = (w * dpr).round();
+                memH = null;
+              } else {
+                memW = null;
+                memH = (h * dpr).round();
+              }
+            } else if (w != null) {
+              memW = (w * dpr).round();
+              memH = null;
+            } else if (h != null) {
+              memW = null;
+              memH = (h * dpr).round();
+            } else {
+              memW = null;
+              memH = null;
+            }
 
             return CachedNetworkImage(
               imageUrl: url,

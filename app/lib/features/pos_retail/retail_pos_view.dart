@@ -319,15 +319,17 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
                             : w >= 480
                                 ? 2
                                 : 1)
-                    : (w >= 1000
-                        ? 4
-                        : w >= 680
-                            ? 3
-                            : 2);
-                // Shorter tiles = more rows on screen; still room for photo + readable type.
+                    : (w >= 1100
+                        ? 5
+                        : w >= 820
+                            ? 4
+                            : w >= 560
+                                ? 3
+                                : 2);
+                // Photo tiles stay taller; text-only still short but room for large type.
                 final aspect = showImages
                     ? (w >= 900 ? 0.92 : 0.88)
-                    : (w >= 900 ? 1.55 : 1.35);
+                    : (w >= 900 ? 1.85 : 1.7);
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -568,43 +570,95 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          product.name,
-                          maxLines: showImage ? 2 : 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: showImage ? 15 : 17,
-                            fontWeight: FontWeight.w900,
-                            height: 1.15,
-                            color: AppColors.ink,
-                            letterSpacing: -0.2,
+                        // Name + price grow to fill leftover card space (big & thick).
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              final nameSize = showImage
+                                  ? (box.maxHeight * 0.34).clamp(16.0, 30.0)
+                                  : (box.maxHeight * 0.36).clamp(18.0, 36.0);
+                              final priceSize = showImage
+                                  ? (box.maxHeight * 0.42).clamp(22.0, 40.0)
+                                  : (box.maxHeight * 0.44).clamp(26.0, 48.0);
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    flex: 3,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          product.name,
+                                          maxLines: 2,
+                                          style: TextStyle(
+                                            fontSize: nameSize,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1.05,
+                                            color: AppColors.ink,
+                                            letterSpacing: -0.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (product.sku.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'SKU ${product.sku}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: showImage ? 12 : 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.slate500,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 2),
+                                  Flexible(
+                                    flex: 4,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          '$currencySymbol${product.effectivePrice.toStringAsFixed(0)}',
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            fontSize: priceSize,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1,
+                                            color: product.isOnSale
+                                                ? const Color(0xFFC2410C)
+                                                : AppColors.slate900,
+                                            letterSpacing: -0.6,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (product.isOnSale)
+                                    Text(
+                                      '$currencySymbol${product.price.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.slate500.withValues(alpha: 0.9),
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$currencySymbol${product.effectivePrice.toStringAsFixed(0)}',
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: showImage ? 22 : 26,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05,
-                            color: product.isOnSale
-                                ? const Color(0xFFC2410C)
-                                : AppColors.slate900,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        if (product.isOnSale)
-                          Text(
-                            '$currencySymbol${product.price.toStringAsFixed(0)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.slate500.withValues(alpha: 0.9),
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                          ),
-                        const Spacer(),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
                             Expanded(
@@ -615,8 +669,8 @@ class _ProductCardState extends State<_ProductCard> with SingleTickerProviderSta
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: showImage ? 15 : 16,
+                                  fontWeight: FontWeight.w900,
                                   color: outOfStock
                                       ? const Color(0xFFE11D48)
                                       : product.isLowStock
