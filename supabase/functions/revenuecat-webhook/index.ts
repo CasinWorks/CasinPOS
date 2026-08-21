@@ -79,7 +79,6 @@ Deno.serve(async (req) => {
 
     const deactivateTypes = new Set([
       "EXPIRATION",
-      "CANCELLATION",
       "SUBSCRIPTION_PAUSED",
     ]);
     // Billing issues: keep premium until EXPIRATION unless you prefer past_due.
@@ -102,9 +101,13 @@ Deno.serve(async (req) => {
     } else if (type === "BILLING_ISSUE" && looksPremium) {
       plan = "premium";
       status = "past_due";
+    } else if (type === "CANCELLATION" && looksPremium) {
+      // User turned off auto-renew — keep Premium until Apple expiration.
+      plan = "premium";
+      status = "canceled";
     } else if (deactivateTypes.has(type)) {
       plan = "free";
-      status = type === "CANCELLATION" ? "canceled" : "canceled";
+      status = "canceled";
     } else if (type === "TRANSFER" || type === "TEST") {
       // Re-check would need RC REST; treat TEST + premium product as activate.
       if (looksPremium) {
