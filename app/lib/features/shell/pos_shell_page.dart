@@ -27,6 +27,7 @@ import '../register/cash_register_view.dart';
 import '../support/store_support_view.dart';
 import 'casinpos_sidebar.dart';
 import 'mobile_account_sheet.dart';
+import 'mobile_more_view.dart';
 import 'phase1_home_page.dart';
 
 /// Retail / Restaurant shell. Retail includes story-mode tutorial.
@@ -121,6 +122,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         body = const StoreNotificationsView();
       case 'support':
         body = const StoreSupportView();
+      case 'more':
+        body = const MobileMoreView();
       default:
         body = RetailPosView(
           onOpenInventory: () => ref.read(retailTabProvider.notifier).state = 'inventory',
@@ -201,7 +204,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                   1 => 'inventory',
                   2 => 'orders',
                   3 => 'receipts',
-                  _ => 'reports',
+                  _ => 'more',
                 };
               },
               destinations: const [
@@ -209,7 +212,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                 NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
                 NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
                 NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Receipts'),
-                NavigationDestination(icon: Icon(Icons.assessment_outlined), label: 'Reports'),
+                NavigationDestination(icon: Icon(Icons.menu), label: 'More'),
               ],
             ),
           )
@@ -255,7 +258,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
         'inventory' => 1,
         'orders' => 2,
         'receipts' => 3,
-        'reports' || 'analytics' => 4,
-        _ => 0,
+        // Everything else (register, promos, reports, ops, support, …) → More
+        _ => 4,
       };
 }
