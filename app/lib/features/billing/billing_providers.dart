@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../bootstrap.dart';
 import '../../data/providers/session_providers.dart';
+import '../../domain/enums.dart';
 import 'revenuecat_service.dart';
 
 final revenueCatServiceProvider = Provider<RevenueCatService>((ref) {
@@ -30,6 +31,31 @@ final premiumMonthlyPackageProvider = FutureProvider<Package?>((ref) async {
   return ref.watch(revenueCatServiceProvider).monthlyPremiumPackage();
 });
 
+/// When an Owner opens a Free store and this Apple/Google account already has
+/// Premium, attach + sync automatically (no extra Restore tap).
+final premiumAutoSyncProvider = FutureProvider.autoDispose<void>((ref) async {
+  await ref.watch(revenueCatBootstrapProvider.future);
+  final membership = ref.watch(activeMembershipProvider);
+  if (membership == null) return;
+  if (membership.role != StoreRole.owner) return;
+  if (membership.store.planTier == PlanTier.premium) return;
+
+  final service = ref.read(revenueCatServiceProvider);
+  if (!service.isConfigured) return;
+
+  final storeId = membership.storeId;
+  final entitled =
+      await service.attachStorePurchasesToCurrentUser(storeId: storeId);
+  if (!entitled) return;
+
+  try {
+    await syncPremiumEntitlementToStore(storeId: storeId);
+    ref.invalidate(membershipsProvider);
+  } catch (_) {
+    // Bound to another store or RC lag — Upgrade sheet will show the reason.
+  }
+});
+
 /// Asks Supabase to apply Premium after a successful Store purchase/restore.
 /// Retries a few times — RevenueCat entitlement can lag behind StoreKit.
 Future<void> syncPremiumEntitlementToStore({
@@ -41,9 +67,9 @@ Future<void> syncPremiumEntitlementToStore({
   }
 
   Object? lastError;
-  for (var attempt = 0; attempt < 4; attempt++) {
+  for (var attempt = 0; attempt < 5; attempt++) {
     if (attempt > 0) {
-      await Future<void>.delayed(Duration(milliseconds: 700 * attempt));
+      await Future<void>.delayed(Duration(milliseconds: 800 * attempt));
     }
     try {
       final res = await client.functions.invoke(
@@ -57,14 +83,27 @@ Future<void> syncPremiumEntitlementToStore({
               data['error'] as String? ??
               'Sync failed')
           : 'Sync failed';
+      if (data is Map &&
+          data['error'] == 'SUBSCRIPTION_BOUND_TO_OTHER_STORE') {
+        throw StateError(lastError.toString());
+      }
     } on FunctionException catch (e) {
       final details = e.details;
-      lastError = details is Map
+      final message = details is Map
           ? (details['message'] as String? ??
               details['error'] as String? ??
               e.reasonPhrase)
           : (e.reasonPhrase ?? 'Sync failed');
+      lastError = message;
+      if (details is Map &&
+          details['error'] == 'SUBSCRIPTION_BOUND_TO_OTHER_STORE') {
+        throw StateError(message ?? 'Subscription bound to another store');
+      }
+      if (e.status == 409) {
+        throw StateError(message ?? 'Subscription bound to another store');
+      }
     } catch (e) {
+      if (e is StateError) rethrow;
       lastError = e;
     }
   }

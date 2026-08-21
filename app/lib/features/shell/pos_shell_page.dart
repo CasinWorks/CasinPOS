@@ -11,6 +11,7 @@ import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../analytics/sales_analytics_view.dart';
+import '../billing/billing_providers.dart';
 import '../billing/upgrade_premium_dialog.dart';
 import '../reports/reports_hub_view.dart';
 import '../cart_checkout/mobile_cart_fab.dart';
@@ -80,6 +81,8 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner + Free store + existing Apple/Google Premium → unlock automatically.
+    ref.watch(premiumAutoSyncProvider);
     final membership = ref.watch(activeMembershipProvider);
     ref.listen<StoreMembership?>(activeMembershipProvider, (prev, next) {
       _syncCatalog(next);

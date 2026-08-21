@@ -138,18 +138,9 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     });
     try {
       final service = ref.read(revenueCatServiceProvider);
-      final ok = await service.purchaseMonthlyPremium(storeId: storeId);
-      if (!ok) {
-        if (!mounted) return;
-        setState(() {
-          _busy = false;
-          _error =
-              'No Premium on this Apple ID yet. If you just saw “already '
-              'subscribed”, tap Restore. Otherwise Subscribe again after the '
-              'Sandbox period ends.';
-        });
-        return;
-      }
+      // Purchase sheet (or “already subscribed”) → always try attach + server sync.
+      await service.purchaseMonthlyPremium(storeId: storeId);
+      await service.attachStorePurchasesToCurrentUser(storeId: storeId);
 
       String? syncError;
       try {
@@ -158,8 +149,8 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         syncError = friendlyError(
           e,
           fallback:
-              'Apple has Premium, but we could not unlock this store yet. '
-              'Tap Restore.',
+              'Could not unlock this store yet. If Premium is on another '
+              'CasinPOS store, set that one Free in Platform Ops first.',
         );
       }
       await _finishIfPremium(storeId, syncError: syncError);
