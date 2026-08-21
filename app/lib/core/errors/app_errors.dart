@@ -196,6 +196,9 @@ String? mapKnownBackendError(String raw) {
           (s.contains('TIN') || s.contains('ADDRESS')))) {
     return 'Receipt TIN/address columns are missing. Run Script B in the Supabase SQL Editor, then try again.';
   }
+  if (s.contains('PGRST202') || s.contains('COULD NOT FIND THE FUNCTION')) {
+    return 'Invite service is updating. Wait a few seconds and try again.';
+  }
   if (s.contains('FORBIDDEN')) {
     return 'You don’t have permission to do that.';
   }
@@ -253,6 +256,9 @@ String? mapKnownBackendError(String raw) {
   }
   if (s.contains('STORE_SUSPENDED')) {
     return 'This store is suspended. Contact CasinPOS support.';
+  }
+  if (s.contains('ALREADY_A_MEMBER')) {
+    return 'That email is already on this store.';
   }
   if (s.contains('FREE_TEAM_SEAT_LIMIT')) {
     return 'Free plan allows 2 people on this store (you + 1 teammate). Upgrade to Premium for more staff.';

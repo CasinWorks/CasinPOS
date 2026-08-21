@@ -137,19 +137,22 @@ class StoreRepository {
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     try {
-      final result = await _client.rpc(
-        'create_store_invitation',
-        params: {
-          'p_store_id': storeId,
-          'p_email': normalizedEmail,
-          'p_role': role.value,
-          'p_branch_ids':
-              (branchIds == null || branchIds.isEmpty) ? null : branchIds,
-        },
-      );
-      final map = Map<String, dynamic>.from(result as Map);
+      final map = await _createInvitationViaFunction(
+            storeId: storeId,
+            email: normalizedEmail,
+            role: role,
+            branchIds: branchIds,
+          ) ??
+          await _createInvitationViaRpc(
+            storeId: storeId,
+            email: normalizedEmail,
+            role: role,
+            branchIds: branchIds,
+          );
       map['resent'] = map['resent'] == true;
       return map;
+    } on AppException {
+      rethrow;
     } on PostgrestException catch (e) {
       // Fallback when RPC not yet migrated: unique pending (store_id, email).
       if (_isPendingInviteUniqueViolation(e)) {
@@ -162,13 +165,75 @@ class StoreRepository {
           return existing;
         }
       }
+      final blob = '${e.message} ${e.details} ${e.hint} ${e.code}';
       throw AppException(
-        mapKnownBackendError(e.message) ??
+        mapKnownBackendError(blob) ??
             mapKnownBackendError(e.toString()) ??
             'Could not send invite. Please try again.',
         cause: e,
       );
     }
+  }
+
+  Future<Map<String, dynamic>?> _createInvitationViaFunction({
+    required String storeId,
+    required String email,
+    required StoreRole role,
+    List<String>? branchIds,
+  }) async {
+    try {
+      final res = await _client.functions.invoke(
+        'create-store-invitation',
+        body: {
+          'store_id': storeId,
+          'email': email,
+          'role': role.value,
+          if (branchIds != null && branchIds.isNotEmpty)
+            'branch_ids': branchIds,
+        },
+      );
+      final data = res.data;
+      if (data is Map) {
+        final map = Map<String, dynamic>.from(data);
+        if (map['token'] != null) return map;
+        final err = '${map['error'] ?? ''} ${map['code'] ?? ''} ${map['details'] ?? ''}';
+        if (err.trim().isNotEmpty) {
+          throw AppException(
+            mapKnownBackendError(err) ??
+                'Could not send invite. Please try again.',
+          );
+        }
+      }
+      return null;
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      final blob = e.toString();
+      if (blob.contains('404') || blob.toUpperCase().contains('NOT FOUND')) {
+        return null;
+      }
+      final mapped = mapKnownBackendError(blob);
+      if (mapped != null) throw AppException(mapped, cause: e);
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> _createInvitationViaRpc({
+    required String storeId,
+    required String email,
+    required StoreRole role,
+    List<String>? branchIds,
+  }) async {
+    final result = await _client.rpc(
+      'create_store_invitation',
+      params: {
+        'p_store_id': storeId,
+        'p_email': email,
+        'p_role': role.value,
+        if (branchIds != null && branchIds.isNotEmpty) 'p_branch_ids': branchIds,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
   }
 
   Future<Map<String, dynamic>?> _fetchPendingInvitation({
