@@ -258,8 +258,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
 
     final body = iapReady
         ? 'Subscribe monthly to unlock Premium for this store. '
-            'Billing is handled by the App Store or Google Play. '
-            'Cancel anytime in your device subscription settings.'
+            'Billing is handled by the App Store or Google Play.\n\n'
+            'If this Apple ID already has CasinPOS Premium (even after you '
+            'cancelled, until the end date), tap Subscribe or Restore — we will '
+            'unlock this store without charging again.'
         : kIsWeb
             ? 'Premium is sold only in the CasinPOS iOS and Android apps '
                 '(App Store / Google Play subscriptions). '

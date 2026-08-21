@@ -109,6 +109,10 @@ class RevenueCatService {
   }
 
   /// Purchases monthly Premium. Returns true if entitlement is active after.
+  ///
+  /// If this Apple ID already owns the sub (cancelled-but-not-expired, or
+  /// bought on another CasinPOS login), Apple returns "already subscribed".
+  /// We restore + treat that as success so Premium can sync to the store.
   Future<bool> purchaseMonthlyPremium({required String storeId}) async {
     if (!isConfigured) {
       throw AppException(
@@ -116,6 +120,12 @@ class RevenueCatService {
       );
     }
     await setStoreId(storeId);
+
+    // Already entitled on this Apple ID → skip purchase sheet, unlock store.
+    if (await refreshHasPremium()) {
+      return true;
+    }
+
     final package = await monthlyPremiumPackage();
     if (package == null) {
       throw AppException(
@@ -132,6 +142,11 @@ class RevenueCatService {
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         return false;
+      }
+      // Same Apple ID already has this product — attach it to this login/store.
+      if (code == PurchasesErrorCode.productAlreadyPurchasedError) {
+        final info = await Purchases.restorePurchases();
+        return hasPremium(info);
       }
       throw AppException(
         e.message?.isNotEmpty == true
