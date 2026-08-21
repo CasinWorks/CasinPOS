@@ -1,8 +1,6 @@
--- Fix account deletion for App Store 5.1.1(v).
--- Root cause: request_account_deletion referenced store_members.updated_at (column
--- does not exist) → 400, then auth.admin.deleteUser failed on stores.owner_id FKs.
+-- Fix account deletion: member_status enum is (active, invited, disabled),
+-- not "removed". Previous purge/request_account_deletion used invalid value.
 
--- Soft cleanup used by authenticated clients / Edge Function (user JWT).
 create or replace function public.request_account_deletion()
 returns jsonb
 language plpgsql
@@ -53,8 +51,6 @@ $$;
 
 grant execute on function public.request_account_deletion() to authenticated;
 
--- Service-role purge: clears FK blockers, deletes sole-owned stores, then
--- auth.admin.deleteUser can succeed.
 create or replace function public.purge_account_data(p_user_id uuid)
 returns jsonb
 language plpgsql

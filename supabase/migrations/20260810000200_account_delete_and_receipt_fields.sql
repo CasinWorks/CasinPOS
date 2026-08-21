@@ -31,7 +31,7 @@ begin
 
   -- Close memberships (non-owners leave; owners keep row until Edge Function removes stores or you reassign)
   update public.store_members
-  set status = 'removed', updated_at = now()
+  set status = 'disabled'
   where user_id = v_uid
     and status = 'active'
     and role <> 'owner';

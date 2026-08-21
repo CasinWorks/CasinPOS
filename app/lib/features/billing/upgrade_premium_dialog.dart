@@ -176,8 +176,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
                 '(App Store / Google Play subscriptions). '
                 'Open the mobile app, sign in as the store Owner, then tap '
                 'Upgrade to Premium.'
-            : 'In-app subscriptions will appear here once RevenueCat API keys '
-                'are configured for this build.';
+            : 'This build has no RevenueCat API key, so Subscribe is hidden.\n\n'
+                'Stop the app and relaunch with:\n'
+                'scripts/run_ios_billing.sh\n'
+                '(or flutter run --dart-define-from-file=../.env.flutter.local)';
 
     return AlertDialog(
       title: Text(_headline),
