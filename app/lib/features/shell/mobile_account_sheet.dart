@@ -126,25 +126,37 @@ class _MobileAccountSheet extends ConsumerWidget {
               ),
               if (memberships.length > 1) ...[
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: membership?.storeId,
-                  decoration: const InputDecoration(
-                    labelText: 'Active store',
-                    isDense: true,
-                    border: OutlineInputBorder(),
+                const Text(
+                  'Active store',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate500,
                   ),
-                  items: [
-                    for (final m in memberships)
-                      DropdownMenuItem(
-                        value: m.storeId,
-                        child: Text(m.store.name, overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
-                  onChanged: (id) async {
-                    if (id == null) return;
-                    Navigator.pop(context);
-                    await ref.read(preferredStoreIdProvider.notifier).select(id);
-                  },
+                ),
+                const SizedBox(height: 4),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: membership?.storeId,
+                    items: [
+                      for (final m in memberships)
+                        DropdownMenuItem(
+                          value: m.storeId,
+                          child: Text(
+                            m.store.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (id) async {
+                      if (id == null) return;
+                      Navigator.pop(context);
+                      await ref
+                          .read(preferredStoreIdProvider.notifier)
+                          .select(id);
+                    },
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
