@@ -12,6 +12,8 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const PREMIUM_PRODUCT = "casinpos_premium_monthly";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -62,53 +64,92 @@ Deno.serve(async (req) => {
       return json({ error: "FORBIDDEN" }, 403);
     }
 
-    const rcRes = await fetch(
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.id)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${rcSecret}`,
-          "Content-Type": "application/json",
+    // Retry briefly — RevenueCat can lag a second after StoreKit success.
+    let lastPayload: unknown = null;
+    let active = false;
+    let productId = PREMIUM_PRODUCT;
+    let periodStart: string | null = null;
+    let periodEnd: string | null = null;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 800 * attempt));
+      }
+      const rcRes = await fetch(
+        `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.id)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${rcSecret}`,
+            "Content-Type": "application/json",
+          },
         },
-      },
-    );
-    if (!rcRes.ok) {
-      const text = await rcRes.text();
-      return json({
-        error: "REVENUECAT_LOOKUP_FAILED",
-        message: text.slice(0, 400),
-      }, 502);
-    }
+      );
+      if (!rcRes.ok) {
+        const text = await rcRes.text();
+        lastPayload = { status: rcRes.status, text: text.slice(0, 400) };
+        continue;
+      }
 
-    const payload = await rcRes.json() as {
-      subscriber?: {
-        entitlements?: Record<string, {
-          expires_date?: string | null;
-          product_identifier?: string;
-        }>;
-        subscriptions?: Record<string, {
-          expires_date?: string | null;
-          purchase_date?: string | null;
-        }>;
+      const payload = await rcRes.json() as {
+        subscriber?: {
+          entitlements?: Record<string, {
+            expires_date?: string | null;
+            product_identifier?: string;
+          }>;
+          subscriptions?: Record<string, {
+            expires_date?: string | null;
+            purchase_date?: string | null;
+            unsubscribe_detected_at?: string | null;
+          }>;
+        };
       };
-    };
+      lastPayload = payload;
 
-    const premium = payload.subscriber?.entitlements?.premium;
-    const expires = premium?.expires_date
-      ? Date.parse(premium.expires_date)
-      : null;
-    const active = !!premium &&
-      (expires == null || Number.isNaN(expires) || expires > Date.now());
+      const ents = payload.subscriber?.entitlements ?? {};
+      // Prefer entitlement id "premium"; fall back to any entitlement on our product.
+      let premium = ents["premium"];
+      if (!premium) {
+        for (const ent of Object.values(ents)) {
+          if (ent.product_identifier === PREMIUM_PRODUCT) {
+            premium = ent;
+            break;
+          }
+        }
+      }
+
+      const sub =
+        payload.subscriber?.subscriptions?.[PREMIUM_PRODUCT] ??
+        (premium?.product_identifier
+          ? payload.subscriber?.subscriptions?.[premium.product_identifier]
+          : undefined);
+
+      const expiresRaw = premium?.expires_date ?? sub?.expires_date ?? null;
+      const expires = expiresRaw ? Date.parse(expiresRaw) : null;
+      const entActive = !!premium &&
+        (expires == null || Number.isNaN(expires) || expires > Date.now());
+      const subActive = !!sub &&
+        !sub.unsubscribe_detected_at &&
+        (sub.expires_date == null ||
+          Date.parse(sub.expires_date) > Date.now());
+
+      if (entActive || subActive) {
+        active = true;
+        productId = premium?.product_identifier ?? PREMIUM_PRODUCT;
+        periodStart = sub?.purchase_date ?? null;
+        periodEnd = expiresRaw;
+        break;
+      }
+    }
 
     if (!active) {
       return json({
         ok: false,
         error: "NO_ACTIVE_PREMIUM",
-        message: "No active Premium entitlement found for this Apple ID.",
+        message:
+          "Purchase received, but Premium is not active on RevenueCat yet. Tap Restore in a moment.",
+        debug: lastPayload,
       }, 402);
     }
-
-    const productId = premium?.product_identifier ?? "casinpos_premium_monthly";
-    const sub = payload.subscriber?.subscriptions?.[productId];
 
     const { data, error } = await admin.rpc(
       "apply_store_subscription_from_provider",
@@ -119,8 +160,8 @@ Deno.serve(async (req) => {
         p_provider: "revenuecat",
         p_provider_customer_id: user.id,
         p_provider_subscription_id: productId,
-        p_period_start: sub?.purchase_date ?? null,
-        p_period_end: premium?.expires_date ?? sub?.expires_date ?? null,
+        p_period_start: periodStart,
+        p_period_end: periodEnd,
         p_monthly_limit: 100000,
       },
     );

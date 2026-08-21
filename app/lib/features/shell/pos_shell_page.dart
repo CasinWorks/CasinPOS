@@ -174,7 +174,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                                 visualDensity: VisualDensity.compact,
                               ),
                               child: const Text(
-                                'Premium',
+                                'Upgrade',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 11,

@@ -7,6 +7,7 @@ import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/providers/session_providers.dart';
+import '../../domain/enums.dart';
 import 'billing_providers.dart';
 
 enum UpgradeReason {
@@ -102,17 +103,54 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         if (mounted) setState(() => _busy = false);
         return;
       }
+
+      String? syncError;
       try {
         await syncPremiumEntitlementToStore(storeId: storeId);
-      } catch (_) {
-        // Webhook may still apply; refresh memberships either way.
+      } catch (e) {
+        syncError = friendlyError(
+          e,
+          fallback:
+              'Payment succeeded, but we could not unlock Premium yet. Tap Restore.',
+        );
       }
+
       ref.invalidate(membershipsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      ref.invalidate(membershipsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final memberships =
+          await ref.read(membershipsProvider.future);
+      final updated = memberships.where((m) => m.storeId == storeId);
+      final isPremium = updated.isNotEmpty &&
+          updated.first.store.planTier == PlanTier.premium;
+
       if (!mounted) return;
-      Navigator.pop(context);
-      showAppMessage(context, 'Premium is active for this store.');
+      if (isPremium) {
+        Navigator.pop(context);
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('You’re on Premium'),
+            content: const Text(
+              'Thanks! This store is upgraded. Enjoy more seats, higher '
+              'sales limits, and multi-branch tools.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        _busy = false;
+        _error = syncError ??
+            'Payment went through, but Premium is not active on this store yet. '
+                'Tap Restore, or pull to refresh and try again in a few seconds.';
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -140,7 +178,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         setState(() {
           _busy = false;
           _error =
-              'No active Premium subscription found for this store account.';
+              'No active Premium subscription found for this Apple ID yet.';
         });
         return;
       }
@@ -148,9 +186,23 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         await syncPremiumEntitlementToStore(storeId: storeId);
       } catch (_) {}
       ref.invalidate(membershipsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      final memberships = await ref.read(membershipsProvider.future);
+      final isPremium = memberships.any(
+        (m) =>
+            m.storeId == storeId && m.store.planTier == PlanTier.premium,
+      );
       if (!mounted) return;
-      Navigator.pop(context);
-      showAppMessage(context, 'Premium restored for this store.');
+      if (isPremium) {
+        Navigator.pop(context);
+        showAppMessage(context, 'Premium is active for this store.');
+        return;
+      }
+      setState(() {
+        _busy = false;
+        _error =
+            'Subscription found in the App Store, but this store is not Premium yet. Try again in a few seconds.';
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
