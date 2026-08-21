@@ -1,6 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'features/billing/revenuecat_service.dart';
+
+/// Shared RevenueCat instance configured during [bootstrap].
+final revenueCatBootstrapService = RevenueCatService();
+
 bool _looksLikeSupabaseConfig(String url, String anonKey) {
   if (url.isEmpty || anonKey.isEmpty) return false;
   final u = url.trim();
@@ -35,6 +40,13 @@ Future<void> bootstrap() async {
 
   // publishableKey is the current Supabase Flutter API name for the anon key.
   await Supabase.initialize(url: url, publishableKey: anonKey);
+
+  // StoreKit / Play Billing via RevenueCat (no-op on web or without API keys).
+  await revenueCatBootstrapService.configure();
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid != null) {
+    await revenueCatBootstrapService.logIn(uid);
+  }
 }
 
 bool get isSupabaseReady {

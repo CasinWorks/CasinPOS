@@ -62,6 +62,9 @@ class AuthRepository {
   Future<void> signOut() async {
     final c = supabaseOrNull;
     if (c == null) return;
+    try {
+      await revenueCatBootstrapService.logOut();
+    } catch (_) {}
     await c.auth.signOut();
   }
 

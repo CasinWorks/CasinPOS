@@ -6,6 +6,7 @@ import 'app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers/session_providers.dart';
 import 'data/providers/ui_prefs_providers.dart';
+import 'features/billing/billing_providers.dart';
 
 class CasinPosApp extends ConsumerWidget {
   const CasinPosApp({super.key});
@@ -15,11 +16,20 @@ class CasinPosApp extends ConsumerWidget {
     final router = ref.watch(goRouterProvider);
     final textScale = ref.watch(appTextScaleProvider);
 
+    // Keep RevenueCat App User ID aligned with Supabase auth.
+    ref.watch(revenueCatBootstrapProvider);
+
     ref.listen(authStateProvider, (prev, next) {
       final state = next.valueOrNull;
       if (state?.event == AuthChangeEvent.passwordRecovery) {
         ref.read(passwordRecoveryPendingProvider.notifier).state = true;
       }
+    });
+
+    ref.listen(activeMembershipProvider, (prev, next) {
+      final storeId = next?.storeId;
+      if (storeId == null) return;
+      ref.read(revenueCatServiceProvider).setStoreId(storeId);
     });
 
     ref.listen(passwordRecoveryPendingProvider, (prev, next) {

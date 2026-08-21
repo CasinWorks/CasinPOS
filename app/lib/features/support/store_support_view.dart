@@ -9,6 +9,7 @@ import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/providers/session_providers.dart';
+import '../billing/upgrade_premium_dialog.dart';
 
 /// In-app Support — real contact path for App Review (no “coming soon”).
 class StoreSupportView extends ConsumerWidget {
@@ -122,17 +123,25 @@ class StoreSupportView extends ConsumerWidget {
           const SizedBox(height: 8),
           _SupportTopic(
             title: 'Premium / billing',
-            subtitle: 'Upgrade seats or monthly sales limit',
-            onTap: () => _email(
-              context,
-              subject: 'CasinPOS Premium upgrade — $storeName',
-              body: 'Hi CasinPOS team,\n\n'
-                  'Please upgrade this store to Premium:\n'
-                  'Store: $storeName\n'
-                  '${storeId != null ? 'Store ID: $storeId\n' : ''}'
-                  '${userEmail != null ? 'Login: $userEmail\n' : ''}\n'
-                  'Thanks,\n',
-            ),
+            subtitle: 'Subscribe or restore in the iOS / Android app',
+            onTap: () {
+              final canBill =
+                  membership?.role.canManageBilling == true;
+              if (!canBill) {
+                showAppMessage(
+                  context,
+                  'Only the store Owner can manage Premium billing.',
+                  isError: true,
+                );
+                return;
+              }
+              showUpgradePremiumDialog(
+                context,
+                reason: UpgradeReason.general,
+                storeName: storeName,
+                storeId: storeId,
+              );
+            },
           ),
           _SupportTopic(
             title: 'Team / invite help',

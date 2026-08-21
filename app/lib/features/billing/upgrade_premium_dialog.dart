@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
-import '../../core/config/support_contact.dart';
+import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../data/providers/session_providers.dart';
+import 'billing_providers.dart';
 
 enum UpgradeReason {
   teamSeats,
@@ -12,100 +15,170 @@ enum UpgradeReason {
   general,
 }
 
-/// Contact-support upgrade flow until Stripe/PayMongo self-serve is wired.
-/// Platform Ops still flips Free ↔ Premium manually.
+/// Premium upgrade via Apple / Google IAP (RevenueCat). Mobile apps only.
 Future<void> showUpgradePremiumDialog(
   BuildContext context, {
   UpgradeReason reason = UpgradeReason.general,
   String? storeName,
+  String? storeId,
 }) {
   return showDialog<void>(
     context: context,
-    builder: (ctx) => _UpgradePremiumDialog(
+    builder: (ctx) => UpgradePremiumDialog(
       reason: reason,
       storeName: storeName,
+      storeId: storeId,
     ),
   );
 }
 
-class _UpgradePremiumDialog extends StatelessWidget {
-  const _UpgradePremiumDialog({
+class UpgradePremiumDialog extends ConsumerStatefulWidget {
+  const UpgradePremiumDialog({
+    super.key,
     required this.reason,
     this.storeName,
+    this.storeId,
   });
 
   final UpgradeReason reason;
   final String? storeName;
+  final String? storeId;
 
-  static const _supportEmail = SupportContact.email;
+  @override
+  ConsumerState<UpgradePremiumDialog> createState() =>
+      _UpgradePremiumDialogState();
+}
 
-  String get _headline => switch (reason) {
+class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
+  bool _busy = false;
+  String? _error;
+  Package? _package;
+
+  String get _headline => switch (widget.reason) {
         UpgradeReason.teamSeats => 'Need more team seats?',
         UpgradeReason.monthlyTransactions => 'Monthly sales limit reached',
         UpgradeReason.general => 'Upgrade to Premium',
       };
 
-  String get _body => switch (reason) {
-        UpgradeReason.teamSeats =>
-          'Free includes you + 1 teammate. Premium unlocks more staff seats. '
-              'Send a request and CasinPOS will flip your plan in Platform Ops.',
-        UpgradeReason.monthlyTransactions =>
-          'Free includes 1,000 paid sales per month. Premium removes that cap. '
-              'Send a request and CasinPOS will upgrade your store.',
-        UpgradeReason.general =>
-          'Premium unlocks more seats, higher monthly sales limit, and franchise tools. '
-              'Self-serve checkout is coming — until then, email us and we’ll activate Premium.',
-      };
-
-  Uri get _mailto {
-    final store = (storeName == null || storeName!.trim().isEmpty)
-        ? 'my store'
-        : storeName!.trim();
-    final subject = 'CasinPOS Premium upgrade — $store';
-    final body = 'Hi CasinPOS team,\n\n'
-        'Please upgrade this store to Premium:\n'
-        'Store: $store\n'
-        'Reason: ${_reasonLabel(reason)}\n\n'
-        'Thanks,\n';
-    return Uri(
-      scheme: 'mailto',
-      path: _supportEmail,
-      queryParameters: {
-        'subject': subject,
-        'body': body,
-      },
-    );
+  String get _resolvedStoreId {
+    final fromArg = widget.storeId?.trim();
+    if (fromArg != null && fromArg.isNotEmpty) return fromArg;
+    return ref.read(activeMembershipProvider)?.storeId ?? '';
   }
 
-  String _reasonLabel(UpgradeReason r) => switch (r) {
-        UpgradeReason.teamSeats => 'Need more team seats',
-        UpgradeReason.monthlyTransactions => 'Hit monthly transaction limit',
-        UpgradeReason.general => 'General Premium upgrade',
-      };
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPackage());
+  }
 
-  Future<void> _email(BuildContext context) async {
-    final uri = _mailto;
-    final ok = await launchUrl(uri);
-    if (!context.mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open email app — copy the address instead.')),
-      );
+  Future<void> _loadPackage() async {
+    final service = ref.read(revenueCatServiceProvider);
+    await ref.read(revenueCatBootstrapProvider.future);
+    if (!service.isConfigured) return;
+    try {
+      final pkg = await service.monthlyPremiumPackage();
+      if (!mounted) return;
+      setState(() => _package = pkg);
+    } catch (_) {
+      // Offerings may be empty until store consoles / RC dashboard are configured.
     }
   }
 
-  Future<void> _copy(BuildContext context) async {
-    final text =
-        '$_supportEmail\nSubject: CasinPOS Premium upgrade — ${storeName ?? 'my store'}';
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Support email copied')),
-    );
+  Future<void> _purchase() async {
+    final storeId = _resolvedStoreId;
+    if (storeId.isEmpty) {
+      setState(() => _error = 'No store selected.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final service = ref.read(revenueCatServiceProvider);
+      final ok = await service.purchaseMonthlyPremium(storeId: storeId);
+      if (!ok) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
+      try {
+        await syncPremiumEntitlementToStore(storeId: storeId);
+      } catch (_) {
+        // Webhook may still apply; refresh memberships either way.
+      }
+      ref.invalidate(membershipsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      ref.invalidate(membershipsProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      showAppMessage(context, 'Premium is active for this store.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = friendlyError(e, fallback: 'Purchase failed');
+      });
+    }
+  }
+
+  Future<void> _restore() async {
+    final storeId = _resolvedStoreId;
+    if (storeId.isEmpty) {
+      setState(() => _error = 'No store selected.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final service = ref.read(revenueCatServiceProvider);
+      final ok = await service.restorePurchases(storeId: storeId);
+      if (!ok) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _error =
+              'No active Premium subscription found for this store account.';
+        });
+        return;
+      }
+      try {
+        await syncPremiumEntitlementToStore(storeId: storeId);
+      } catch (_) {}
+      ref.invalidate(membershipsProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      showAppMessage(context, 'Premium restored for this store.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = friendlyError(e, fallback: 'Restore failed');
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final service = ref.watch(revenueCatServiceProvider);
+    ref.watch(revenueCatBootstrapProvider);
+    final iapReady = service.isConfigured;
+    final price = service.priceString(_package);
+
+    final body = iapReady
+        ? 'Subscribe monthly to unlock Premium for this store. '
+            'Billing is handled by the App Store or Google Play. '
+            'Cancel anytime in your device subscription settings.'
+        : kIsWeb
+            ? 'Premium is sold only in the CasinPOS iOS and Android apps '
+                '(App Store / Google Play subscriptions). '
+                'Open the mobile app, sign in as the store Owner, then tap '
+                'Upgrade to Premium.'
+            : 'In-app subscriptions will appear here once RevenueCat API keys '
+                'are configured for this build.';
+
     return AlertDialog(
       title: Text(_headline),
       content: SizedBox(
@@ -114,7 +187,7 @@ class _UpgradePremiumDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(_body, style: Theme.of(context).textTheme.bodyMedium),
+            Text(body, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.lg),
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -131,27 +204,57 @@ class _UpgradePremiumDialog extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
-                  Text('· More than 2 team seats', style: Theme.of(context).textTheme.bodySmall),
-                  Text('· Higher monthly sales allowance', style: Theme.of(context).textTheme.bodySmall),
-                  Text('· Franchise & multi-store tools', style: Theme.of(context).textTheme.bodySmall),
+                  Text('· More than 2 team seats',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  Text('· Higher monthly sales allowance',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  Text('· Multi-branch, franchise & aggregate reports',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  if (price != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Premium monthly — $price',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Email $_supportEmail — we’ll activate Premium manually until in-app billing ships.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
-            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                _error!,
+                style: TextStyle(
+                  color: AppColors.danger,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (_busy) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Center(child: CircularProgressIndicator()),
+            ],
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Not now')),
-        TextButton(onPressed: () => _copy(context), child: const Text('Copy email')),
-        FilledButton(
-          onPressed: () => _email(context),
-          child: const Text('Request upgrade'),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: Text(iapReady ? 'Not now' : 'OK'),
         ),
+        if (iapReady) ...[
+          TextButton(
+            onPressed: _busy ? null : _restore,
+            child: const Text('Restore'),
+          ),
+          FilledButton(
+            onPressed: _busy ? null : _purchase,
+            child: Text(
+              price == null ? 'Subscribe' : 'Subscribe — $price',
+            ),
+          ),
+        ],
       ],
     );
   }

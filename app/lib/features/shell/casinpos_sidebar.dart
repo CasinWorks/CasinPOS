@@ -170,6 +170,7 @@ class CasinPosSidebar extends ConsumerWidget {
                       context,
                       reason: UpgradeReason.general,
                       storeName: storeName,
+                      storeId: membership?.storeId,
                     ),
                     icon: const Icon(Icons.workspace_premium_outlined, size: 16),
                     label: const Text('Upgrade to Premium', style: TextStyle(fontSize: 10)),
