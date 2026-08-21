@@ -99,8 +99,23 @@ class RevenueCatService {
         : current.availablePackages.first;
   }
 
-  bool hasPremium(CustomerInfo info) =>
-      info.entitlements.active.containsKey(BillingConfig.premiumEntitlementId);
+  bool hasPremium(CustomerInfo info) {
+    if (info.entitlements.active
+        .containsKey(BillingConfig.premiumEntitlementId)) {
+      return true;
+    }
+    // Fallback when entitlement mapping lags but StoreKit still reports the SKU.
+    if (info.activeSubscriptions
+        .contains(BillingConfig.premiumMonthlyProductId)) {
+      return true;
+    }
+    for (final ent in info.entitlements.active.values) {
+      if (ent.productIdentifier == BillingConfig.premiumMonthlyProductId) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   Future<bool> refreshHasPremium() async {
     if (!isConfigured) return false;
@@ -108,11 +123,30 @@ class RevenueCatService {
     return hasPremium(info);
   }
 
+  /// Sync Apple receipt → this RevenueCat app user, then check Premium.
+  Future<bool> attachStorePurchasesToCurrentUser({
+    required String storeId,
+  }) async {
+    if (!isConfigured) return false;
+    await setStoreId(storeId);
+    try {
+      var info = await Purchases.restorePurchases();
+      if (hasPremium(info)) return true;
+      info = await Purchases.getCustomerInfo();
+      return hasPremium(info);
+    } on PlatformException catch (e) {
+      throw AppException(
+        e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Could not restore purchases.',
+      );
+    }
+  }
+
   /// Purchases monthly Premium. Returns true if entitlement is active after.
   ///
-  /// If this Apple ID already owns the sub (cancelled-but-not-expired, or
-  /// bought on another CasinPOS login), Apple returns "already subscribed".
-  /// We restore + treat that as success so Premium can sync to the store.
+  /// Apple's "You are currently subscribed" sheet often returns as a cancel.
+  /// We always re-check / restore afterward so the store can still unlock.
   Future<bool> purchaseMonthlyPremium({required String storeId}) async {
     if (!isConfigured) {
       throw AppException(
@@ -121,7 +155,6 @@ class RevenueCatService {
     }
     await setStoreId(storeId);
 
-    // Already entitled on this Apple ID → skip purchase sheet, unlock store.
     if (await refreshHasPremium()) {
       return true;
     }
@@ -137,16 +170,14 @@ class RevenueCatService {
       final result = await Purchases.purchase(
         PurchaseParams.package(package),
       );
-      return hasPremium(result.customerInfo);
+      if (hasPremium(result.customerInfo)) return true;
+      return attachStorePurchasesToCurrentUser(storeId: storeId);
     } on PlatformException catch (e) {
       final code = PurchasesErrorHelper.getErrorCode(e);
-      if (code == PurchasesErrorCode.purchaseCancelledError) {
-        return false;
-      }
-      // Same Apple ID already has this product — attach it to this login/store.
-      if (code == PurchasesErrorCode.productAlreadyPurchasedError) {
-        final info = await Purchases.restorePurchases();
-        return hasPremium(info);
+      if (code == PurchasesErrorCode.purchaseCancelledError ||
+          code == PurchasesErrorCode.productAlreadyPurchasedError) {
+        // Cancelled sheet OR already-owned → still try to attach existing sub.
+        return attachStorePurchasesToCurrentUser(storeId: storeId);
       }
       throw AppException(
         e.message?.isNotEmpty == true
@@ -156,24 +187,8 @@ class RevenueCatService {
     }
   }
 
-  Future<bool> restorePurchases({required String storeId}) async {
-    if (!isConfigured) {
-      throw AppException(
-        'Restore is only available in the iOS or Android app.',
-      );
-    }
-    await setStoreId(storeId);
-    try {
-      final info = await Purchases.restorePurchases();
-      return hasPremium(info);
-    } on PlatformException catch (e) {
-      throw AppException(
-        e.message?.isNotEmpty == true
-            ? e.message!
-            : 'Could not restore purchases.',
-      );
-    }
-  }
+  Future<bool> restorePurchases({required String storeId}) =>
+      attachStorePurchasesToCurrentUser(storeId: storeId);
 
   String? priceString(Package? package) => package?.storeProduct.priceString;
 }

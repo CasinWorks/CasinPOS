@@ -23,8 +23,12 @@ Future<void> showUpgradePremiumDialog(
   String? storeName,
   String? storeId,
 }) {
-  return showDialog<void>(
+  return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     builder: (ctx) => UpgradePremiumDialog(
       reason: reason,
       storeName: storeName,
@@ -86,6 +90,42 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     }
   }
 
+  Future<void> _finishIfPremium(String storeId, {String? syncError}) async {
+    ref.invalidate(membershipsProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final memberships = await ref.read(membershipsProvider.future);
+    final isPremium = memberships.any(
+      (m) => m.storeId == storeId && m.store.planTier == PlanTier.premium,
+    );
+    if (!mounted) return;
+    if (isPremium) {
+      Navigator.pop(context);
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('You’re on Premium'),
+          content: const Text(
+            'This store is upgraded. Enjoy more seats, higher sales limits, '
+            'and multi-branch tools.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = syncError ??
+          'Apple may still have Premium, but this store is not unlocked yet. '
+              'Tap Restore again in a few seconds.';
+    });
+  }
+
   Future<void> _purchase() async {
     final storeId = _resolvedStoreId;
     if (storeId.isEmpty) {
@@ -100,7 +140,14 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       final service = ref.read(revenueCatServiceProvider);
       final ok = await service.purchaseMonthlyPremium(storeId: storeId);
       if (!ok) {
-        if (mounted) setState(() => _busy = false);
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _error =
+              'No Premium on this Apple ID yet. If you just saw “already '
+              'subscribed”, tap Restore. Otherwise Subscribe again after the '
+              'Sandbox period ends.';
+        });
         return;
       }
 
@@ -111,46 +158,11 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         syncError = friendlyError(
           e,
           fallback:
-              'Payment succeeded, but we could not unlock Premium yet. Tap Restore.',
+              'Apple has Premium, but we could not unlock this store yet. '
+              'Tap Restore.',
         );
       }
-
-      ref.invalidate(membershipsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      final memberships =
-          await ref.read(membershipsProvider.future);
-      final updated = memberships.where((m) => m.storeId == storeId);
-      final isPremium = updated.isNotEmpty &&
-          updated.first.store.planTier == PlanTier.premium;
-
-      if (!mounted) return;
-      if (isPremium) {
-        Navigator.pop(context);
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('You’re on Premium'),
-            content: const Text(
-              'Thanks! This store is upgraded. Enjoy more seats, higher '
-              'sales limits, and multi-branch tools.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
-      setState(() {
-        _busy = false;
-        _error = syncError ??
-            'Payment went through, but Premium is not active on this store yet. '
-                'Tap Restore, or pull to refresh and try again in a few seconds.';
-      });
+      await _finishIfPremium(storeId, syncError: syncError);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -175,44 +187,25 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       final ok = await service.restorePurchases(storeId: storeId);
       if (!ok) {
         if (!mounted) return;
-        final alreadyPremium = ref.read(activeMembershipProvider)?.storeId ==
-                storeId &&
-            ref.read(activeMembershipProvider)?.store.planTier ==
-                PlanTier.premium;
         setState(() {
           _busy = false;
-          _error = alreadyPremium
-              ? 'This store is already Premium in CasinPOS. '
-                  'Restore looks at your Apple ID subscription — Sandbox '
-                  'subs expire quickly, so Apple may show none even though '
-                  'the store plan is still Premium.'
-              : 'No active Apple subscription for this Apple ID right now. '
-                  'In Sandbox, subscriptions expire in minutes. '
-                  'Subscribe again, or use the same Sandbox Apple ID that purchased.';
+          _error =
+              'RevenueCat does not see Premium on this login yet. '
+              'Apple can still show the sub under Settings. Tap Subscribe — '
+              'if Apple says you already own it, we will attach it to this store.';
         });
         return;
       }
+      String? syncError;
       try {
         await syncPremiumEntitlementToStore(storeId: storeId);
-      } catch (_) {}
-      ref.invalidate(membershipsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      final memberships = await ref.read(membershipsProvider.future);
-      final isPremium = memberships.any(
-        (m) =>
-            m.storeId == storeId && m.store.planTier == PlanTier.premium,
-      );
-      if (!mounted) return;
-      if (isPremium) {
-        Navigator.pop(context);
-        showAppMessage(context, 'Premium is active for this store.');
-        return;
+      } catch (e) {
+        syncError = friendlyError(
+          e,
+          fallback: 'Subscription found, but store unlock failed. Try again.',
+        );
       }
-      setState(() {
-        _busy = false;
-        _error =
-            'Subscription found in the App Store, but this store is not Premium yet. Try again in a few seconds.';
-      });
+      await _finishIfPremium(storeId, syncError: syncError);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -233,53 +226,70 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     final alreadyPremium = membership != null &&
         membership.storeId == storeId &&
         membership.store.planTier == PlanTier.premium;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     if (alreadyPremium) {
-      return AlertDialog(
-        title: const Text('You’re on Premium'),
-        content: const SizedBox(
-          width: 420,
-          child: Text(
-            'This store already has Premium unlocked in CasinPOS '
-            '(more seats, higher limits, multi-branch).\n\n'
-            'Restore only checks your Apple ID. Sandbox subscriptions expire '
-            'quickly, so Restore can say “none found” even while this store '
-            'stays Premium until you set it back to Free.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    }
-
-    final body = iapReady
-        ? 'Subscribe monthly to unlock Premium for this store. '
-            'Billing is handled by the App Store or Google Play.\n\n'
-            'If this Apple ID already has CasinPOS Premium (even after you '
-            'cancelled, until the end date), tap Subscribe or Restore — we will '
-            'unlock this store without charging again.'
-        : kIsWeb
-            ? 'Premium is sold only in the CasinPOS iOS and Android apps '
-                '(App Store / Google Play subscriptions). '
-                'Open the mobile app, sign in as the store Owner, then tap '
-                'Upgrade to Premium.'
-            : 'This build has no RevenueCat API key, so Subscribe is hidden.\n\n'
-                'Stop the app and relaunch with:\n'
-                'scripts/run_ios_billing.sh\n'
-                '(or flutter run --dart-define-from-file=../.env.flutter.local)';
-
-    return AlertDialog(
-      title: Text(_headline),
-      content: SizedBox(
-        width: 420,
+      return Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              'You’re on Premium',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This store already has Premium unlocked in CasinPOS.',
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final body = iapReady
+        ? 'Unlock Premium for this store. Billing goes through Apple or Google.\n\n'
+            'Already subscribed on this phone? Tap Subscribe or Restore — '
+            'we unlock this store without charging again until the period ends.'
+        : kIsWeb
+            ? 'Premium is sold only in the CasinPOS iOS and Android apps. '
+                'Open the mobile app as the store Owner, then upgrade.'
+            : 'This build has no RevenueCat API key. Relaunch with '
+                'scripts/run_ios_billing.sh';
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + bottomInset),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _headline,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            if (widget.storeName != null &&
+                widget.storeName!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Store: ${widget.storeName!.trim()}',
+                style: const TextStyle(
+                  color: AppColors.slate500,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             Text(body, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.lg),
             Container(
@@ -317,7 +327,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
               const SizedBox(height: AppSpacing.md),
               Text(
                 _error!,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.danger,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -328,27 +338,32 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
               const SizedBox(height: AppSpacing.md),
               const Center(child: CircularProgressIndicator()),
             ],
+            const SizedBox(height: AppSpacing.lg),
+            if (iapReady) ...[
+              FilledButton(
+                onPressed: _busy ? null : _purchase,
+                child: Text(
+                  price == null ? 'Subscribe' : 'Subscribe — $price',
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _restore,
+                child: const Text('Restore purchases'),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: _busy ? null : () => Navigator.pop(context),
+                child: const Text('Not now'),
+              ),
+            ] else
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: Text(iapReady ? 'Not now' : 'OK'),
-        ),
-        if (iapReady) ...[
-          TextButton(
-            onPressed: _busy ? null : _restore,
-            child: const Text('Restore'),
-          ),
-          FilledButton(
-            onPressed: _busy ? null : _purchase,
-            child: Text(
-              price == null ? 'Subscribe' : 'Subscribe — $price',
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

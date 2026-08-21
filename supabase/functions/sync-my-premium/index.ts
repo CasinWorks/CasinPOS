@@ -127,8 +127,9 @@ Deno.serve(async (req) => {
       const expires = expiresRaw ? Date.parse(expiresRaw) : null;
       const entActive = !!premium &&
         (expires == null || Number.isNaN(expires) || expires > Date.now());
+      // Cancelled-but-not-expired is still active until period end.
+      // Do NOT require !unsubscribe_detected_at — that blocked Restore after cancel.
       const subActive = !!sub &&
-        !sub.unsubscribe_detected_at &&
         (sub.expires_date == null ||
           Date.parse(sub.expires_date) > Date.now());
 
