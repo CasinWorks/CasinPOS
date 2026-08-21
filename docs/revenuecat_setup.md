@@ -67,13 +67,16 @@ npx supabase secrets set REVENUECAT_SECRET_API_KEY='sk_…' --project-ref ftbmkq
 ## 5. Flutter build defines (native only)
 
 ```bash
-# Unified / Test Store key from RevenueCat onboarding (test_…):
+# CRITICAL for TestFlight/Release: use Apple public SDK key (appl_…), NOT test_…
+# RevenueCat → Apps → casinpos (App Store) → copy Public API key
 flutter run -d <iphone> --dart-define-from-file=.env.flutter.local
 
-# Or platform-specific production keys later:
+# Or platform-specific:
 # --dart-define=REVENUECAT_IOS_API_KEY=appl_xxx
 # --dart-define=REVENUECAT_ANDROID_API_KEY=goog_xxx
 ```
+
+`test_…` keys are **Test Store only**. Using them in a Release/TestFlight IPA causes an **instant crash on launch** (RevenueCat intentional guard).
 
 `purchases_flutter` is already in this repo — you do **not** need `purchases_ui_flutter` unless you want RevenueCat’s prebuilt paywall UI (we use our own Upgrade dialog).
 

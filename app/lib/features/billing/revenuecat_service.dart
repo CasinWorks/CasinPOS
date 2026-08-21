@@ -25,13 +25,25 @@ class RevenueCatService {
   Future<void> configure() async {
     if (!isSupported || _configured) return;
     try {
-      if (kDebugMode) {
-        await Purchases.setLogLevel(LogLevel.debug);
-      }
       final key = defaultTargetPlatform == TargetPlatform.iOS
           ? BillingConfig.resolvedIosKey
           : BillingConfig.resolvedAndroidKey;
       if (key.isEmpty) return;
+
+      // RevenueCat fatally crashes Release/TestFlight builds that use a
+      // Test Store key (test_…). Never call configure() with those in release.
+      if (kReleaseMode && key.startsWith('test_')) {
+        debugPrint(
+          'CasinPOS: Skipping RevenueCat — Test Store key (test_…) cannot be '
+          'used in TestFlight/App Store builds. Use the Apple appl_… / Google '
+          'goog_… public SDK key from RevenueCat → Apps → API keys.',
+        );
+        return;
+      }
+
+      if (kDebugMode) {
+        await Purchases.setLogLevel(LogLevel.debug);
+      }
       await Purchases.configure(PurchasesConfiguration(key));
       _configured = true;
     } catch (e, st) {
