@@ -7,6 +7,8 @@ import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
+import '../../../domain/enums.dart';
+import '../billing/upgrade_premium_dialog.dart';
 import '../settings/store_settings_dialog.dart';
 import '../team/team_manage_dialog.dart';
 
@@ -111,6 +113,27 @@ class _MobileAccountSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
+            if (membership?.store.planTier == PlanTier.free &&
+                membership?.role.canManageBilling == true) ...[
+              FilledButton.icon(
+                onPressed: () => openAfterClose(
+                  () => showUpgradePremiumDialog(
+                    hostContext,
+                    reason: UpgradeReason.general,
+                    storeName: storeName,
+                    storeId: membership?.storeId,
+                  ),
+                ),
+                icon: const Icon(Icons.workspace_premium_outlined, size: 18),
+                label: const Text('Upgrade to Premium'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brandYellow,
+                  foregroundColor: AppColors.ink,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.settings_outlined),
