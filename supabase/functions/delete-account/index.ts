@@ -1,4 +1,4 @@
-// Deletes the signed-in user's Auth account after soft cleanup.
+// Deletes the signed-in user's Auth account after DB purge.
 // Requires SUPABASE_SERVICE_ROLE_KEY (auto on hosted Supabase).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -8,6 +8,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 Deno.serve(async (req) => {
@@ -41,34 +42,15 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Soft cleanup first (memberships / PII).
-    await userClient.rpc("request_account_deletion");
-
-    // Own stores where this user is the only owner: delete store cascade.
-    const { data: ownerships } = await admin
-      .from("store_members")
-      .select("store_id, role")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .eq("role", "owner");
-
-    for (const row of ownerships ?? []) {
-      const storeId = row.store_id as string;
-      const { count } = await admin
-        .from("store_members")
-        .select("id", { count: "exact", head: true })
-        .eq("store_id", storeId)
-        .eq("status", "active")
-        .eq("role", "owner");
-      if ((count ?? 0) <= 1) {
-        await admin.from("stores").delete().eq("id", storeId);
-      } else {
-        await admin
-          .from("store_members")
-          .update({ status: "removed" })
-          .eq("store_id", storeId)
-          .eq("user_id", user.id);
-      }
+    const { data: purged, error: purgeErr } = await admin.rpc(
+      "purge_account_data",
+      { p_user_id: user.id },
+    );
+    if (purgeErr) {
+      return json({
+        error: "PURGE_FAILED",
+        message: purgeErr.message,
+      }, 500);
     }
 
     const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
@@ -76,7 +58,7 @@ Deno.serve(async (req) => {
       return json({ error: "DELETE_FAILED", message: delErr.message }, 500);
     }
 
-    return json({ ok: true });
+    return json({ ok: true, purged });
   } catch (e) {
     return json({ error: "UNEXPECTED", message: String(e) }, 500);
   }

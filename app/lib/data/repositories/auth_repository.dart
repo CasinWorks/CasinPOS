@@ -733,18 +733,34 @@ class StoreRepository {
 
   /// Soft cleanup + Edge Function hard delete (App Store requirement).
   Future<void> deleteAccount() async {
+    // Prefer the Edge Function (soft cleanup + auth.users hard delete).
+    // RPC-only soft delete is insufficient for Apple 5.1.1(v).
     try {
-      await _client.rpc('request_account_deletion');
-    } catch (_) {
-      // Edge Function still attempts admin delete.
+      final res = await _client.functions.invoke('delete-account');
+      final data = res.data;
+      if (data is Map && data['ok'] == true) return;
+      final msg = data is Map
+          ? (data['message'] as String? ??
+              data['error'] as String? ??
+              'Delete failed')
+          : 'Delete failed';
+      throw AppException(msg);
+    } on FunctionException catch (e) {
+      final status = e.status;
+      if (status == 404) {
+        throw AppException(
+          'Account deletion is temporarily unavailable. '
+          'Please try again later or email support to delete your account.',
+        );
+      }
+      final details = e.details;
+      final msg = details is Map
+          ? (details['message'] as String? ??
+              details['error'] as String? ??
+              e.reasonPhrase)
+          : (e.reasonPhrase ?? 'Delete failed');
+      throw AppException(msg ?? 'Delete failed');
     }
-    final res = await _client.functions.invoke('delete-account');
-    final data = res.data;
-    if (data is Map && data['ok'] == true) return;
-    final msg = data is Map
-        ? (data['message'] as String? ?? data['error'] as String? ?? 'Delete failed')
-        : 'Delete failed';
-    throw AppException(msg);
   }
 
   Future<void> markOnboardingComplete() async {
