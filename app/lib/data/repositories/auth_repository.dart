@@ -213,8 +213,10 @@ class StoreRepository {
         return null;
       }
       final mapped = mapKnownBackendError(blob);
-      if (mapped != null) throw AppException(mapped, cause: e);
-      return null;
+      throw AppException(
+        mapped ?? 'Could not send invite. Please try again.',
+        cause: e,
+      );
     }
   }
 
