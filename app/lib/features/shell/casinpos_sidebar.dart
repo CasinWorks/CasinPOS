@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
+import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/session_providers.dart';
@@ -161,6 +162,13 @@ class CasinPosSidebar extends ConsumerWidget {
                         ],
                       ),
               ),
+              if (plan != null) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: StorePlanBadge(plan: plan),
+                ),
+              ],
               if (plan == PlanTier.free && membership?.role.canManageBilling == true) ...[
                 const SizedBox(height: 6),
                 SizedBox(

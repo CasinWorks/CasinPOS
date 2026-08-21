@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/pos_providers.dart';
@@ -105,6 +106,11 @@ class _MobileAccountSheet extends ConsumerWidget {
                             fontSize: 12,
                             color: AppColors.slate500,
                           ),
+                        ),
+                        const SizedBox(height: 4),
+                        StorePlanBadge(
+                          plan: membership?.store.planTier,
+                          compact: true,
                         ),
                       ],
                     ),

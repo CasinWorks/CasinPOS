@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/models/store_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
@@ -144,14 +145,25 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            storeName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  storeName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              StorePlanBadge(
+                                plan: membership?.store.planTier,
+                                compact: true,
+                              ),
+                            ],
                           ),
                         ),
                         if (membership?.store.planTier == PlanTier.free &&

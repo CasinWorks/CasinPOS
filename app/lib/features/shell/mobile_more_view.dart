@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/display/open_customer_display.dart';
 import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
@@ -56,6 +57,11 @@ class MobileMoreView extends ConsumerWidget {
         Text(
           storeName,
           style: const TextStyle(fontSize: 13, color: AppColors.slate500),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: StorePlanBadge(plan: plan),
         ),
         if (plan == PlanTier.free && role?.canManageBilling == true) ...[
           const SizedBox(height: 12),

@@ -175,10 +175,20 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       final ok = await service.restorePurchases(storeId: storeId);
       if (!ok) {
         if (!mounted) return;
+        final alreadyPremium = ref.read(activeMembershipProvider)?.storeId ==
+                storeId &&
+            ref.read(activeMembershipProvider)?.store.planTier ==
+                PlanTier.premium;
         setState(() {
           _busy = false;
-          _error =
-              'No active Premium subscription found for this Apple ID yet.';
+          _error = alreadyPremium
+              ? 'This store is already Premium in CasinPOS. '
+                  'Restore looks at your Apple ID subscription — Sandbox '
+                  'subs expire quickly, so Apple may show none even though '
+                  'the store plan is still Premium.'
+              : 'No active Apple subscription for this Apple ID right now. '
+                  'In Sandbox, subscriptions expire in minutes. '
+                  'Subscribe again, or use the same Sandbox Apple ID that purchased.';
         });
         return;
       }
@@ -218,6 +228,33 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     ref.watch(revenueCatBootstrapProvider);
     final iapReady = service.isConfigured;
     final price = service.priceString(_package);
+    final membership = ref.watch(activeMembershipProvider);
+    final storeId = _resolvedStoreId;
+    final alreadyPremium = membership != null &&
+        membership.storeId == storeId &&
+        membership.store.planTier == PlanTier.premium;
+
+    if (alreadyPremium) {
+      return AlertDialog(
+        title: const Text('You’re on Premium'),
+        content: const SizedBox(
+          width: 420,
+          child: Text(
+            'This store already has Premium unlocked in CasinPOS '
+            '(more seats, higher limits, multi-branch).\n\n'
+            'Restore only checks your Apple ID. Sandbox subscriptions expire '
+            'quickly, so Restore can say “none found” even while this store '
+            'stays Premium until you set it back to Free.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    }
 
     final body = iapReady
         ? 'Subscribe monthly to unlock Premium for this store. '
