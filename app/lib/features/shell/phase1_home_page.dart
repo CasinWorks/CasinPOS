@@ -56,6 +56,7 @@ class _Phase1HomePageState extends ConsumerState<Phase1HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(premiumAutoSyncProvider);
     final membership = ref.watch(activeMembershipProvider);
     final type = membership?.store.businessType ?? BusinessType.restaurant;
     final destinations = _destinationsFor(type);
