@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
         app_user_id?: string;
         original_app_user_id?: string;
         product_id?: string;
+        transaction_id?: string;
+        original_transaction_id?: string;
         entitlement_ids?: string[] | null;
         expiration_at_ms?: number | null;
         purchased_at_ms?: number | null;
@@ -127,6 +129,12 @@ Deno.serve(async (req) => {
       ? new Date(event.expiration_at_ms).toISOString()
       : null;
 
+    const bindId =
+      (event.original_transaction_id ?? event.transaction_id ?? "").trim() ||
+      (productId
+        ? `${productId}:${event.purchased_at_ms ?? "unknown"}`
+        : null);
+
     const { data, error } = await admin.rpc(
       "apply_store_subscription_from_provider",
       {
@@ -135,13 +143,22 @@ Deno.serve(async (req) => {
         p_status: status,
         p_provider: "revenuecat",
         p_provider_customer_id: appUserId,
-        p_provider_subscription_id: productId || null,
+        p_provider_subscription_id: bindId,
         p_period_start: periodStart,
         p_period_end: periodEnd,
         p_monthly_limit: plan === "premium" ? 100000 : 1000,
       },
     );
     if (error) {
+      const msg = error.message ?? "";
+      if (msg.includes("SUBSCRIPTION_BOUND_TO_OTHER_STORE")) {
+        return json({
+          ok: true,
+          skipped: "subscription_bound_to_other_store",
+          message: error.message,
+          details: (error as { details?: string }).details,
+        });
+      }
       return json({ error: "APPLY_FAILED", message: error.message }, 500);
     }
 

@@ -1,6 +1,8 @@
 // After StoreKit purchase/restore, client calls this to apply Premium immediately
 // (webhook remains source of truth for renewals / expiry).
 // Secrets: SUPABASE_SERVICE_ROLE_KEY (auto), REVENUECAT_SECRET_API_KEY
+//
+// One Apple subscription (store_transaction_id) unlocks exactly one CasinPOS store.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -13,6 +15,14 @@ const corsHeaders: Record<string, string> = {
 };
 
 const PREMIUM_PRODUCT = "casinpos_premium_monthly";
+
+type RcSub = {
+  expires_date?: string | null;
+  purchase_date?: string | null;
+  original_purchase_date?: string | null;
+  unsubscribe_detected_at?: string | null;
+  store_transaction_id?: string | null;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -64,12 +74,12 @@ Deno.serve(async (req) => {
       return json({ error: "FORBIDDEN" }, 403);
     }
 
-    // Retry briefly — RevenueCat can lag a second after StoreKit success.
     let lastPayload: unknown = null;
     let active = false;
     let productId = PREMIUM_PRODUCT;
     let periodStart: string | null = null;
     let periodEnd: string | null = null;
+    let bindId: string | null = null;
 
     for (let attempt = 0; attempt < 4; attempt++) {
       if (attempt > 0) {
@@ -96,17 +106,12 @@ Deno.serve(async (req) => {
             expires_date?: string | null;
             product_identifier?: string;
           }>;
-          subscriptions?: Record<string, {
-            expires_date?: string | null;
-            purchase_date?: string | null;
-            unsubscribe_detected_at?: string | null;
-          }>;
+          subscriptions?: Record<string, RcSub>;
         };
       };
       lastPayload = payload;
 
       const ents = payload.subscriber?.entitlements ?? {};
-      // Prefer entitlement id "premium"; fall back to any entitlement on our product.
       let premium = ents["premium"];
       if (!premium) {
         for (const ent of Object.values(ents)) {
@@ -127,8 +132,6 @@ Deno.serve(async (req) => {
       const expires = expiresRaw ? Date.parse(expiresRaw) : null;
       const entActive = !!premium &&
         (expires == null || Number.isNaN(expires) || expires > Date.now());
-      // Cancelled-but-not-expired is still active until period end.
-      // Do NOT require !unsubscribe_detected_at — that blocked Restore after cancel.
       const subActive = !!sub &&
         (sub.expires_date == null ||
           Date.parse(sub.expires_date) > Date.now());
@@ -138,6 +141,11 @@ Deno.serve(async (req) => {
         productId = premium?.product_identifier ?? PREMIUM_PRODUCT;
         periodStart = sub?.purchase_date ?? null;
         periodEnd = expiresRaw;
+        // Prefer Apple/Play transaction id so one phone sub ≠ many stores.
+        bindId = (sub?.store_transaction_id ?? "").trim() ||
+          (sub?.original_purchase_date
+            ? `${productId}:${sub.original_purchase_date}`
+            : null);
         break;
       }
     }
@@ -152,6 +160,45 @@ Deno.serve(async (req) => {
       }, 402);
     }
 
+    if (!bindId) {
+      // Fallback: still apply, but cannot enforce cross-store bind without a tx id.
+      bindId = `${productId}:user:${user.id}`;
+    }
+
+    // Fast path message if already bound elsewhere (RPC also enforces).
+    const { data: boundRows } = await admin
+      .from("subscriptions")
+      .select("store_id")
+      .eq("provider", "revenuecat")
+      .eq("provider_subscription_id", bindId)
+      .eq("status", "active")
+      .neq("store_id", storeId)
+      .limit(1);
+
+    const boundStoreId =
+      Array.isArray(boundRows) && boundRows.length > 0
+        ? (boundRows[0] as { store_id: string }).store_id
+        : null;
+
+    if (boundStoreId) {
+      const { data: otherStore } = await admin
+        .from("stores")
+        .select("name")
+        .eq("id", boundStoreId)
+        .maybeSingle();
+      const otherName = (otherStore?.name as string | undefined) ?? "another store";
+      return json({
+        ok: false,
+        error: "SUBSCRIPTION_BOUND_TO_OTHER_STORE",
+        message:
+          `This Apple subscription already unlocks “${otherName}”. ` +
+          `One Apple ID Premium unlocks one CasinPOS store. ` +
+          `Sign into that store, or set it Free in Platform Ops before moving Premium here.`,
+        other_store_id: boundStoreId,
+        other_store_name: otherName,
+      }, 409);
+    }
+
     const { data, error } = await admin.rpc(
       "apply_store_subscription_from_provider",
       {
@@ -160,19 +207,33 @@ Deno.serve(async (req) => {
         p_status: "active",
         p_provider: "revenuecat",
         p_provider_customer_id: user.id,
-        p_provider_subscription_id: productId,
+        p_provider_subscription_id: bindId,
         p_period_start: periodStart,
         p_period_end: periodEnd,
         p_monthly_limit: 100000,
       },
     );
     if (error) {
+      const msg = error.message ?? "";
+      const detail = (error as { details?: string }).details ?? "";
+      if (msg.includes("SUBSCRIPTION_BOUND_TO_OTHER_STORE")) {
+        return json({
+          ok: false,
+          error: "SUBSCRIPTION_BOUND_TO_OTHER_STORE",
+          message:
+            `This Apple subscription already unlocks “${detail || "another store"}”. ` +
+            `One Apple ID Premium unlocks one CasinPOS store.`,
+        }, 409);
+      }
       return json({ error: "APPLY_FAILED", message: error.message }, 500);
     }
 
     return json({ ok: true, store_id: storeId, data });
   } catch (e) {
-    return json({ error: "UNEXPECTED", message: String(e) }, 500);
+    return new Response(JSON.stringify({ error: "UNEXPECTED", message: String(e) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 
