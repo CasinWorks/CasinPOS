@@ -111,7 +111,7 @@ class PrivacyPolicyPage extends StatelessWidget {
         (
           heading: 'Your choices',
           body:
-              'You can update store settings, invite/remove teammates (if permitted), export receipts/PDF reports, and delete your account from Store Settings → Delete account.',
+              'You can update store settings, invite/remove teammates (if permitted), export receipts/PDF reports, and delete your account from Support → Delete my account.',
         ),
         (
           heading: 'Contact',

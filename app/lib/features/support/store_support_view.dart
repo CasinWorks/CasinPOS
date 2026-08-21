@@ -9,7 +9,6 @@ import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/providers/session_providers.dart';
-import '../billing/upgrade_premium_dialog.dart';
 
 /// In-app Support — real contact path for App Review (no “coming soon”).
 class StoreSupportView extends ConsumerWidget {
@@ -117,56 +116,6 @@ class StoreSupportView extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Common requests',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          _SupportTopic(
-            title: 'Premium / billing',
-            subtitle: 'Subscribe or restore in the iOS / Android app',
-            onTap: () {
-              final canBill =
-                  membership?.role.canManageBilling == true;
-              if (!canBill) {
-                showAppMessage(
-                  context,
-                  'Only the store Owner can manage Premium billing.',
-                  isError: true,
-                );
-                return;
-              }
-              showUpgradePremiumDialog(
-                context,
-                reason: UpgradeReason.general,
-                storeName: storeName,
-                storeId: storeId,
-              );
-            },
-          ),
-          _SupportTopic(
-            title: 'Team / invite help',
-            subtitle: 'Invite link, roles, or can’t join',
-            onTap: () => _email(
-              context,
-              subject: 'CasinPOS team invite help — $storeName',
-              body: defaultBody.toString(),
-            ),
-          ),
-          _SupportTopic(
-            title: 'Account deletion',
-            subtitle: 'Or use Store settings → Delete my account',
-            onTap: () => _email(
-              context,
-              subject: 'CasinPOS account deletion request',
-              body: 'Hi CasinPOS Support,\n\n'
-                  'Please delete my CasinPOS account.\n'
-                  '${userEmail != null ? 'Login email: $userEmail\n' : ''}'
-                  '${storeId != null ? 'Store ID: $storeId\n' : ''}\n'
-                  'Thanks,\n',
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
             'Policies',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
           ),
@@ -185,6 +134,13 @@ class StoreSupportView extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/terms'),
           ),
+          const SizedBox(height: 16),
+          const Text(
+            'Delete account',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          const _DeleteAccountCard(),
           const SizedBox(height: AppSpacing.lg),
           Text(
             'CasinWorks · ${SupportContact.displayName}',
@@ -196,53 +152,91 @@ class StoreSupportView extends ConsumerWidget {
   }
 }
 
-class _SupportTopic extends StatelessWidget {
-  const _SupportTopic({
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+class _DeleteAccountCard extends ConsumerStatefulWidget {
+  const _DeleteAccountCard();
 
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  @override
+  ConsumerState<_DeleteAccountCard> createState() => _DeleteAccountCardState();
+}
+
+class _DeleteAccountCardState extends ConsumerState<_DeleteAccountCard> {
+  var _busy = false;
+
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c2) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This cannot be undone. Your login will be deleted. '
+          'If you are the only owner of a store, that store and its data will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c2, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(c2, true),
+            child: const Text('Delete permanently'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(storeRepositoryProvider).deleteAccount();
+      if (!mounted) return;
+      await ref.read(authRepositoryProvider).signOut();
+      if (!mounted) return;
+      context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showAppMessage(
+        context,
+        friendlyError(e, fallback: 'Could not delete account'),
+        isError: true,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.slate200),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(fontSize: 12, color: AppColors.slate500),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.mail_outline, size: 18, color: AppColors.slate500),
-              ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Permanently delete your CasinPOS account and sign out. '
+            'Stores you solely own will be removed.',
+            style: TextStyle(fontSize: 13, color: AppColors.slate500, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _deleteAccount,
+            icon: _busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_forever_outlined, color: AppColors.danger),
+            label: Text(
+              _busy ? 'Deleting…' : 'Delete my account',
+              style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

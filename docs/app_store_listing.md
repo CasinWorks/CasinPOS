@@ -15,7 +15,7 @@ Also linked from Sign in, Sign up, and Store settings → Privacy / Terms.
 
 ## Account deletion (Apple Guideline 5.1.1)
 
-**In-app path:** Store settings → Danger zone → **Delete my account**
+**In-app path:** Support → **Delete my account**
 
 Requires production migrations + Edge Function `delete-account` deployed.
 
@@ -88,7 +88,7 @@ Export PNG; avoid demo passwords on screen. Use a demo store with realistic prod
 ```
 Demo account: (enter in App Store Connect only)
 
-Account deletion: Store settings → Delete my account
+Account deletion: Support → Delete my account
 Support: Sidebar → Support → email christianjoshuacasin@gmail.com
 Privacy: https://casin-pos-black.vercel.app/privacy
 Terms: https://casin-pos-black.vercel.app/terms

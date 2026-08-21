@@ -187,51 +187,6 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
     }
   }
 
-  Future<void> _deleteAccount() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      useRootNavigator: true,
-      builder: (c2) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text(
-          'This cannot be undone. Your login will be deleted. '
-          'If you are the only owner of a store, that store and its data will be removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c2, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(c2, true),
-            child: const Text('Delete permanently'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await ref.read(storeRepositoryProvider).deleteAccount();
-      if (!mounted) return;
-      _close();
-      await ref.read(authRepositoryProvider).signOut();
-      if (widget.hostContext.mounted) {
-        widget.hostContext.go('/login');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = friendlyError(e, fallback: 'Could not delete account');
-        _saving = false;
-      });
-    }
-  }
-
   Widget _fields() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -395,26 +350,6 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
               child: const Text('Terms'),
             ),
           ],
-        ),
-        const Divider(height: 28),
-        Text(
-          'Danger zone',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.danger),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Permanently delete your CasinPOS account and sign out. '
-          'Stores you solely own will be removed.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _saving ? null : _deleteAccount,
-          icon: const Icon(Icons.delete_forever_outlined, color: AppColors.danger),
-          label: const Text(
-            'Delete my account',
-            style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800),
-          ),
         ),
       ],
     );
