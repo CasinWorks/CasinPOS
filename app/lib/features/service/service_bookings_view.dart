@@ -14,22 +14,67 @@ import '../register/open_register_flow.dart';
 import '../register/register_shift_banner.dart';
 import 'service_schedule_sheet.dart';
 
-class ServiceBookingsView extends ConsumerWidget {
+enum _BookingsLayout { calendar, list }
+
+class ServiceBookingsView extends ConsumerStatefulWidget {
   const ServiceBookingsView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ServiceBookingsView> createState() => _ServiceBookingsViewState();
+}
+
+class _ServiceBookingsViewState extends ConsumerState<ServiceBookingsView> {
+  _BookingsLayout _layout = _BookingsLayout.calendar;
+  late DateTime _visibleMonth;
+  late DateTime _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _visibleMonth = DateTime(now.year, now.month);
+    _selectedDay = DateTime(now.year, now.month, now.day);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(serviceBookingsProvider);
     return ColoredBox(
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              'Bookings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Bookings',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                SegmentedButton<_BookingsLayout>(
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  segments: const [
+                    ButtonSegment(
+                      value: _BookingsLayout.calendar,
+                      label: Text('Calendar'),
+                      icon: Icon(Icons.calendar_month_outlined, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: _BookingsLayout.list,
+                      label: Text('List'),
+                      icon: Icon(Icons.view_list_outlined, size: 16),
+                    ),
+                  ],
+                  selected: {_layout},
+                  onSelectionChanged: (s) => setState(() => _layout = s.first),
+                ),
+              ],
             ),
           ),
           const RegisterShiftBanner(),
@@ -41,11 +86,23 @@ class ServiceBookingsView extends ConsumerWidget {
                 if (bookings.isEmpty) {
                   return const Center(child: Text('No service bookings yet.'));
                 }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: bookings.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) => _BookingTile(booking: bookings[i]),
+                if (_layout == _BookingsLayout.list) {
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: bookings.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) => _BookingTile(booking: bookings[i]),
+                  );
+                }
+                return _CalendarBookingsBody(
+                  bookings: bookings,
+                  visibleMonth: _visibleMonth,
+                  selectedDay: _selectedDay,
+                  onMonthChanged: (m) => setState(() => _visibleMonth = m),
+                  onDaySelected: (d) => setState(() {
+                    _selectedDay = d;
+                    _visibleMonth = DateTime(d.year, d.month);
+                  }),
                 );
               },
             ),
@@ -53,6 +110,287 @@ class ServiceBookingsView extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _CalendarBookingsBody extends StatelessWidget {
+  const _CalendarBookingsBody({
+    required this.bookings,
+    required this.visibleMonth,
+    required this.selectedDay,
+    required this.onMonthChanged,
+    required this.onDaySelected,
+  });
+
+  final List<ServiceBooking> bookings;
+  final DateTime visibleMonth;
+  final DateTime selectedDay;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onDaySelected;
+
+  static DateTime dayKey(DateTime d) {
+    final l = d.toLocal();
+    return DateTime(l.year, l.month, l.day);
+  }
+
+  Map<DateTime, List<ServiceBooking>> get _byDay {
+    final map = <DateTime, List<ServiceBooking>>{};
+    for (final b in bookings) {
+      final k = dayKey(b.scheduledAt);
+      (map[k] ??= []).add(b);
+    }
+    for (final list in map.values) {
+      list.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    }
+    return map;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final grouped = _byDay;
+    final dayJobs = grouped[selectedDay] ?? const <ServiceBooking>[];
+    final dayLabel = DateFormat.yMMMMEEEEd().format(selectedDay);
+
+    final calendar = _MonthCalendar(
+      month: visibleMonth,
+      selectedDay: selectedDay,
+      bookingsByDay: grouped,
+      onMonthChanged: onMonthChanged,
+      onDaySelected: onDaySelected,
+    );
+
+    final dayList = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Text(
+            '${dayJobs.length} ${dayJobs.length == 1 ? 'job' : 'jobs'} · $dayLabel',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.slate700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: dayJobs.isEmpty
+              ? const Center(child: Text('No jobs on this day.'))
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: dayJobs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) => _BookingTile(booking: dayJobs[i]),
+                ),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 860;
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 400, child: calendar),
+              const VerticalDivider(width: 1),
+              Expanded(child: dayList),
+            ],
+          );
+        }
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: calendar),
+            const SliverToBoxAdapter(child: Divider(height: 1)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  '${dayJobs.length} ${dayJobs.length == 1 ? 'job' : 'jobs'} · $dayLabel',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate700,
+                  ),
+                ),
+              ),
+            ),
+            if (dayJobs.isEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: Text('No jobs on this day.')),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                sliver: SliverList.separated(
+                  itemCount: dayJobs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) => _BookingTile(booking: dayJobs[i]),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MonthCalendar extends StatelessWidget {
+  const _MonthCalendar({
+    required this.month,
+    required this.selectedDay,
+    required this.bookingsByDay,
+    required this.onMonthChanged,
+    required this.onDaySelected,
+  });
+
+  final DateTime month;
+  final DateTime selectedDay;
+  final Map<DateTime, List<ServiceBooking>> bookingsByDay;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onDaySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = DateTime(month.year, month.month, 1);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final leading = first.weekday % 7; // Sunday start
+    final today = _CalendarBookingsBody.dayKey(DateTime.now());
+    const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Previous month',
+                onPressed: () => onMonthChanged(DateTime(month.year, month.month - 1)),
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Text(
+                  DateFormat.yMMMM().format(month),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              TextButton(
+                onPressed: () => onDaySelected(today),
+                child: const Text('Today'),
+              ),
+              IconButton(
+                tooltip: 'Next month',
+                onPressed: () => onMonthChanged(DateTime(month.year, month.month + 1)),
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              for (final label in labels)
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate500,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: ((leading + daysInMonth + 6) ~/ 7) * 7,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              childAspectRatio: 1.15,
+            ),
+            itemBuilder: (context, i) {
+              final dayNum = i - leading + 1;
+              if (dayNum < 1 || dayNum > daysInMonth) {
+                return const SizedBox.shrink();
+              }
+              final day = DateTime(month.year, month.month, dayNum);
+              final jobs = bookingsByDay[day] ?? const <ServiceBooking>[];
+              final selected = day == selectedDay;
+              final isToday = day == today;
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => onDaySelected(day),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: isToday && !selected
+                        ? Border.all(color: AppColors.accentDeep)
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$dayNum',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: selected ? AppColors.ink : AppColors.slate800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      SizedBox(
+                        height: 6,
+                        child: jobs.isEmpty
+                            ? const SizedBox.shrink()
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  for (final b in jobs.take(3))
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 1),
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: selected
+                                              ? AppColors.ink
+                                              : _dotColor(b.status),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const SizedBox(width: 5, height: 5),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color _dotColor(ServiceBookingStatus status) {
+    return switch (status) {
+      ServiceBookingStatus.upcoming => AppColors.accentDeep,
+      ServiceBookingStatus.completed => AppColors.success,
+      ServiceBookingStatus.cancelled => AppColors.slate400,
+    };
   }
 }
 
