@@ -219,9 +219,22 @@ type FxQuote = { usd: number; rate: number; centavos: number };
 
 async function quoteUsdToPhp(): Promise<FxQuote> {
   const usd = parseUsd();
+  const override = parseCentavosOverride();
+  if (override != null) {
+    return { usd, rate: 0, centavos: override };
+  }
   const rate = await fetchUsdPhpRate();
-  const centavos = Math.max(1000, Math.round(usd * rate * 100));
+  const centavos = Math.max(100, Math.round(usd * rate * 100));
   return { usd, rate, centavos };
+}
+
+function parseCentavosOverride(): number | null {
+  const n = Number.parseInt(
+    (Deno.env.get("PAYMONGO_PREMIUM_AMOUNT_CENTAVOS") ?? "").trim(),
+    10,
+  );
+  if (!Number.isFinite(n) || n < 100) return null;
+  return n;
 }
 
 async function fetchUsdPhpRate(): Promise<number> {

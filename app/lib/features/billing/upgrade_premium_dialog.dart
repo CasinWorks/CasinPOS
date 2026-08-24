@@ -492,7 +492,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           const SizedBox(height: 8),
           Text('· More than 2 team seats',
               style: Theme.of(context).textTheme.bodySmall),
-          Text('· Higher monthly sales allowance',
+          Text('· Up to 100,000 paid sales per month (Free is 1,000)',
               style: Theme.of(context).textTheme.bodySmall),
           Text('· Multi-branch, franchise & aggregate reports',
               style: Theme.of(context).textTheme.bodySmall),
