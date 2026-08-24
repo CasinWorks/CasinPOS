@@ -2,7 +2,7 @@
 // Secrets (Dashboard → Edge Functions → Secrets, or `supabase secrets set`):
 //   RESEND_API_KEY     — required to actually send (https://resend.com)
 //   RESEND_FROM_EMAIL  — optional, default "CasinPOS <onboarding@resend.dev>"
-//   PUBLIC_APP_URL     — optional, default https://casin-pos-black.vercel.app
+//   PUBLIC_APP_URL     — optional, default https://casin-pos.vercel.app
 //   SUPABASE_SERVICE_ROLE_KEY — auto-injected on hosted Supabase
 //
 // Without RESEND_API_KEY the function still returns invite_url so the client can
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     }
 
     const publicApp =
-      (Deno.env.get("PUBLIC_APP_URL") ?? "https://casin-pos-black.vercel.app")
+      (Deno.env.get("PUBLIC_APP_URL") ?? "https://casin-pos.vercel.app")
         .replace(/\/+$/, "");
     const inviteUrl = resolveInviteUrl(body.invite_url, token, publicApp);
 

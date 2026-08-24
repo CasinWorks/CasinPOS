@@ -45,7 +45,8 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       setState(() {
         _info =
             'If an account exists for that email, we sent a reset link. '
-            'Open it to choose a new password.';
+            'Open the email and tap the link — it opens in Safari or Chrome '
+            '(not inside this app) so you can choose a new password.';
       });
     } catch (e) {
       setState(() {

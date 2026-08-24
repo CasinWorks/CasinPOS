@@ -313,18 +313,7 @@ class CasinPosSidebar extends ConsumerWidget {
                         label: 'Customer Display',
                         icon: Icons.tv_outlined,
                         selected: false,
-                        onTap: () async {
-                          final ok = await openCustomerDisplayWindow();
-                          if (!context.mounted) return;
-                          if (!ok) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Could not open customer display'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
+                        onTap: () => showCustomerDisplayOptions(context),
                       ),
                     _NavItem(
                       label: 'Notifications',

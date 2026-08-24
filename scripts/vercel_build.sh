@@ -29,6 +29,6 @@ flutter pub get
 flutter build web --release \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
   --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-  --dart-define=APP_URL="${APP_URL:-https://casin-pos-black.vercel.app}"
+  --dart-define=APP_URL="${APP_URL:-https://casin-pos.vercel.app}"
 
 echo "Web build ready at app/build/web"

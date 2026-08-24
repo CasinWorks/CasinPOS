@@ -3,15 +3,14 @@ import 'package:flutter/foundation.dart';
 /// Public origin for invite / share links.
 ///
 /// Override at build time:
-///   `--dart-define=APP_URL=https://casin-pos-black.vercel.app`
+///   `--dart-define=APP_URL=https://casin-pos.vercel.app`
 ///
 /// On Flutter web, falls back to the current page origin when override is empty.
 abstract final class AppUrl {
   static const String _override = String.fromEnvironment('APP_URL');
-  static const String defaultProduction =
-      'https://casin-pos-black.vercel.app';
+  static const String defaultProduction = 'https://casin-pos.vercel.app';
 
-  /// Origin only (no trailing slash), e.g. `https://casin-pos-black.vercel.app`.
+  /// Origin only (no trailing slash), e.g. `https://casin-pos.vercel.app`.
   static String publicOrigin() {
     final fromEnv = _override.trim();
     if (fromEnv.isNotEmpty) {
@@ -35,8 +34,12 @@ abstract final class AppUrl {
     return '${publicOrigin()}/invite?token=$t';
   }
 
-  /// Password recovery redirect — must be allow-listed in Supabase Auth URL config.
-  static String resetPasswordLink() => '${publicOrigin()}/reset-password';
+  /// Password recovery redirect — must be allow-listed in Supabase Auth.
+  /// Native apps always use production so the email link opens in Safari/Chrome.
+  static String resetPasswordLink() {
+    if (!kIsWeb) return '$defaultProduction/reset-password';
+    return '${publicOrigin()}/reset-password';
+  }
 
   /// Friendly alias used in copy for humans; same destination as [inviteLink].
   static String joinLink(String token) {

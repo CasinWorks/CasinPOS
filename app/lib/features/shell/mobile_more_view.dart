@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/display/open_customer_display.dart';
-import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/providers/platform_providers.dart';
@@ -168,18 +167,8 @@ class MobileMoreView extends ConsumerWidget {
           _MoreTile(
             icon: Icons.tv_outlined,
             title: 'Customer Display',
-            subtitle: 'Second-screen cart',
-            onTap: () async {
-              final ok = await openCustomerDisplayWindow();
-              if (!context.mounted) return;
-              if (!ok) {
-                showAppMessage(
-                  context,
-                  'Could not open customer display',
-                  isError: true,
-                );
-              }
-            },
+            subtitle: 'Copy link or open on another screen',
+            onTap: () => showCustomerDisplayOptions(context),
           ),
         if (membership?.store.businessType == BusinessType.retail)
           _MoreTile(

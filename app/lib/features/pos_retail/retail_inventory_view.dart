@@ -374,7 +374,7 @@ class _InventoryProductCard extends StatelessWidget {
                   color: product.isLowStock ? const Color(0xFFFECDD3) : AppColors.slate200,
                 ),
               ),
-              child: compact ? _buildCompact() : _buildWide(),
+              child: compact ? _buildCompact(context) : _buildWide(context),
             ),
           ),
         );
@@ -382,7 +382,7 @@ class _InventoryProductCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCompact() {
+  Widget _buildCompact(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -404,15 +404,16 @@ class _InventoryProductCard extends StatelessWidget {
           children: [
             _editButton(),
             _deleteButton(),
-            _minusButton(),
-            _plusTenButton(),
+            _minusButton(context),
+            _plusOneButton(context),
+            _plusTenButton(context),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildWide() {
+  Widget _buildWide(BuildContext context) {
     return Row(
       children: [
         _photo(),
@@ -423,9 +424,11 @@ class _InventoryProductCard extends StatelessWidget {
         const SizedBox(width: 6),
         _editButton(),
         _deleteButton(),
-        _minusButton(),
+        _minusButton(context),
         const SizedBox(width: 6),
-        _plusTenButton(),
+        _plusOneButton(context),
+        const SizedBox(width: 6),
+        _plusTenButton(context),
       ],
     );
   }
@@ -552,17 +555,30 @@ class _InventoryProductCard extends StatelessWidget {
     );
   }
 
-  Widget _minusButton() {
+  Widget _minusButton(BuildContext context) {
     return IconButton.filledTonal(
-      onPressed: () => onRestock(-1),
+      tooltip: 'Remove 1',
+      onPressed: () => _confirmRestock(context, -1),
       style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
       icon: const Icon(Icons.remove, size: 22),
     );
   }
 
-  Widget _plusTenButton() {
+  Widget _plusOneButton(BuildContext context) {
+    return FilledButton.tonal(
+      onPressed: () => _confirmRestock(context, 1),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(56, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+      ),
+      child: const Text('+1'),
+    );
+  }
+
+  Widget _plusTenButton(BuildContext context) {
     return FilledButton(
-      onPressed: () => onRestock(10),
+      onPressed: () => _confirmRestock(context, 10),
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.slate900,
               foregroundColor: Colors.white,
@@ -572,6 +588,33 @@ class _InventoryProductCard extends StatelessWidget {
       ),
       child: const Text('+10'),
     );
+  }
+
+  Future<void> _confirmRestock(BuildContext context, double delta) async {
+    final qty = delta.abs().toStringAsFixed(0);
+    final add = delta > 0;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(add ? 'Add stock?' : 'Remove stock?'),
+        content: Text(
+          add
+              ? 'Add $qty to ${product.name}?'
+              : 'Remove $qty from ${product.name}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) onRestock(delta);
   }
 }
 
