@@ -232,6 +232,9 @@ class TransactionRepository {
       'discount_amount': discountAmount,
       'staff_id': uid,
       'paid_at': now.toIso8601String(),
+      'amount_paid': total,
+      'balance_due': 0,
+      'payment_state': 'paid',
     });
 
     if (lines.isNotEmpty) {
@@ -247,6 +250,20 @@ class TransactionRepository {
             'additions': [],
           },
       ]);
+    }
+
+    if (total > 0) {
+      try {
+        await _client.from('transaction_payments').insert({
+          'transaction_id': id,
+          'amount': total,
+          'payment_method': paymentMethod.name,
+          'kind': 'full',
+          'created_by': uid,
+        });
+      } catch (_) {
+        // Ledger is additive; sale row already exists.
+      }
     }
 
     return PosOrder(

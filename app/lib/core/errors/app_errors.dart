@@ -245,6 +245,36 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('STORE_NAME_REQUIRED')) {
     return 'Store name is required.';
   }
+  if (s.contains('QUOTE_NOT_FOUND')) {
+    return 'Quote not found.';
+  }
+  if (s.contains('QUOTE_ALREADY_ACCEPTED')) {
+    return 'This quote was already accepted.';
+  }
+  if (s.contains('QUOTE_NOT_ACCEPTABLE') || s.contains('QUOTE_NOT_SENDABLE')) {
+    return 'This quote can’t be sent or accepted in its current status.';
+  }
+  if (s.contains('SCHEDULE_REQUIRED')) {
+    return 'Pick a date and time for the booking.';
+  }
+  if (s.contains('DEPOSIT_INVALID')) {
+    return 'Deposit can’t be negative.';
+  }
+  if (s.contains('PAYMENT_METHOD_REQUIRED')) {
+    return 'Choose how the deposit was paid.';
+  }
+  if (s.contains('PAYMENT_AMOUNT_INVALID')) {
+    return 'Enter a payment amount greater than zero.';
+  }
+  if (s.contains('BALANCE_ALREADY_PAID')) {
+    return 'This booking is already paid in full.';
+  }
+  if (s.contains('CLIENT_NAME_REQUIRED')) {
+    return 'Client name is required.';
+  }
+  if (s.contains('BOOKING_NOT_FOUND')) {
+    return 'Booking not found.';
+  }
   if (s.contains('CANNOT_FRANCHISE_SELF')) {
     return 'You can’t open a franchise for your own email.';
   }

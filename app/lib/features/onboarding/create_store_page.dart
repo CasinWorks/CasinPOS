@@ -23,6 +23,8 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   String? _error;
+  BusinessType _type = BusinessType.retail;
+  ServicePricingMode _pricingMode = ServicePricingMode.fixed;
 
   @override
   void dispose() {
@@ -39,9 +41,11 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
     try {
       await ref.read(storeRepositoryProvider).createStore(
             name: _name.text,
-            businessType: BusinessType.retail,
+            businessType: _type,
             currencyCode: AppConstants.defaultCurrencyCode,
             currencySymbol: AppConstants.defaultCurrencySymbol,
+            servicePricingMode:
+                _type == BusinessType.service ? _pricingMode : null,
           );
       await ref.read(storeRepositoryProvider).markOnboardingComplete();
       ref.invalidate(membershipsProvider);
@@ -76,7 +80,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Name your retail store to start selling. Restaurant mode is coming later.',
+                    'Retail checkout with inventory, or a service business with bookings and optional quotes. Restaurant mode is coming later.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -91,36 +95,83 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                         (v == null || v.trim().isEmpty) ? 'Store name is required' : null,
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.retailDark.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.slate200),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.storefront_rounded, color: AppColors.retailDark),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Retail POS',
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'SKU catalog, inventory, and checkout',
-                                style: TextStyle(fontSize: 12, color: AppColors.slate500),
-                              ),
-                            ],
-                          ),
+                  Text('Business type', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SegmentedButton<BusinessType>(
+                    segments: const [
+                      ButtonSegment(
+                        value: BusinessType.retail,
+                        label: Text('Retail'),
+                        icon: Icon(Icons.storefront_rounded, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: BusinessType.service,
+                        label: Text('Service'),
+                        icon: Icon(Icons.handyman_rounded, size: 18),
+                      ),
+                    ],
+                    selected: {_type},
+                    onSelectionChanged: (s) => setState(() => _type = s.first),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (_type == BusinessType.service) ...[
+                    Text('How you price work', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 8),
+                    SegmentedButton<ServicePricingMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ServicePricingMode.fixed,
+                          label: Text('Fixed price'),
+                        ),
+                        ButtonSegment(
+                          value: ServicePricingMode.quote,
+                          label: Text('Quotes'),
                         ),
                       ],
+                      selected: {_pricingMode},
+                      onSelectionChanged: (s) => setState(() => _pricingMode = s.first),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _pricingMode == ServicePricingMode.quote
+                          ? 'Send quotes, then accept to create a booking. Deposit is optional.'
+                          : 'Catalog of services with prices. Checkout books a date/time; deposit is optional.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.slate500,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ] else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.retailDark.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.slate200),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.storefront_rounded, color: AppColors.retailDark),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Retail POS',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'SKU catalog, inventory, and checkout',
+                                  style: TextStyle(fontSize: 12, color: AppColors.slate500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
                     'Currency defaults to ${AppConstants.defaultCurrencyCode} '

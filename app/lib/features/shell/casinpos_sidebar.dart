@@ -53,9 +53,20 @@ class CasinPosSidebar extends ConsumerWidget {
     } catch (_) {}
 
     final items = <({String id, String label, IconData icon, int? badge})>[
-      (id: 'checkout', label: 'Retail POS', icon: Icons.point_of_sale_rounded, badge: null),
-      (id: 'inventory', label: 'Store Inventory', icon: Icons.inventory_2_outlined, badge: null),
-      if (membership?.role.canInviteUsers == true)
+      if (type == BusinessType.service && membership?.store.isQuoteService == true) ...[
+        (id: 'quotes', label: 'Quotes', icon: Icons.request_quote_outlined, badge: null),
+        (id: 'bookings', label: 'Bookings', icon: Icons.event_outlined, badge: null),
+        (id: 'customers', label: 'Customers', icon: Icons.people_outline, badge: null),
+      ] else if (type == BusinessType.service) ...[
+        (id: 'checkout', label: 'Service POS', icon: Icons.point_of_sale_rounded, badge: null),
+        (id: 'inventory', label: 'Services', icon: Icons.handyman_outlined, badge: null),
+        (id: 'bookings', label: 'Bookings', icon: Icons.event_outlined, badge: null),
+        (id: 'customers', label: 'Customers', icon: Icons.people_outline, badge: null),
+      ] else ...[
+        (id: 'checkout', label: 'Retail POS', icon: Icons.point_of_sale_rounded, badge: null),
+        (id: 'inventory', label: 'Store Inventory', icon: Icons.inventory_2_outlined, badge: null),
+      ],
+      if (type != BusinessType.service && membership?.role.canInviteUsers == true)
         (id: 'promos', label: 'Promos / Codes', icon: Icons.local_offer_outlined, badge: null),
       (id: 'register', label: 'Cash Register', icon: Icons.account_balance_wallet_outlined, badge: null),
       (id: 'orders', label: 'Sales History', icon: Icons.bookmark_outline, badge: orderCount),
@@ -79,11 +90,12 @@ class CasinPosSidebar extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(child: BrandMark(businessType: type, compact: true)),
-                  IconButton(
-                    tooltip: 'Replay story tutorial',
-                    onPressed: () => startRetailStory(ref),
-                    icon: const Icon(Icons.auto_awesome, size: 18, color: AppColors.restaurant),
-                  ),
+                  if (type == BusinessType.retail)
+                    IconButton(
+                      tooltip: 'Replay story tutorial',
+                      onPressed: () => startRetailStory(ref),
+                      icon: const Icon(Icons.auto_awesome, size: 18, color: AppColors.restaurant),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -241,10 +253,8 @@ class CasinPosSidebar extends ConsumerWidget {
               const SizedBox(height: 6),
               Text(
                 membership?.store.isFranchise == true
-                    ? (type == BusinessType.retail
-                        ? 'Retail franchise · locked'
-                        : 'Restaurant franchise · locked')
-                    : (type == BusinessType.retail ? 'Retail · locked' : 'Restaurant · locked'),
+                    ? '${type.label} franchise · locked'
+                    : '${type.label} · locked',
                 style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -298,23 +308,24 @@ class CasinPosSidebar extends ConsumerWidget {
                         selected: false,
                         onTap: () => showFranchiseDialog(context, ref),
                       ),
-                    _NavItem(
-                      label: 'Customer Display',
-                      icon: Icons.tv_outlined,
-                      selected: false,
-                      onTap: () async {
-                        final ok = await openCustomerDisplayWindow();
-                        if (!context.mounted) return;
-                        if (!ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Could not open customer display'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                    if (type != BusinessType.service)
+                      _NavItem(
+                        label: 'Customer Display',
+                        icon: Icons.tv_outlined,
+                        selected: false,
+                        onTap: () async {
+                          final ok = await openCustomerDisplayWindow();
+                          if (!context.mounted) return;
+                          if (!ok) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open customer display'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     _NavItem(
                       label: 'Notifications',
                       icon: Icons.notifications_none_rounded,

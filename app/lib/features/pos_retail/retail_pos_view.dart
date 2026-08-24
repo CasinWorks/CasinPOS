@@ -11,6 +11,7 @@ import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../onboarding/tutorial_anchors.dart';
+import '../register/register_shift_banner.dart';
 import 'barcode_scanner_sheet.dart';
 
 class RetailPosView extends ConsumerStatefulWidget {
@@ -104,6 +105,7 @@ class _RetailPosViewState extends ConsumerState<RetailPosView> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          const RegisterShiftBanner(),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

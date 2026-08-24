@@ -81,13 +81,43 @@ class MobileMoreView extends ConsumerWidget {
           ),
         ],
         section('OPERATIONS'),
+        if (membership?.store.businessType == BusinessType.service &&
+            membership?.store.isQuoteService == true)
+          _MoreTile(
+            icon: Icons.request_quote_outlined,
+            title: 'Quotes',
+            subtitle: 'Draft, send, accept',
+            onTap: () => _go(ref, 'quotes'),
+          ),
+        if (membership?.store.businessType == BusinessType.service)
+          _MoreTile(
+            icon: Icons.event_outlined,
+            title: 'Bookings',
+            subtitle: 'Upcoming jobs',
+            onTap: () => _go(ref, 'bookings'),
+          ),
+        if (membership?.store.businessType == BusinessType.service)
+          _MoreTile(
+            icon: Icons.people_outline,
+            title: 'Customers',
+            subtitle: 'Returning clients',
+            onTap: () => _go(ref, 'customers'),
+          ),
+        if (membership?.store.isFixedService == true)
+          _MoreTile(
+            icon: Icons.handyman_outlined,
+            title: 'Services',
+            subtitle: 'Catalog (no stock)',
+            onTap: () => _go(ref, 'inventory'),
+          ),
         _MoreTile(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Cash Register',
           subtitle: 'Open / close till shifts',
           onTap: () => _go(ref, 'register'),
         ),
-        if (role?.canInviteUsers == true)
+        if (role?.canInviteUsers == true &&
+            membership?.store.businessType != BusinessType.service)
           _MoreTile(
             icon: Icons.local_offer_outlined,
             title: 'Promos / Codes',
@@ -98,7 +128,9 @@ class MobileMoreView extends ConsumerWidget {
           _MoreTile(
             icon: Icons.assessment_outlined,
             title: 'Reports',
-            subtitle: 'Sales & inventory reports',
+            subtitle: membership.store.businessType == BusinessType.service
+                ? 'Quotes, bookings, deposits'
+                : 'Sales & inventory reports',
             onTap: () => _go(ref, 'reports'),
           ),
         _MoreTile(
@@ -132,28 +164,30 @@ class MobileMoreView extends ConsumerWidget {
             subtitle: 'Linked stores',
             onTap: () => showFranchiseDialog(context, ref),
           ),
-        _MoreTile(
-          icon: Icons.tv_outlined,
-          title: 'Customer Display',
-          subtitle: 'Second-screen cart',
-          onTap: () async {
-            final ok = await openCustomerDisplayWindow();
-            if (!context.mounted) return;
-            if (!ok) {
-              showAppMessage(
-                context,
-                'Could not open customer display',
-                isError: true,
-              );
-            }
-          },
-        ),
-        _MoreTile(
-          icon: Icons.auto_awesome,
-          title: 'Replay tutorial',
-          subtitle: 'Story walkthrough',
-          onTap: () => startRetailStory(ref),
-        ),
+        if (membership?.store.businessType != BusinessType.service)
+          _MoreTile(
+            icon: Icons.tv_outlined,
+            title: 'Customer Display',
+            subtitle: 'Second-screen cart',
+            onTap: () async {
+              final ok = await openCustomerDisplayWindow();
+              if (!context.mounted) return;
+              if (!ok) {
+                showAppMessage(
+                  context,
+                  'Could not open customer display',
+                  isError: true,
+                );
+              }
+            },
+          ),
+        if (membership?.store.businessType == BusinessType.retail)
+          _MoreTile(
+            icon: Icons.auto_awesome,
+            title: 'Replay tutorial',
+            subtitle: 'Story walkthrough',
+            onTap: () => startRetailStory(ref),
+          ),
         section('HELP'),
         _MoreTile(
           icon: Icons.notifications_none_rounded,

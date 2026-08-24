@@ -18,6 +18,7 @@ class StoreSummary {
     this.franchiseNotes,
     this.businessTin,
     this.businessAddress,
+    this.servicePricingMode,
   });
 
   final String id;
@@ -36,8 +37,17 @@ class StoreSummary {
   final String? franchiseNotes;
   final String? businessTin;
   final String? businessAddress;
+  final ServicePricingMode? servicePricingMode;
 
   bool get isFranchise => franchisorStoreId != null;
+
+  bool get isQuoteService =>
+      businessType == BusinessType.service &&
+      servicePricingMode == ServicePricingMode.quote;
+
+  bool get isFixedService =>
+      businessType == BusinessType.service &&
+      servicePricingMode != ServicePricingMode.quote;
 
   /// Cash is always available. Optional methods follow store settings.
   List<PaymentMethod> get enabledPaymentMethods => [
@@ -63,6 +73,7 @@ class StoreSummary {
     String? franchiseNotes,
     String? businessTin,
     String? businessAddress,
+    ServicePricingMode? servicePricingMode,
   }) {
     return StoreSummary(
       id: id,
@@ -80,6 +91,7 @@ class StoreSummary {
       franchiseNotes: franchiseNotes ?? this.franchiseNotes,
       businessTin: businessTin ?? this.businessTin,
       businessAddress: businessAddress ?? this.businessAddress,
+      servicePricingMode: servicePricingMode ?? this.servicePricingMode,
     );
   }
 
@@ -100,6 +112,9 @@ class StoreSummary {
       franchiseNotes: json['franchise_notes'] as String?,
       businessTin: json['business_tin'] as String?,
       businessAddress: json['business_address'] as String?,
+      servicePricingMode: json['service_pricing_mode'] is String
+          ? ServicePricingMode.fromValue(json['service_pricing_mode'] as String)
+          : null,
     );
   }
 }

@@ -73,6 +73,7 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
   late final TextEditingController _addressCtrl;
   late final bool _canEdit;
   late final BusinessType _type;
+  late final ServicePricingMode? _pricingMode;
   late final String _storeId;
   late final String _initialName;
   late final String _initialTin;
@@ -94,6 +95,7 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
     _storeId = membership.storeId;
     _canEdit = membership.role.canInviteUsers;
     _type = membership.store.businessType;
+    _pricingMode = membership.store.servicePricingMode;
     _initialName = membership.store.name;
     _initialTin = membership.store.businessTin ?? '';
     _initialAddress = membership.store.businessAddress ?? '';
@@ -224,16 +226,18 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
           child: Row(
             children: [
               Icon(
-                _type == BusinessType.retail
-                    ? Icons.storefront_rounded
-                    : Icons.restaurant_menu_rounded,
+                _type == BusinessType.service
+                    ? Icons.handyman_rounded
+                    : _type == BusinessType.retail
+                        ? Icons.storefront_rounded
+                        : Icons.restaurant_menu_rounded,
                 size: 18,
                 color: AppColors.slate700,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _type == BusinessType.retail ? 'Retail' : 'Restaurant',
+                  _type.label,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
@@ -250,7 +254,9 @@ class _StoreSettingsFormState extends ConsumerState<_StoreSettingsForm> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Chosen when the store was created and cannot be changed.',
+          _type == BusinessType.service
+              ? 'Service · ${(_pricingMode ?? ServicePricingMode.fixed).label}. Locked at create.'
+              : 'Chosen when the store was created and cannot be changed.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
         ),
         const SizedBox(height: 20),

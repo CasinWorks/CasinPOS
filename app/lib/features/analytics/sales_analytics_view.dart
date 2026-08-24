@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
+import '../../../domain/enums.dart';
 import '../onboarding/tutorial_anchors.dart';
 import 'sales_report_csv.dart';
 import 'sales_report_pdf.dart';
@@ -389,6 +390,8 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
 
   @override
   Widget build(BuildContext context) {
+    final isService =
+        ref.watch(activeMembershipProvider)?.store.businessType == BusinessType.service;
     final allOrders = ref.watch(paidOrdersProvider);
     final symbol = ref.watch(activeMembershipProvider)?.store.currencySymbol ?? '₱';
     final now = DateTime.now();
@@ -506,8 +509,8 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                       trendPct: revenueTrendPct,
                     ),
                     _Metric(
-                      title: 'Units / Orders Sold',
-                      value: '$packs Items',
+                      title: isService ? 'Jobs / line items' : 'Units / Orders Sold',
+                      value: isService ? '$packs booked' : '$packs Items',
                       sub: '${orders.length} checkout receipt${orders.length == 1 ? '' : 's'}',
                       stacked: stacked,
                     ),

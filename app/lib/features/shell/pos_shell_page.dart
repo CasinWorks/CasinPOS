@@ -26,6 +26,11 @@ import '../pos_retail/retail_pos_view.dart';
 import '../promos/discount_codes_view.dart';
 import '../receipts/receipts_audit_view.dart';
 import '../register/cash_register_view.dart';
+import '../service/quotes_view.dart';
+import '../service/service_bookings_view.dart';
+import '../service/service_catalog_view.dart';
+import '../service/service_customers_view.dart';
+import '../service/service_pos_view.dart';
 import '../support/store_support_view.dart';
 import 'casinpos_sidebar.dart';
 import 'mobile_account_sheet.dart';
@@ -96,18 +101,26 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
       return const Phase1HomePage();
     }
 
+    final isService = type == BusinessType.service;
+    final quoteMode = membership?.store.isQuoteService == true;
     final tab = ref.watch(retailTabProvider);
     final orderCount = ref.watch(paidOrdersProvider).length;
     final width = MediaQuery.sizeOf(context).width;
     final showSidebar = Breakpoints.useSidebar(width);
-    final showCart = Breakpoints.useCartTray(width);
+    final showCart = !isService && Breakpoints.useCartTray(width);
     ref.watch(cartDisplaySyncProvider);
     ref.watch(syncBootstrapProvider);
 
     Widget body;
     switch (tab) {
       case 'inventory':
-        body = const RetailInventoryView();
+        body = isService ? const ServiceCatalogView() : const RetailInventoryView();
+      case 'quotes':
+        body = const QuotesView();
+      case 'bookings':
+        body = const ServiceBookingsView();
+      case 'customers':
+        body = const ServiceCustomersView();
       case 'promos':
         body = const DiscountCodesView();
       case 'register':
@@ -129,9 +142,13 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
       case 'more':
         body = const MobileMoreView();
       default:
-        body = RetailPosView(
-          onOpenInventory: () => ref.read(retailTabProvider.notifier).state = 'inventory',
-        );
+        if (isService) {
+          body = quoteMode ? const QuotesView() : const ServicePosView();
+        } else {
+          body = RetailPosView(
+            onOpenInventory: () => ref.read(retailTabProvider.notifier).state = 'inventory',
+          );
+        }
     }
 
     final storeName = membership?.store.name ?? 'CasinPOS';
@@ -212,22 +229,32 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
               elevation: 3,
-              selectedIndex: _mobileIndex(tab),
+              selectedIndex: _mobileIndex(tab, isService: isService, quoteMode: quoteMode),
               onDestinationSelected: (i) {
-                ref.read(retailTabProvider.notifier).state = switch (i) {
-                  0 => 'checkout',
-                  1 => 'inventory',
-                  2 => 'orders',
-                  3 => 'receipts',
-                  _ => 'more',
-                };
+                ref.read(retailTabProvider.notifier).state = _mobileTab(
+                  i,
+                  isService: isService,
+                  quoteMode: quoteMode,
+                );
               },
-              destinations: const [
-                NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'POS'),
-                NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
-                NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
-                NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Receipts'),
-                NavigationDestination(icon: Icon(Icons.menu), label: 'More'),
+              destinations: [
+                if (isService && quoteMode) ...const [
+                  NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Quotes'),
+                  NavigationDestination(icon: Icon(Icons.event_outlined), label: 'Bookings'),
+                  NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
+                  NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Receipts'),
+                ] else if (isService) ...const [
+                  NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'POS'),
+                  NavigationDestination(icon: Icon(Icons.handyman_outlined), label: 'Services'),
+                  NavigationDestination(icon: Icon(Icons.event_outlined), label: 'Bookings'),
+                  NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
+                ] else ...const [
+                  NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'POS'),
+                  NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
+                  NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Sales'),
+                  NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Receipts'),
+                ],
+                const NavigationDestination(icon: Icon(Icons.menu), label: 'More'),
               ],
             ),
           )
@@ -257,23 +284,70 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     return Stack(
       children: [
         shell,
-        if (!showSidebar && tab == 'checkout')
+        if (!isService && !showSidebar && tab == 'checkout')
           Positioned(
             right: 16,
             bottom: 72 + 16, // NavigationBarTheme height + padding
             child: const MobileCartFab(),
           ),
-        const RetailStoryOverlay(),
+        if (!isService) const RetailStoryOverlay(),
       ],
     );
   }
 
-  int _mobileIndex(String tab) => switch (tab) {
-        'checkout' => 0,
-        'inventory' => 1,
+  int _mobileIndex(String tab, {required bool isService, required bool quoteMode}) {
+    if (isService && quoteMode) {
+      return switch (tab) {
+        'checkout' || 'quotes' => 0,
+        'bookings' => 1,
         'orders' => 2,
         'receipts' => 3,
-        // Everything else (register, promos, reports, ops, support, …) → More
         _ => 4,
       };
+    }
+    if (isService) {
+      return switch (tab) {
+        'checkout' => 0,
+        'inventory' => 1,
+        'bookings' => 2,
+        'orders' => 3,
+        _ => 4,
+      };
+    }
+    return switch (tab) {
+      'checkout' => 0,
+      'inventory' => 1,
+      'orders' => 2,
+      'receipts' => 3,
+      _ => 4,
+    };
+  }
+
+  String _mobileTab(int i, {required bool isService, required bool quoteMode}) {
+    if (isService && quoteMode) {
+      return switch (i) {
+        0 => 'quotes',
+        1 => 'bookings',
+        2 => 'orders',
+        3 => 'receipts',
+        _ => 'more',
+      };
+    }
+    if (isService) {
+      return switch (i) {
+        0 => 'checkout',
+        1 => 'inventory',
+        2 => 'bookings',
+        3 => 'orders',
+        _ => 'more',
+      };
+    }
+    return switch (i) {
+      0 => 'checkout',
+      1 => 'inventory',
+      2 => 'orders',
+      3 => 'receipts',
+      _ => 'more',
+    };
+  }
 }

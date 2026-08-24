@@ -8,6 +8,10 @@ import '../../core/export/export_text_file.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/report_models.dart';
 import '../../data/providers/report_providers.dart';
+import '../../data/providers/service_providers.dart';
+import '../../data/providers/session_providers.dart';
+import '../../domain/enums.dart';
+import '../service/service_reports_view.dart';
 import 'report_scope_bar.dart';
 
 class ReportsHubView extends ConsumerStatefulWidget {
@@ -48,6 +52,9 @@ class _ReportsHubViewState extends ConsumerState<ReportsHubView>
       );
     }
 
+    final isService =
+        ref.watch(activeMembershipProvider)?.store.businessType == BusinessType.service;
+
     return ColoredBox(
       color: Colors.white,
       child: Column(
@@ -67,23 +74,25 @@ class _ReportsHubViewState extends ConsumerState<ReportsHubView>
             labelColor: AppColors.slate900,
             unselectedLabelColor: AppColors.slate500,
             indicatorColor: AppColors.accent,
-            tabs: const [
-              Tab(text: 'Dashboard'),
-              Tab(text: 'Inventory'),
-              Tab(text: 'Sales'),
-              Tab(text: 'Profitability'),
-              Tab(text: 'Trends'),
+            tabs: [
+              const Tab(text: 'Dashboard'),
+              Tab(text: isService ? 'Quotes' : 'Inventory'),
+              const Tab(text: 'Sales'),
+              Tab(text: isService ? 'Bookings' : 'Profitability'),
+              const Tab(text: 'Trends'),
             ],
           ),
           Expanded(
             child: TabBarView(
               controller: _tabs,
-              children: const [
-                _DashboardTab(),
-                _InventoryTab(),
-                _SalesTab(),
-                _ProfitTab(),
-                _TrendsTab(),
+              children: [
+                _DashboardTab(isService: isService),
+                isService
+                    ? const ServiceReportsView(embedded: true)
+                    : const _InventoryTab(),
+                const _SalesTab(),
+                isService ? const _ServiceBookingsReportTab() : const _ProfitTab(),
+                const _TrendsTab(),
               ],
             ),
           ),
@@ -118,17 +127,21 @@ String _branchLabel(WidgetRef ref) {
     ref.read(reportDateRangeProvider);
 
 class _DashboardTab extends ConsumerWidget {
-  const _DashboardTab();
+  const _DashboardTab({this.isService = false});
+
+  final bool isService;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(reportDashboardProvider);
+    final serviceAsync = isService ? ref.watch(serviceReportStatsProvider) : null;
     final money = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text(friendlyError(e))),
       data: (stats) {
         if (stats == null) return const SizedBox.shrink();
+        final service = serviceAsync?.valueOrNull;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -137,35 +150,57 @@ class _DashboardTab extends ConsumerWidget {
               runSpacing: 12,
               children: [
                 _MetricCard(
-                  label: 'Revenue',
-                  value: money.format(stats.revenue),
-                  changePct: stats.revenueChangePct,
+                  label: isService ? 'Collected revenue' : 'Revenue',
+                  value: money.format(
+                    isService ? (service?.collectedRevenue ?? stats.revenue) : stats.revenue,
+                  ),
+                  changePct: isService ? null : stats.revenueChangePct,
                 ),
                 _MetricCard(
-                  label: 'Units sold',
-                  value: NumberFormat.compact().format(stats.unitsSold),
-                  changePct: stats.unitsChangePct,
+                  label: isService ? 'Paid jobs' : 'Units sold',
+                  value: isService
+                      ? '${service?.paidJobs ?? stats.transactions}'
+                      : NumberFormat.compact().format(stats.unitsSold),
+                  changePct: isService ? null : stats.unitsChangePct,
                 ),
                 _MetricCard(
                   label: 'Transactions',
                   value: '${stats.transactions}',
                 ),
-                _MetricCard(
-                  label: 'Inventory value',
-                  value: money.format(stats.inventoryValue),
-                ),
-                _MetricCard(
-                  label: 'Low stock',
-                  value: '${stats.lowStockCount}',
-                ),
-                _MetricCard(
-                  label: 'Dead stock (30d)',
-                  value: '${stats.deadStockCount}',
-                ),
+                if (isService) ...[
+                  _MetricCard(
+                    label: 'Quote conversion',
+                    value: '${service?.conversionRate ?? 0}%',
+                  ),
+                  _MetricCard(
+                    label: 'Outstanding deposits',
+                    value: money.format(service?.outstandingDeposits ?? 0),
+                  ),
+                  _MetricCard(
+                    label: 'Upcoming bookings',
+                    value: '${service?.upcomingBookings ?? 0}',
+                  ),
+                ] else ...[
+                  _MetricCard(
+                    label: 'Inventory value',
+                    value: money.format(stats.inventoryValue),
+                  ),
+                  _MetricCard(
+                    label: 'Low stock',
+                    value: '${stats.lowStockCount}',
+                  ),
+                  _MetricCard(
+                    label: 'Dead stock (30d)',
+                    value: '${stats.deadStockCount}',
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 20),
-            const Text('Top products', style: TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              isService ? 'Top services' : 'Top products',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 200,
@@ -289,6 +324,46 @@ class _MetricCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ServiceBookingsReportTab extends ConsumerWidget {
+  const _ServiceBookingsReportTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(serviceReportStatsProvider);
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text(friendlyError(e))),
+      data: (stats) {
+        if (stats == null) {
+          return const Center(child: Text('No booking stats for this range.'));
+        }
+        final money = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _MetricCard(label: 'Upcoming', value: '${stats.upcomingBookings}'),
+                _MetricCard(label: 'Completed', value: '${stats.completedBookings}'),
+                _MetricCard(
+                  label: 'Outstanding deposits',
+                  value: money.format(stats.outstandingDeposits),
+                ),
+                _MetricCard(
+                  label: 'Collected revenue',
+                  value: money.format(stats.collectedRevenue),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
