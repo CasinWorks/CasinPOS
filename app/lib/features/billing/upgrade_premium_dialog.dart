@@ -1,14 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../data/models/store_models.dart';
 import '../../data/providers/session_providers.dart';
 import '../../domain/enums.dart';
 import 'billing_providers.dart';
+import 'paymongo_billing.dart';
 
 enum UpgradeReason {
   teamSeats,
@@ -16,7 +21,7 @@ enum UpgradeReason {
   general,
 }
 
-/// Premium upgrade via Apple / Google IAP (RevenueCat). Mobile apps only.
+/// Premium upgrade: Apple/Google IAP on mobile, PayMongo QR on web.
 Future<void> showUpgradePremiumDialog(
   BuildContext context, {
   UpgradeReason reason = UpgradeReason.general,
@@ -58,6 +63,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
   bool _busy = false;
   String? _error;
   Package? _package;
+  PaymongoCheckout? _webCheckout;
+  PaymongoPriceQuote? _webQuote;
+  bool _polling = false;
+  DateTime? _periodEndBefore;
 
   String get _headline => switch (widget.reason) {
         UpgradeReason.teamSeats => 'Need more team seats?',
@@ -74,7 +83,25 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPackage());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kIsWeb) {
+        _loadWebQuote();
+      } else {
+        _loadPackage();
+      }
+    });
+  }
+
+  Future<void> _loadWebQuote() async {
+    final storeId = _resolvedStoreId;
+    if (storeId.isEmpty) return;
+    try {
+      final quote = await fetchPremiumPaymongoQuote(storeId: storeId);
+      if (!mounted) return;
+      setState(() => _webQuote = quote);
+    } catch (_) {
+      // Offer still shows $2.99; peso amount appears on the PayMongo sheet.
+    }
   }
 
   Future<void> _loadPackage() async {
@@ -90,15 +117,27 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     }
   }
 
-  Future<void> _finishIfPremium(String storeId, {String? syncError}) async {
+  Future<void> _finishIfPremium(
+    String storeId, {
+    String? syncError,
+    DateTime? requirePeriodAfter,
+  }) async {
     ref.invalidate(membershipsProvider);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final memberships = await ref.read(membershipsProvider.future);
-    final isPremium = memberships.any(
-      (m) => m.storeId == storeId && m.store.planTier == PlanTier.premium,
-    );
+    StoreMembership? found;
+    for (final m in memberships) {
+      if (m.storeId == storeId) {
+        found = m;
+        break;
+      }
+    }
+    final isPremium = found?.store.planTier == PlanTier.premium;
+    final end = found?.store.premiumPeriodEnd;
+    final periodOk = requirePeriodAfter == null ||
+        (end != null && end.isAfter(requirePeriodAfter));
     if (!mounted) return;
-    if (isPremium) {
+    if (isPremium && periodOk) {
       Navigator.pop(context);
       await showDialog<void>(
         context: context,
@@ -120,6 +159,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     }
     setState(() {
       _busy = false;
+      _polling = false;
       _error = syncError ??
           'Apple may still have Premium, but this store is not unlocked yet. '
               'Tap Restore again in a few seconds.';
@@ -206,10 +246,101 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     }
   }
 
+  Future<void> _startWebCheckout() async {
+    final storeId = _resolvedStoreId;
+    if (storeId.isEmpty) {
+      setState(() => _error = 'No store selected.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final current = ref.read(activeMembershipProvider);
+      final already = current != null &&
+          current.storeId == storeId &&
+          current.store.planTier == PlanTier.premium;
+      _periodEndBefore = already ? current.store.premiumPeriodEnd : null;
+      final checkout = await createPremiumPaymongoCheckout(storeId: storeId);
+      if (!mounted) return;
+      setState(() {
+        _webCheckout = checkout;
+        _busy = false;
+      });
+      await _openCheckoutUrl(checkout.checkoutUrl);
+      await _pollUntilPremium(storeId);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = friendlyError(e, fallback: 'Couldn’t start PayMongo checkout');
+      });
+    }
+  }
+
+  Future<void> _openCheckoutUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, webOnlyWindowName: '_blank');
+    } catch (_) {}
+  }
+
+  Future<void> _pollUntilPremium(String storeId) async {
+    if (_polling) return;
+    setState(() => _polling = true);
+    for (var i = 0; i < 90; i++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      ref.invalidate(membershipsProvider);
+      try {
+        final memberships = await ref.read(membershipsProvider.future);
+        StoreMembership? found;
+        for (final m in memberships) {
+          if (m.storeId == storeId) {
+            found = m;
+            break;
+          }
+        }
+        if (found?.store.planTier != PlanTier.premium) continue;
+        final end = found!.store.premiumPeriodEnd;
+        final required = _periodEndBefore;
+        if (required != null && (end == null || !end.isAfter(required))) {
+          continue;
+        }
+        setState(() => _polling = false);
+        await _finishIfPremium(storeId, requirePeriodAfter: required);
+        return;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _polling = false;
+      _error =
+          'Still waiting for payment. If you already paid, tap Check payment.';
+    });
+  }
+
+  Future<void> _checkPayment() async {
+    final storeId = _resolvedStoreId;
+    if (storeId.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    await _finishIfPremium(
+      storeId,
+      requirePeriodAfter: _periodEndBefore,
+      syncError:
+          'Payment not recorded yet. Finish checkout on your phone, then tap Check payment.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = ref.watch(revenueCatServiceProvider);
-    ref.watch(revenueCatBootstrapProvider);
+    if (!kIsWeb) ref.watch(revenueCatBootstrapProvider);
     final iapReady = service.isConfigured;
     final price = service.priceString(_package);
     final membership = ref.watch(activeMembershipProvider);
@@ -218,6 +349,18 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         membership.storeId == storeId &&
         membership.store.planTier == PlanTier.premium;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final pad = EdgeInsets.fromLTRB(20, 0, 20, 16 + bottomInset);
+
+    if (_webCheckout != null) {
+      return Padding(padding: pad, child: _webPayBody());
+    }
+
+    if (alreadyPremium && kIsWeb && membership.store.isPaymongoPremium) {
+      return Padding(
+        padding: pad,
+        child: _paymongoActiveBody(membership.store.premiumPeriodEnd),
+      );
+    }
 
     if (alreadyPremium) {
       return Padding(
@@ -246,18 +389,19 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       );
     }
 
+    if (kIsWeb) {
+      return Padding(padding: pad, child: _webOfferBody());
+    }
+
     final body = iapReady
         ? 'Unlock Premium for this store. Billing goes through Apple or Google.\n\n'
             'Already subscribed on this phone? Tap Subscribe or Restore — '
             'we unlock this store without charging again until the period ends.'
-        : kIsWeb
-            ? 'Premium is sold only in the CasinPOS iOS and Android apps. '
-                'Open the mobile app as the store Owner, then upgrade.'
-            : 'This build has no RevenueCat API key. Relaunch with '
-                'scripts/run_ios_billing.sh';
+        : 'This build has no RevenueCat API key. Relaunch with '
+            'scripts/run_ios_billing.sh';
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + bottomInset),
+      padding: pad,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -283,36 +427,8 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
             const SizedBox(height: 12),
             Text(body, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.lg),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.slate100,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.slate200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'What you get on Premium',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('· More than 2 team seats',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  Text('· Higher monthly sales allowance',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  Text('· Multi-branch, franchise & aggregate reports',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  if (price != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      'Premium monthly — $price',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                ],
-              ),
+            _benefitsCard(
+              price == null ? null : 'Premium monthly — $price',
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -354,6 +470,238 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _benefitsCard(String? priceLine) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'What you get on Premium',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text('· More than 2 team seats',
+              style: Theme.of(context).textTheme.bodySmall),
+          Text('· Higher monthly sales allowance',
+              style: Theme.of(context).textTheme.bodySmall),
+          Text('· Multi-branch, franchise & aggregate reports',
+              style: Theme.of(context).textTheme.bodySmall),
+          if (priceLine != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              priceLine,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _webOfferBody() {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _headline,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          if (widget.storeName != null &&
+              widget.storeName!.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Store: ${widget.storeName!.trim()}',
+              style: const TextStyle(
+                color: AppColors.slate500,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Pay on the web with GCash, Maya, QR Ph, or card. '
+            'Premium is \$2.99 USD; PayMongo charges the peso equivalent at today’s rate. '
+            'Each payment unlocks 30 days. iPhone billing stays in the iOS app.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _benefitsCard(
+            _webQuote?.priceLine ?? 'Premium — \$2.99 for 30 days (pesos at today’s rate)',
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (_busy) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          FilledButton(
+            onPressed: _busy ? null : _startWebCheckout,
+            child: const Text('Pay with QR / GCash / Maya'),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.pop(context),
+            child: const Text('Not now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymongoActiveBody(DateTime? periodEnd) {
+    final until = periodEnd == null
+        ? null
+        : DateFormat.yMMMMd().format(periodEnd.toLocal());
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'You’re on Premium',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            until == null
+                ? 'This store is billed on the web via PayMongo.'
+                : 'This store is billed on the web via PayMongo through $until. '
+                    'Pay again to add 30 more days.',
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (_busy) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: _busy ? null : _startWebCheckout,
+            child: const Text('Renew 30 days'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _busy ? null : () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _webPayBody() {
+    final checkout = _webCheckout!;
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Scan to pay ${checkout.amountLabel}',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Use GCash, Maya, QR Ph, or a card on your phone. '
+            '\$${checkout.usd.toStringAsFixed(2)} USD converts to ${checkout.amountLabel} today. '
+            'This screen unlocks Premium when PayMongo confirms payment.',
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.slate200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: QrImageView(
+                  data: checkout.checkoutUrl,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          if (_polling) ...[
+            const SizedBox(height: 16),
+            const Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 8),
+            const Text(
+              'Waiting for payment…',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.slate500),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () => _openCheckoutUrl(checkout.checkoutUrl),
+            child: const Text('Open payment page'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _busy ? null : _checkPayment,
+            child: const Text('Check payment'),
+          ),
+          TextButton(
+            onPressed: _polling
+                ? null
+                : () => setState(() {
+                      _webCheckout = null;
+                      _error = null;
+                    }),
+            child: const Text('Back'),
+          ),
+        ],
       ),
     );
   }

@@ -97,11 +97,26 @@ class StoreRepository {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return [];
 
-    final rows = await _client
-        .from('store_members')
-        .select('id, store_id, role, branch_ids, stores(*)')
-        .eq('user_id', uid)
-        .eq('status', 'active');
+    try {
+      await _client.rpc('expire_stale_paymongo_premium');
+    } catch (_) {}
+
+    Object rows;
+    try {
+      rows = await _client
+          .from('store_members')
+          .select(
+            'id, store_id, role, branch_ids, stores(*, subscriptions(provider, status, plan_tier, current_period_end))',
+          )
+          .eq('user_id', uid)
+          .eq('status', 'active');
+    } catch (_) {
+      rows = await _client
+          .from('store_members')
+          .select('id, store_id, role, branch_ids, stores(*)')
+          .eq('user_id', uid)
+          .eq('status', 'active');
+    }
 
     return (rows as List)
         .map((e) => StoreMembership.fromJson(Map<String, dynamic>.from(e as Map)))

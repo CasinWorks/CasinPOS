@@ -19,6 +19,8 @@ class StoreSummary {
     this.businessTin,
     this.businessAddress,
     this.servicePricingMode,
+    this.billingProvider,
+    this.premiumPeriodEnd,
   });
 
   final String id;
@@ -38,8 +40,19 @@ class StoreSummary {
   final String? businessTin;
   final String? businessAddress;
   final ServicePricingMode? servicePricingMode;
+  /// `paymongo`, `revenuecat`, `app_store`, `play_store`, or `manual`.
+  final String? billingProvider;
+  final DateTime? premiumPeriodEnd;
 
   bool get isFranchise => franchisorStoreId != null;
+
+  bool get isPaymongoPremium =>
+      planTier == PlanTier.premium && billingProvider == 'paymongo';
+
+  bool get isAppStorePremium =>
+      planTier == PlanTier.premium &&
+      const {'revenuecat', 'app_store', 'play_store'}
+          .contains(billingProvider);
 
   bool get isQuoteService =>
       businessType == BusinessType.service &&
@@ -74,6 +87,8 @@ class StoreSummary {
     String? businessTin,
     String? businessAddress,
     ServicePricingMode? servicePricingMode,
+    String? billingProvider,
+    DateTime? premiumPeriodEnd,
   }) {
     return StoreSummary(
       id: id,
@@ -92,10 +107,13 @@ class StoreSummary {
       businessTin: businessTin ?? this.businessTin,
       businessAddress: businessAddress ?? this.businessAddress,
       servicePricingMode: servicePricingMode ?? this.servicePricingMode,
+      billingProvider: billingProvider ?? this.billingProvider,
+      premiumPeriodEnd: premiumPeriodEnd ?? this.premiumPeriodEnd,
     );
   }
 
   factory StoreSummary.fromJson(Map<String, dynamic> json) {
+    final sub = _subscriptionMap(json['subscriptions']);
     return StoreSummary(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -115,7 +133,19 @@ class StoreSummary {
       servicePricingMode: json['service_pricing_mode'] is String
           ? ServicePricingMode.fromValue(json['service_pricing_mode'] as String)
           : null,
+      billingProvider: sub?['provider'] as String?,
+      premiumPeriodEnd: DateTime.tryParse(
+        sub?['current_period_end'] as String? ?? '',
+      ),
     );
+  }
+
+  static Map<String, dynamic>? _subscriptionMap(Object? raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is List && raw.isNotEmpty && raw.first is Map) {
+      return Map<String, dynamic>.from(raw.first as Map);
+    }
+    return null;
   }
 }
 

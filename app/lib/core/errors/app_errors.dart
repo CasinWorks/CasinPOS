@@ -284,6 +284,16 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('STORE_NOT_FOUND')) {
     return 'Store not found.';
   }
+  if (s.contains('BILLED_VIA_APP_STORE')) {
+    return 'This store is already billed through the iPhone or Android app. '
+        'Manage Premium there — don’t pay again on the web.';
+  }
+  if (s.contains('PAYMONGO_NOT_CONFIGURED')) {
+    return 'Web billing is not set up yet. Try again later, or upgrade in the iOS app.';
+  }
+  if (s.contains('CHECKOUT_FAILED')) {
+    return 'Couldn’t start PayMongo checkout. Please try again.';
+  }
   if (s.contains('STORE_SUSPENDED')) {
     return 'This store is suspended. Contact CasinPOS support.';
   }
