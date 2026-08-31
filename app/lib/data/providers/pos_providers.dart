@@ -414,22 +414,7 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
   void markSynced(String localId) {
     state = [
       for (final o in state)
-        if (o.id == localId)
-          PosOrder(
-            id: o.id,
-            orderNo: o.orderNo,
-            items: o.items,
-            subtotal: o.subtotal,
-            tax: o.tax,
-            total: o.total,
-            paymentMethod: o.paymentMethod,
-            timestampLabel: o.timestampLabel,
-            createdAt: o.createdAt,
-            status: o.status,
-            synced: true,
-          )
-        else
-          o,
+        if (o.id == localId) o.copyWith(synced: true) else o,
     ];
     unawaited(_persistOrders());
   }
@@ -452,6 +437,9 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
     required double changeGiven,
     String? discountCode,
     double discountAmount = 0,
+    String? customerName,
+    String? customerPhone,
+    String? customerAddress,
   }) async {
     final membership = _ref.read(activeMembershipProvider);
     if (membership == null) {
@@ -482,6 +470,9 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
       synced: false,
       discountCode: discountCode,
       discountAmount: discountAmount,
+      customerName: customerName,
+      customerPhone: customerPhone,
+      customerAddress: customerAddress,
     );
     String? warning;
 
@@ -502,6 +493,9 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
       'currencyCode': membership.store.currencyCode,
       'discountCode': discountCode,
       'discountAmount': discountAmount,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'customerAddress': customerAddress,
     };
 
     final online = isSupabaseReady && _ref.read(cloudReachableProvider);
@@ -520,6 +514,9 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
           currencyCode: membership.store.currencyCode,
           discountCode: discountCode,
           discountAmount: discountAmount,
+          customerName: customerName,
+          customerPhone: customerPhone,
+          customerAddress: customerAddress,
         );
       } catch (e) {
         warning = kOfflineQueuedSaleMessage;
@@ -605,22 +602,7 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
 
     state = [
       for (final o in state)
-        if (o.id == order.id)
-          PosOrder(
-            id: o.id,
-            orderNo: o.orderNo,
-            items: o.items,
-            subtotal: o.subtotal,
-            tax: o.tax,
-            total: o.total,
-            paymentMethod: o.paymentMethod,
-            timestampLabel: o.timestampLabel,
-            createdAt: o.createdAt,
-            status: 'Voided',
-            synced: o.synced,
-          )
-        else
-          o,
+        if (o.id == order.id) o.copyWith(status: 'Voided') else o,
     ];
     await _persistOrders();
 
@@ -702,16 +684,8 @@ class OrdersNotifier extends StateNotifier<List<PosOrder>> {
             ];
             final nextRefunded = o.refundedTotal + refundAmount;
             final fully = updatedItems.every((i) => i.refundableQty <= 0);
-            return PosOrder(
-              id: o.id,
-              orderNo: o.orderNo,
+            return o.copyWith(
               items: updatedItems,
-              subtotal: o.subtotal,
-              tax: o.tax,
-              total: o.total,
-              paymentMethod: o.paymentMethod,
-              timestampLabel: o.timestampLabel,
-              createdAt: o.createdAt,
               status: fully ? 'Refunded' : 'Partial refund',
               synced: o.synced && online,
               refundedTotal: nextRefunded,
@@ -742,6 +716,9 @@ class CheckoutSettings {
     this.discountCode,
     this.discountKind,
     this.discountValue = 0,
+    this.customerName = '',
+    this.customerPhone = '',
+    this.customerAddress = '',
   });
 
   final PaymentMethod paymentMethod;
@@ -749,12 +726,30 @@ class CheckoutSettings {
   final String? discountCode;
   final DiscountKind? discountKind;
   final double discountValue;
+  final String customerName;
+  final String customerPhone;
+  final String customerAddress;
 
   bool get hasDiscount =>
       discountCode != null &&
       discountCode!.isNotEmpty &&
       discountValue > 0 &&
       discountKind != null;
+
+  String? get trimmedCustomerName {
+    final v = customerName.trim();
+    return v.isEmpty ? null : v;
+  }
+
+  String? get trimmedCustomerPhone {
+    final v = customerPhone.trim();
+    return v.isEmpty ? null : v;
+  }
+
+  String? get trimmedCustomerAddress {
+    final v = customerAddress.trim();
+    return v.isEmpty ? null : v;
+  }
 
   CheckoutSettings copyWith({
     PaymentMethod? paymentMethod,
@@ -763,6 +758,10 @@ class CheckoutSettings {
     DiscountKind? discountKind,
     double? discountValue,
     bool clearDiscount = false,
+    String? customerName,
+    String? customerPhone,
+    String? customerAddress,
+    bool clearCustomer = false,
   }) {
     return CheckoutSettings(
       paymentMethod: paymentMethod ?? this.paymentMethod,
@@ -770,6 +769,9 @@ class CheckoutSettings {
       discountCode: clearDiscount ? null : (discountCode ?? this.discountCode),
       discountKind: clearDiscount ? null : (discountKind ?? this.discountKind),
       discountValue: clearDiscount ? 0 : (discountValue ?? this.discountValue),
+      customerName: clearCustomer ? '' : (customerName ?? this.customerName),
+      customerPhone: clearCustomer ? '' : (customerPhone ?? this.customerPhone),
+      customerAddress: clearCustomer ? '' : (customerAddress ?? this.customerAddress),
     );
   }
 }
@@ -779,6 +781,11 @@ class CheckoutSettingsNotifier extends StateNotifier<CheckoutSettings> {
 
   void setPayment(PaymentMethod m) => state = state.copyWith(paymentMethod: m);
   void setVat(VatMode m) => state = state.copyWith(vatMode: m);
+
+  void setCustomerName(String value) => state = state.copyWith(customerName: value);
+  void setCustomerPhone(String value) => state = state.copyWith(customerPhone: value);
+  void setCustomerAddress(String value) => state = state.copyWith(customerAddress: value);
+  void clearCustomer() => state = state.copyWith(clearCustomer: true);
 
   void applyDiscountCode(DiscountCode code) {
     state = state.copyWith(

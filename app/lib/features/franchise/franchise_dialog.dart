@@ -10,8 +10,10 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/touch_targets.dart';
 import '../../../data/models/store_models.dart';
 import '../../../data/providers/session_providers.dart';
+import '../../../domain/enums.dart';
 import '../../../domain/permissions.dart';
 import '../auth/confirm_password.dart';
+import '../billing/upgrade_premium_dialog.dart';
 
 Future<void> showFranchiseDialog(BuildContext context, WidgetRef ref) async {
   final membership = ref.read(activeMembershipProvider);
@@ -88,6 +90,16 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
   }
 
   Future<void> _submit() async {
+    final membership = ref.read(activeMembershipProvider);
+    if (membership?.store.planTier == PlanTier.free) {
+      await showUpgradePremiumDialog(
+        context,
+        reason: UpgradeReason.franchise,
+        storeName: membership?.store.name,
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
@@ -146,7 +158,18 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
                 : 'Franchise opened — share the invite link with ${result.ownerEmail}.'),
       );
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (!mounted) return;
+      final msg = friendlyError(e);
+      if (msg.contains('FREE_FRANCHISE_NOT_ALLOWED') ||
+          msg.toLowerCase().contains('upgrade to premium')) {
+        await showUpgradePremiumDialog(
+          context,
+          reason: UpgradeReason.franchise,
+          storeName: membership?.store.name,
+        );
+      } else {
+        setState(() => _error = msg);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -229,6 +252,9 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final membership = ref.watch(activeMembershipProvider);
+    final isFree = membership?.store.planTier == PlanTier.free;
+
     return AlertDialog(
       title: const Text('Franchise'),
       content: SizedBox(
@@ -240,6 +266,44 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (isFree) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.accentDeep.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.stars_rounded, color: AppColors.brandOrange, size: 24),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Franchise is a Premium feature',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Opening franchise stores is not allowed on the Free plan. '
+                                'Upgrade to Premium to clone your catalog and invite partner franchisees.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.slate700,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 Text(
                   'Open a franchise store for a partner. Catalog (products, prices, '
                   'SKUs, categories, images) is cloned; stock levels stay independent after that.',
@@ -249,6 +313,7 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
+                  enabled: !isFree && !_loading,
                   decoration: const InputDecoration(
                     labelText: 'Franchise store name',
                     hintText: 'e.g. Cascade Café — Makati',
@@ -261,6 +326,7 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
+                  enabled: !isFree && !_loading,
                   decoration: const InputDecoration(
                     labelText: 'Franchisee owner email',
                     hintText: 'owner@example.com',
@@ -276,6 +342,7 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
                 TextFormField(
                   controller: _notesCtrl,
                   maxLines: 2,
+                  enabled: !isFree && !_loading,
                   decoration: const InputDecoration(
                     labelText: 'Notes (optional)',
                     hintText: 'Location, agreement ref…',
@@ -285,7 +352,9 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _copyStock,
-                  onChanged: _loading ? null : (v) => setState(() => _copyStock = v),
+                  onChanged: (isFree || _loading)
+                      ? null
+                      : (v) => setState(() => _copyStock = v),
                   title: const Text(
                     'Copy current stock quantities',
                     style: TextStyle(fontWeight: FontWeight.w700),
@@ -342,20 +411,37 @@ class _FranchiseDialogState extends ConsumerState<_FranchiseDialog> {
           onPressed: (_loading || _deletingId != null) ? null : () => Navigator.pop(context),
           child: const Text('Close'),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            minimumSize: TouchTargets.buttonMin,
-            padding: TouchTargets.buttonPadding,
+        if (isFree)
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accentDeep,
+              foregroundColor: AppColors.ink,
+              minimumSize: TouchTargets.buttonMin,
+              padding: TouchTargets.buttonPadding,
+            ),
+            onPressed: () => showUpgradePremiumDialog(
+              context,
+              reason: UpgradeReason.franchise,
+              storeName: membership?.store.name,
+            ),
+            icon: const Icon(Icons.lock_outline, size: 16),
+            label: const Text('Upgrade to Open Franchise'),
+          )
+        else
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: TouchTargets.buttonMin,
+              padding: TouchTargets.buttonPadding,
+            ),
+            onPressed: (_loading || _deletingId != null) ? null : _submit,
+            child: _loading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Open franchise'),
           ),
-          onPressed: (_loading || _deletingId != null) ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Open franchise'),
-        ),
       ],
     );
   }

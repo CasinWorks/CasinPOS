@@ -18,6 +18,7 @@ import 'paymongo_billing.dart';
 enum UpgradeReason {
   teamSeats,
   monthlyTransactions,
+  franchise,
   general,
 }
 
@@ -71,6 +72,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
   String get _headline => switch (widget.reason) {
         UpgradeReason.teamSeats => 'Need more team seats?',
         UpgradeReason.monthlyTransactions => 'Monthly sales limit reached',
+        UpgradeReason.franchise => 'Open franchise stores with Premium',
         UpgradeReason.general => 'Upgrade to Premium',
       };
 

@@ -265,6 +265,35 @@ class _SaleHistoryCard extends StatelessWidget {
                               decoration: muted ? TextDecoration.lineThrough : null,
                             ),
                           ),
+                          if (order.hasCustomerDetails) ...[
+                            const SizedBox(height: 4),
+                            if (order.customerName != null &&
+                                order.customerName!.trim().isNotEmpty)
+                              Text(
+                                order.customerName!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: muted ? AppColors.slate400 : AppColors.ink,
+                                ),
+                              ),
+                            if (order.customerPhone != null &&
+                                order.customerPhone!.trim().isNotEmpty)
+                              Text(
+                                order.customerPhone!,
+                                style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                              ),
+                            if (order.customerAddress != null &&
+                                order.customerAddress!.trim().isNotEmpty)
+                              Text(
+                                order.customerAddress!,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.slate500,
+                                  height: 1.25,
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     ),

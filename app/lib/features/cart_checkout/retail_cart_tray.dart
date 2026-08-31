@@ -25,11 +25,24 @@ class RetailCartTray extends ConsumerStatefulWidget {
 
 class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
   final _promoCtrl = TextEditingController();
+  final _customerNameCtrl = TextEditingController();
+  final _customerPhoneCtrl = TextEditingController();
+  final _customerAddressCtrl = TextEditingController();
 
   @override
   void dispose() {
     _promoCtrl.dispose();
+    _customerNameCtrl.dispose();
+    _customerPhoneCtrl.dispose();
+    _customerAddressCtrl.dispose();
     super.dispose();
+  }
+
+  void _clearCustomerFields() {
+    _customerNameCtrl.clear();
+    _customerPhoneCtrl.clear();
+    _customerAddressCtrl.clear();
+    ref.read(checkoutSettingsProvider.notifier).clearCustomer();
   }
 
   Future<void> _checkout() async {
@@ -103,10 +116,14 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
             changeGiven: change,
             discountCode: settings.hasDiscount ? settings.discountCode : null,
             discountAmount: totals.discount,
+            customerName: settings.trimmedCustomerName,
+            customerPhone: settings.trimmedCustomerPhone,
+            customerAddress: settings.trimmedCustomerAddress,
           );
       await ref.read(posCatalogProvider.notifier).deductForSale(cart);
       ref.read(cartProvider.notifier).clear();
       ref.read(checkoutSettingsProvider.notifier).clearDiscount();
+      _clearCustomerFields();
       if (method == PaymentMethod.cash && result.warning == null) {
         unawaited(ref.read(cashRegisterProvider.notifier).refresh());
       }
@@ -321,6 +338,83 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
                           if (i > 0) const SizedBox(height: 8),
                           _CartLineTile(index: i, line: cart[i]),
                         ],
+                      const Divider(height: 24),
+                      const Text(
+                        'CUSTOMER / SHIPPING (OPTIONAL)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.slate400,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Para sa paid now, ship later (LBC). Madaling hanapin sa Messenger.',
+                        style: TextStyle(fontSize: 10, color: AppColors.slate500, height: 1.3),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _customerNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.next,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        onChanged: (v) =>
+                            ref.read(checkoutSettingsProvider.notifier).setCustomerName(v),
+                        decoration: InputDecoration(
+                          labelText: 'Customer name',
+                          hintText: 'e.g. Juan Dela Cruz',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.slate200),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _customerPhoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        onChanged: (v) =>
+                            ref.read(checkoutSettingsProvider.notifier).setCustomerPhone(v),
+                        decoration: InputDecoration(
+                          labelText: 'CP number',
+                          hintText: '09xxxxxxxxx',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.slate200),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _customerAddressCtrl,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.done,
+                        minLines: 2,
+                        maxLines: 3,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        onChanged: (v) =>
+                            ref.read(checkoutSettingsProvider.notifier).setCustomerAddress(v),
+                        decoration: InputDecoration(
+                          labelText: 'Address',
+                          hintText: 'Shipping address for LBC / courier',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.slate200),
+                          ),
+                        ),
+                      ),
                       const Divider(height: 24),
                       Row(
                         children: [

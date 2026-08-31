@@ -205,6 +205,9 @@ class TransactionRepository {
     required String currencyCode,
     String? discountCode,
     double discountAmount = 0,
+    String? customerName,
+    String? customerPhone,
+    String? customerAddress,
   }) async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) throw StateError('Not signed in.');
@@ -213,6 +216,9 @@ class TransactionRepository {
     final id = const Uuid().v4();
     final orderNo = '#CP-${DateTime.now().millisecondsSinceEpoch % 1000000}';
     final now = DateTime.now().toUtc();
+    final name = customerName?.trim();
+    final phone = customerPhone?.trim();
+    final address = customerAddress?.trim();
 
     await _client.from('transactions').insert({
       'id': id,
@@ -235,6 +241,9 @@ class TransactionRepository {
       'amount_paid': total,
       'balance_due': 0,
       'payment_state': 'paid',
+      if (name != null && name.isNotEmpty) 'customer_name': name,
+      if (phone != null && phone.isNotEmpty) 'client_phone': phone,
+      if (address != null && address.isNotEmpty) 'customer_address': address,
     });
 
     if (lines.isNotEmpty) {
@@ -287,6 +296,9 @@ class TransactionRepository {
       createdAt: now.toLocal(),
       discountCode: discountCode,
       discountAmount: discountAmount,
+      customerName: name?.isEmpty == true ? null : name,
+      customerPhone: phone?.isEmpty == true ? null : phone,
+      customerAddress: address?.isEmpty == true ? null : address,
     );
   }
 
@@ -344,6 +356,9 @@ class TransactionRepository {
       refundedTotal: refundedTotal,
       discountCode: json['discount_code'] as String?,
       discountAmount: ((json['discount_amount'] as num?) ?? 0).toDouble(),
+      customerName: json['customer_name'] as String?,
+      customerPhone: json['client_phone'] as String?,
+      customerAddress: json['customer_address'] as String?,
     );
   }
 

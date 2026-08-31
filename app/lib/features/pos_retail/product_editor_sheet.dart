@@ -56,6 +56,7 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
   late final TextEditingController _lowStock;
   late final TextEditingController _unit;
   late final TextEditingController _salePrice;
+  late final TextEditingController _discountCheck;
   late String _productId;
   String? _imageUrl;
   Uint8List? _previewBytes;
@@ -64,8 +65,12 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
   bool _saleEnabled = false;
   DateTime? _saleStartsAt;
   DateTime? _saleEndsAt;
+  /// Markup % applied to cost when tapping a margin chip (cost 1000 + 50% → 1500).
+  int? _selectedMarkupPct;
   /// Once the user edits SKU, stop overwriting it from the name.
   late bool _skuLocked;
+
+  static const _markupPresets = <int>[10, 15, 20, 25, 30, 40, 50, 75, 100];
 
   final _picker = ImagePicker();
 
@@ -92,6 +97,7 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     _salePrice = TextEditingController(
       text: e?.salePrice == null ? '' : e!.salePrice!.toStringAsFixed(2),
     );
+    _discountCheck = TextEditingController();
     _saleEnabled = e?.salePrice != null;
     _saleStartsAt = e?.saleStartsAt;
     _saleEndsAt = e?.saleEndsAt;
@@ -99,6 +105,13 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     // New products auto-sync SKU; edits keep the existing SKU unless empty.
     _skuLocked = e != null && (e.sku.trim().isNotEmpty);
     _name.addListener(_onNameChanged);
+    _cost.addListener(_onPricingChanged);
+    _price.addListener(_onPricingChanged);
+    _discountCheck.addListener(_onPricingChanged);
+  }
+
+  void _onPricingChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onNameChanged() {
@@ -128,6 +141,10 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
 
   @override
   void dispose() {
+    _name.removeListener(_onNameChanged);
+    _cost.removeListener(_onPricingChanged);
+    _price.removeListener(_onPricingChanged);
+    _discountCheck.removeListener(_onPricingChanged);
     _name.dispose();
     _sku.dispose();
     _barcode.dispose();
@@ -138,8 +155,31 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
     _lowStock.dispose();
     _unit.dispose();
     _salePrice.dispose();
+    _discountCheck.dispose();
     super.dispose();
   }
+
+  double? get _parsedCost => NumericInput.tryParseMoney(_cost.text);
+  double? get _parsedPrice => NumericInput.tryParseMoney(_price.text);
+
+  void _applyMarkup(int pct) {
+    final cost = _parsedCost;
+    if (cost == null || cost <= 0) {
+      showAppMessage(
+        context,
+        'Enter cost first so we can suggest a retail price',
+        isError: true,
+      );
+      return;
+    }
+    final retail = cost * (1 + pct / 100);
+    setState(() {
+      _selectedMarkupPct = pct;
+      _price.text = retail.toStringAsFixed(2);
+    });
+  }
+
+  String _peso(double n) => '₱${n.toStringAsFixed(2)}';
 
   Future<void> _pickSaleDateTime({required bool start}) async {
     final initial = (start ? _saleStartsAt : _saleEndsAt) ?? DateTime.now();
@@ -317,6 +357,188 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
       saleEndsAt: _saleEnabled ? _saleEndsAt : null,
     );
     Navigator.pop(context, product);
+  }
+
+  Widget _buildProfitMarginGuide() {
+    final cost = _parsedCost;
+    final price = _parsedPrice;
+    final hasCost = cost != null && cost > 0;
+    final costValue = hasCost ? cost : 0.0;
+    final profit = (hasCost && price != null) ? price - costValue : null;
+    final markupPct = profit != null ? (profit / costValue) * 100 : null;
+    final marginPct =
+        (profit != null && price != null && price > 0) ? (profit / price) * 100 : null;
+
+    Color statusColor = AppColors.slate600;
+    String statusLine = 'Enter cost, then tap a % to set retail.';
+    if (hasCost && price != null) {
+      if (profit! < 0) {
+        statusColor = AppColors.danger;
+        statusLine =
+            'Lugi: ${_peso(profit.abs())} below cost (${markupPct!.toStringAsFixed(0)}% markup).';
+      } else if (profit == 0) {
+        statusColor = AppColors.warning;
+        statusLine = 'Break-even — walang tubo.';
+      } else {
+        statusColor = AppColors.success;
+        statusLine =
+            'Tubo ${_peso(profit)} · ${markupPct!.toStringAsFixed(0)}% markup · '
+            '${marginPct!.toStringAsFixed(0)}% margin';
+      }
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Profit margin guide',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Cost × (1 + %). Halimbawa: cost ₱1000 + 50% → retail ₱1500. '
+              'Use lower % for competitive items like oils.',
+              style: TextStyle(fontSize: 11, color: AppColors.slate600, height: 1.35),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final pct in _markupPresets)
+                  ChoiceChip(
+                    label: Text(
+                      hasCost
+                          ? '$pct% → ${_peso(costValue * (1 + pct / 100))}'
+                          : '$pct%',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    ),
+                    selected: _selectedMarkupPct == pct,
+                    onSelected: hasCost ? (_) => _applyMarkup(pct) : null,
+                    visualDensity: VisualDensity.compact,
+                    selectedColor: AppColors.accentSoft,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              statusLine,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: statusColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiscountProfitCheck() {
+    final cost = _parsedCost;
+    final price = _parsedPrice;
+    final discountPct = NumericInput.tryParseMoney(_discountCheck.text);
+    final canCheck =
+        cost != null && cost > 0 && price != null && price > 0 && discountPct != null;
+
+    String? resultLine;
+    Color resultColor = AppColors.slate600;
+    if (canCheck) {
+      final clamped = discountPct.clamp(0, 100);
+      final sell = price * (1 - clamped / 100);
+      final profit = sell - cost;
+      final markup = cost > 0 ? (profit / cost) * 100 : 0.0;
+      if (profit < 0) {
+        resultColor = AppColors.danger;
+        resultLine =
+            'After ${clamped.toStringAsFixed(0)}% off → ${_peso(sell)}. '
+            'Lugi ${_peso(profit.abs())} (${markup.toStringAsFixed(0)}% vs cost).';
+      } else if (profit == 0) {
+        resultColor = AppColors.warning;
+        resultLine =
+            'After ${clamped.toStringAsFixed(0)}% off → ${_peso(sell)}. Break-even lang.';
+      } else {
+        resultColor = AppColors.success;
+        resultLine =
+            'After ${clamped.toStringAsFixed(0)}% off → ${_peso(sell)}. '
+            'May tubo ${_peso(profit)} (${markup.toStringAsFixed(0)}% markup).';
+      }
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Discount profit check',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Kung magbibigay ng discount ang customer, check muna kung may tubo pa.',
+              style: TextStyle(fontSize: 11, color: AppColors.slate600, height: 1.35),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _discountCheck,
+              keyboardType: NumericInput.moneyKeyboard,
+              inputFormatters: NumericInput.money(),
+              decoration: const InputDecoration(
+                labelText: 'Discount % to test',
+                hintText: 'e.g. 10',
+                helperText: 'Does not change retail or sale price — preview only',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final pct in const [5, 10, 15, 20, 25, 30])
+                  ActionChip(
+                    label: Text(
+                      '$pct% off',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                    onPressed: () {
+                      _discountCheck.text = pct.toStringAsFixed(0);
+                      setState(() {});
+                    },
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            if (resultLine != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                resultLine,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: resultColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -516,6 +738,10 @@ class _ProductEditorSheetState extends ConsumerState<_ProductEditorSheet> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    _buildProfitMarginGuide(),
+                    const SizedBox(height: 12),
+                    _buildDiscountProfitCheck(),
                     const SizedBox(height: 10),
                     Row(
                       children: [

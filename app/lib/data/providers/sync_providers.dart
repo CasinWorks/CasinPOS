@@ -118,6 +118,9 @@ class SyncOutboxService {
       currencyCode: item['currencyCode'] as String? ?? 'PHP',
       discountCode: item['discountCode'] as String?,
       discountAmount: (item['discountAmount'] as num?)?.toDouble() ?? 0,
+      customerName: item['customerName'] as String?,
+      customerPhone: item['customerPhone'] as String?,
+      customerAddress: item['customerAddress'] as String?,
     );
 
     final localId = item['localOrderId'] as String? ?? item['id'] as String?;

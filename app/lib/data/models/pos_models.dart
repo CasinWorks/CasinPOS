@@ -317,6 +317,9 @@ class PosOrder {
     this.refundedTotal = 0,
     this.discountCode,
     this.discountAmount = 0,
+    this.customerName,
+    this.customerPhone,
+    this.customerAddress,
   });
 
   final String id;
@@ -335,6 +338,14 @@ class PosOrder {
   final double refundedTotal;
   final String? discountCode;
   final double discountAmount;
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerAddress;
+
+  bool get hasCustomerDetails =>
+      (customerName != null && customerName!.trim().isNotEmpty) ||
+      (customerPhone != null && customerPhone!.trim().isNotEmpty) ||
+      (customerAddress != null && customerAddress!.trim().isNotEmpty);
 
   bool get isPaid => status.toLowerCase() == 'paid' || status.toLowerCase() == 'partial refund';
   bool get isVoided => status.toLowerCase() == 'voided';
@@ -344,6 +355,46 @@ class PosOrder {
       isPaid && items.any((i) => i.refundableQty > 0) && !isVoided;
 
   double get netTotal => (total - refundedTotal).clamp(0, double.infinity);
+
+  PosOrder copyWith({
+    String? id,
+    String? orderNo,
+    List<OrderLine>? items,
+    double? subtotal,
+    double? tax,
+    double? total,
+    PaymentMethod? paymentMethod,
+    String? timestampLabel,
+    DateTime? createdAt,
+    String? status,
+    bool? synced,
+    double? refundedTotal,
+    String? discountCode,
+    double? discountAmount,
+    String? customerName,
+    String? customerPhone,
+    String? customerAddress,
+  }) {
+    return PosOrder(
+      id: id ?? this.id,
+      orderNo: orderNo ?? this.orderNo,
+      items: items ?? this.items,
+      subtotal: subtotal ?? this.subtotal,
+      tax: tax ?? this.tax,
+      total: total ?? this.total,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      timestampLabel: timestampLabel ?? this.timestampLabel,
+      createdAt: createdAt ?? this.createdAt,
+      status: status ?? this.status,
+      synced: synced ?? this.synced,
+      refundedTotal: refundedTotal ?? this.refundedTotal,
+      discountCode: discountCode ?? this.discountCode,
+      discountAmount: discountAmount ?? this.discountAmount,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
+      customerAddress: customerAddress ?? this.customerAddress,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -360,6 +411,9 @@ class PosOrder {
         'refundedTotal': refundedTotal,
         'discountCode': discountCode,
         'discountAmount': discountAmount,
+        'customerName': customerName,
+        'customerPhone': customerPhone,
+        'customerAddress': customerAddress,
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> json) {
@@ -388,6 +442,9 @@ class PosOrder {
       refundedTotal: (json['refundedTotal'] as num?)?.toDouble() ?? 0,
       discountCode: json['discountCode'] as String?,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0,
+      customerName: json['customerName'] as String?,
+      customerPhone: json['customerPhone'] as String?,
+      customerAddress: json['customerAddress'] as String?,
     );
   }
 }

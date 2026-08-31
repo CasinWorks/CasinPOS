@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../images/product_photo_cache_manager.dart';
@@ -61,6 +62,24 @@ class ProductPhoto extends StatelessWidget {
             }
 
             final url = imageUrl!.trim();
+
+            if (kIsWeb) {
+              return Image.network(
+                url,
+                key: ValueKey(url),
+                width: w,
+                height: h,
+                fit: fit,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
+                errorBuilder: (_, _, _) => _Placeholder(iconSize: iconSize),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return _Placeholder(iconSize: iconSize, loading: true);
+                },
+              );
+            }
+
             // Decode at display size so grid thumbs stay light in memory.
             // Only pass ONE mem-cache axis — setting both stretches the bitmap.
             final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -86,13 +105,14 @@ class ProductPhoto extends StatelessWidget {
             }
 
             return CachedNetworkImage(
+              key: ValueKey(url),
               imageUrl: url,
               cacheManager: ProductPhotoCacheManager.instance,
               width: w,
               height: h,
               fit: fit,
               filterQuality: FilterQuality.medium,
-              fadeInDuration: Duration.zero,
+              fadeInDuration: const Duration(milliseconds: 100),
               fadeOutDuration: Duration.zero,
               useOldImageOnUrlChange: true,
               memCacheWidth: memW,

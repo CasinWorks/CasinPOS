@@ -96,6 +96,23 @@ Future<pw.Document> buildReceiptPdf({
                     context.businessTypeLabel,
                     style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
                   ),
+                  pw.SizedBox(height: 3),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                    ),
+                    child: pw.Text(
+                      'THIS IS NOT AN OFFICIAL INVOICE',
+                      style: pw.TextStyle(
+                        fontSize: 6.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey800,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -108,6 +125,12 @@ Future<pw.Document> buildReceiptPdf({
             if (context.cashierName != null && context.cashierName!.isNotEmpty)
               _row('Cashier', context.cashierName!),
             _row('Status', order.status),
+            if (order.customerName != null && order.customerName!.trim().isNotEmpty)
+              _row('Customer', order.customerName!.trim()),
+            if (order.customerPhone != null && order.customerPhone!.trim().isNotEmpty)
+              _row('CP', order.customerPhone!.trim()),
+            if (order.customerAddress != null && order.customerAddress!.trim().isNotEmpty)
+              _row('Ship to', order.customerAddress!.trim()),
             pw.SizedBox(height: 6),
             _divider(),
             pw.SizedBox(height: 6),
@@ -165,6 +188,29 @@ Future<pw.Document> buildReceiptPdf({
             pw.SizedBox(height: 10),
             _divider(),
             pw.SizedBox(height: 8),
+            pw.Center(
+              child: pw.Text(
+                'THIS IS NOT AN OFFICIAL INVOICE / RECEIPT',
+                style: pw.TextStyle(
+                  fontSize: 7.5,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey800,
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Center(
+              child: pw.Text(
+                'For internal reference & tracking only',
+                style: const pw.TextStyle(
+                  fontSize: 6.5,
+                  color: PdfColors.grey600,
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+            ),
+            pw.SizedBox(height: 6),
             pw.Center(
               child: pw.Text(
                 'Thank you for your purchase!',

@@ -278,6 +278,9 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('CANNOT_FRANCHISE_SELF')) {
     return 'You can’t open a franchise for your own email.';
   }
+  if (s.contains('FREE_FRANCHISE_NOT_ALLOWED')) {
+    return 'Opening franchise stores requires a Premium subscription. Upgrade to Premium to open and manage franchises.';
+  }
   if (s.contains('FRANCHISE_CANNOT_FRANCHISE')) {
     return 'Franchise stores can’t open another franchise.';
   }

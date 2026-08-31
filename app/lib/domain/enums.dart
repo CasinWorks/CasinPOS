@@ -158,6 +158,7 @@ enum PlanTier {
       PlanTier.values.firstWhere((e) => e.value == value);
 
   bool get allowsMultiBranch => this == premium;
+  bool get allowsFranchise => this == premium;
 }
 
 enum AnalyticsPeriod {

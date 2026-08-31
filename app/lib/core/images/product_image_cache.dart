@@ -12,6 +12,7 @@ import 'product_photo_cache_manager.dart';
 /// cache so POS / Inventory grids paint without a spinner on revisit.
 abstract final class ProductImageCache {
   static Future<void> prefetch(Iterable<String?> urls) async {
+    if (kIsWeb) return;
     final seen = <String>{};
     final list = <String>[];
     for (final raw in urls) {
@@ -53,7 +54,6 @@ abstract final class ProductImageCache {
     late final ImageStreamListener listener;
     listener = ImageStreamListener(
       (ImageInfo image, bool synchronousCall) {
-        image.dispose();
         if (!completer.isCompleted) completer.complete();
         stream.removeListener(listener);
       },
@@ -73,6 +73,7 @@ abstract final class ProductImageCache {
   static Future<void> remove(String? url) async {
     final u = url?.trim() ?? '';
     if (u.isEmpty) return;
+    if (kIsWeb) return;
     try {
       await ProductPhotoCacheManager.instance.removeFile(u);
       // Drop decoded frames for this URL if present.
