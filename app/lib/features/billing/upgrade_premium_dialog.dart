@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/legal_urls.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -460,6 +462,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
                 onPressed: _busy ? null : _restore,
                 child: const Text('Restore purchases'),
               ),
+              const SizedBox(height: 8),
+              _subscriptionDisclosure(price),
+              const SizedBox(height: 4),
+              _legalLinks(),
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _busy ? null : () => Navigator.pop(context),
@@ -473,6 +479,52 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _subscriptionDisclosure(String? price) {
+    final priceLabel = price ?? 'the price shown in the App Store';
+    return Text(
+      'CasinPOS Premium Monthly — 1 month, auto-renewing subscription. '
+      'Price: $priceLabel per month. Payment is charged to your Apple ID or '
+      'Google account at confirmation. Renews automatically unless cancelled at '
+      'least 24 hours before the period ends. Manage or cancel in your device '
+      'account subscription settings.',
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.slate500,
+            height: 1.4,
+          ),
+    );
+  }
+
+  Future<void> _openLegalUrl(Uri uri) async {
+    if (kIsWeb) {
+      final path = uri.path;
+      if (path == '/privacy' || path == '/terms') {
+        context.push(path);
+        return;
+      }
+    }
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  Widget _legalLinks() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        TextButton(
+          onPressed: () => _openLegalUrl(LegalUrls.privacyPolicyUri()),
+          child: const Text('Privacy Policy', style: TextStyle(fontSize: 12)),
+        ),
+        const Text('·', style: TextStyle(color: AppColors.slate400)),
+        TextButton(
+          onPressed: () => _openLegalUrl(LegalUrls.termsOfUseUri()),
+          child: const Text('Terms of Use', style: TextStyle(fontSize: 12)),
+        ),
+      ],
     );
   }
 
@@ -564,6 +616,8 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
             onPressed: _busy ? null : _startWebCheckout,
             child: const Text('Pay with QR / GCash / Maya'),
           ),
+          const SizedBox(height: 8),
+          _legalLinks(),
           const SizedBox(height: 4),
           TextButton(
             onPressed: _busy ? null : () => Navigator.pop(context),

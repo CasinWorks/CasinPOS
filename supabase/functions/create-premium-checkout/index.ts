@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
 
     const amount = quote.centavos;
     const origin = sanitizeOrigin(body.origin) ??
-      "https://casin-pos.vercel.app";
+      "https://pos.casinworks.com";
     const successUrl = `${origin}/?premium=success`;
     const cancelUrl = `${origin}/?premium=cancel`;
 

@@ -3,14 +3,14 @@ import 'package:flutter/foundation.dart';
 /// Public origin for invite / share links.
 ///
 /// Override at build time:
-///   `--dart-define=APP_URL=https://casin-pos.vercel.app`
+///   `--dart-define=APP_URL=https://pos.casinworks.com`
 ///
 /// On Flutter web, falls back to the current page origin when override is empty.
 abstract final class AppUrl {
   static const String _override = String.fromEnvironment('APP_URL');
-  static const String defaultProduction = 'https://casin-pos.vercel.app';
+  static const String defaultProduction = 'https://pos.casinworks.com';
 
-  /// Origin only (no trailing slash), e.g. `https://casin-pos.vercel.app`.
+  /// Origin only (no trailing slash), e.g. `https://pos.casinworks.com`.
   static String publicOrigin() {
     final fromEnv = _override.trim();
     if (fromEnv.isNotEmpty) {
@@ -27,6 +27,9 @@ abstract final class AppUrl {
     }
     return defaultProduction;
   }
+
+  /// Public marketing / landing route (unauthenticated home).
+  static String introLink() => '${publicOrigin()}/intro';
 
   /// Deep link that opens Join with the token pre-filled.
   static String inviteLink(String token) {

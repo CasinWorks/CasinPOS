@@ -39,7 +39,7 @@ flutter run -d chrome \
   --dart-define=APP_URL=http://localhost:XXXX
 ```
 
-Or pass the values inline. `SUPABASE_URL` and `SUPABASE_ANON_KEY` are read via `String.fromEnvironment` at build time. `APP_URL` is optional (invite share links); on web it defaults to the current origin, otherwise `https://casin-pos-black.vercel.app`.
+Or pass the values inline. `SUPABASE_URL` and `SUPABASE_ANON_KEY` are read via `String.fromEnvironment` at build time. `APP_URL` is optional (invite share links); on web it defaults to the current origin, otherwise `https://pos.casinworks.com`.
 
 ## Staff / franchise invite emails
 
@@ -58,7 +58,7 @@ supabase functions deploy send-invite-email
 supabase secrets set RESEND_API_KEY=re_xxxxxxxx
 # Optional — verify domain in Resend for production from-address:
 supabase secrets set RESEND_FROM_EMAIL="CasinPOS <invites@yourdomain.com>"
-supabase secrets set PUBLIC_APP_URL=https://casin-pos-black.vercel.app
+supabase secrets set PUBLIC_APP_URL=https://pos.casinworks.com
 ```
 
 Without `RESEND_API_KEY`, the function returns `emailed: false` and the UI falls back to copy link / mailto. No paid key required for that path.

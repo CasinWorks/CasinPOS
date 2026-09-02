@@ -7,7 +7,7 @@ void main() {
     test('extracts token from full invite URL', () {
       expect(
         sanitizeInviteToken(
-          'https://casin-pos-black.vercel.app/invite?token=abc12345',
+          'https://pos.casinworks.com/invite?token=abc12345',
         ),
         'abc12345',
       );
@@ -15,18 +15,18 @@ void main() {
 
     test('rejects bare /invite without token', () {
       expect(
-        sanitizeInviteToken('https://casin-pos-black.vercel.app/invite'),
+        sanitizeInviteToken('https://pos.casinworks.com/invite'),
         isNull,
       );
       expect(
-        isInviteUrlMissingToken('https://casin-pos-black.vercel.app/invite'),
+        isInviteUrlMissingToken('https://pos.casinworks.com/invite'),
         isTrue,
       );
     });
 
     test('rejects bare /join without token', () {
       expect(
-        sanitizeInviteToken('https://casin-pos-black.vercel.app/join'),
+        sanitizeInviteToken('https://pos.casinworks.com/join'),
         isNull,
       );
       expect(isInviteUrlMissingToken('/join'), isTrue);
@@ -34,7 +34,7 @@ void main() {
 
     test('extracts path-form /invite/:token', () {
       expect(
-        sanitizeInviteToken('https://casin-pos-black.vercel.app/invite/tok_xyz9'),
+        sanitizeInviteToken('https://pos.casinworks.com/invite/tok_xyz9'),
         'tok_xyz9',
       );
     });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/config/support_contact.dart';
@@ -20,6 +21,16 @@ class LegalDocumentPage extends StatelessWidget {
   final String updatedLabel;
   final List<({String heading, String body})> sections;
 
+  String plainText() {
+    final lines = <String>[title, updatedLabel, ''];
+    for (final s in sections) {
+      lines.add(s.heading);
+      lines.add(s.body);
+      lines.add('');
+    }
+    return lines.join('\n').trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -36,6 +47,19 @@ class LegalDocumentPage extends StatelessWidget {
             }
           },
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Copy all',
+            icon: const Icon(Icons.copy_outlined),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: plainText()));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
@@ -46,18 +70,18 @@ class LegalDocumentPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(title, style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 6),
-          Text(
+          SelectableText(
             updatedLabel,
             style: const TextStyle(fontSize: 12, color: AppColors.slate500),
           ),
           const SizedBox(height: 20),
           for (final s in sections) ...[
-            Text(
+            SelectableText(
               s.heading,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
             ),
             const SizedBox(height: 8),
-            Text(
+            SelectableText(
               s.body,
               style: const TextStyle(
                 fontSize: 14,
@@ -81,7 +105,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return LegalDocumentPage(
       title: 'Privacy Policy',
-      updatedLabel: 'Last updated: August 10, 2026',
+      updatedLabel: 'Last updated: September 2, 2026',
       sections: const [
         (
           heading: 'Who we are',
@@ -129,18 +153,31 @@ class TermsOfServicePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LegalDocumentPage(
-      title: 'Terms of Service',
-      updatedLabel: 'Last updated: August 10, 2026',
+      title: 'Terms of Use',
+      updatedLabel: 'Last updated: September 2, 2026',
       sections: const [
         (
           heading: 'Agreement',
           body:
-              'By creating a CasinPOS account or using the app, you agree to these Terms. If you use CasinPOS for a business, you confirm you have authority to bind that business.',
+              'By creating a CasinPOS account or using the app, you agree to these Terms of Use (EULA). If you use CasinPOS for a business, you confirm you have authority to bind that business.',
         ),
         (
           heading: 'The service',
           body:
               'CasinPOS provides point-of-sale, inventory, receipts, and related tools for retail tablet/web use. Features may change as we improve the product. Free plans may include usage limits.',
+        ),
+        (
+          heading: 'Premium subscription (auto-renewable)',
+          body:
+              'CasinPOS Premium is an optional auto-renewable monthly subscription billed through Apple App Store, Google Play, or PayMongo on the web. '
+              'The subscription unlocks Premium features for one store (more team seats, higher monthly sales limits, franchise tools, and related features). '
+              'Payment is charged to your Apple ID, Google account, or chosen PayMongo payment method at confirmation of purchase. '
+              'The subscription renews automatically each month unless you cancel at least 24 hours before the current period ends. '
+              'Your account is charged for renewal within 24 hours before the period ends. '
+              'You can manage or cancel App Store or Play subscriptions in your device account settings (Settings → Apple ID → Subscriptions on iPhone/iPad, or Google Play → Payments & subscriptions). '
+              'PayMongo web billing is a 30-day prepaid period and does not auto-renew through Apple or Google. '
+              'If a free trial is offered, unused trial time is forfeited when you purchase a subscription where applicable. '
+              'Prices may vary by region and are shown before you confirm purchase.',
         ),
         (
           heading: 'Your responsibilities',

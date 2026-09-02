@@ -7,7 +7,7 @@ Emails a CasinPOS join link for a pending `store_invitations` token (Resend).
 ```bash
 supabase functions deploy send-invite-email
 supabase secrets set RESEND_API_KEY=re_xxxxxxxx
-supabase secrets set PUBLIC_APP_URL=https://casin-pos-black.vercel.app
+supabase secrets set PUBLIC_APP_URL=https://pos.casinworks.com
 # optional:
 supabase secrets set RESEND_FROM_EMAIL="CasinPOS <invites@yourdomain.com>"
 ```

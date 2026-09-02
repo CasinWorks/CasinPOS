@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     }
 
     const publicApp = (
-      Deno.env.get("PUBLIC_APP_URL") ?? "https://casin-pos.vercel.app"
+      Deno.env.get("PUBLIC_APP_URL") ?? "https://pos.casinworks.com"
     ).replace(/\/+$/, "");
     const redirectTo =
       (body.redirect_to ?? "").trim() || `${publicApp}/reset-password`;

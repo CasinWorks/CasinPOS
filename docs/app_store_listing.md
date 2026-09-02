@@ -8,10 +8,29 @@ After deploy, these must open without login:
 
 | Purpose | URL |
 |--------|-----|
-| Privacy Policy | `https://casin-pos-black.vercel.app/privacy` |
-| Terms of Use | `https://casin-pos-black.vercel.app/terms` |
+| App (landing) | `https://pos.casinworks.com/intro` |
+| Privacy Policy | `https://pos.casinworks.com/privacy` |
+| Terms of Use (EULA) | `https://pos.casinworks.com/terms` |
 
-Also linked from Sign in, Sign up, and Store settings → Privacy / Terms.
+Also linked from Sign in, Sign up, Store settings → Privacy / Terms, and the Premium upgrade sheet.
+
+## Auto-renewable subscription (Apple Guideline 3.1.2)
+
+CasinPOS Premium uses **auto-renewable subscriptions** on iOS. Apple requires a **functional Terms of Use link on the App Store product page**.
+
+**Do this in App Store Connect before resubmitting:**
+
+1. **App Information** → **Privacy Policy URL:** `https://pos.casinworks.com/privacy`
+2. **Terms of Use (EULA)** — pick one:
+   - **Custom EULA (recommended):** App Information → **License Agreement** → choose **Custom** and paste the subscription section from `/terms` (or link to `https://pos.casinworks.com/terms`).
+   - **Apple standard EULA:** Add this line at the **end of the App Description** (must be a clickable URL in the description field):
+     ```
+     Terms of Use (EULA): https://pos.casinworks.com/terms
+     ```
+3. **App Privacy** → confirm Privacy Policy URL matches above.
+4. **Review notes** — include both URLs (see below).
+
+In-app, the Premium upgrade sheet shows subscription length, price, and **Privacy Policy** / **Terms of Use** links.
 
 ## Account deletion (Apple Guideline 5.1.1)
 
@@ -44,6 +63,9 @@ CasinPOS is a retail point-of-sale built for tablet cashiers.
 • Team invites and role-based access
 
 Ideal for sari-sari, specialty retail, and small franchises in the Philippines.
+
+Privacy Policy: https://pos.casinworks.com/privacy
+Terms of Use (EULA): https://pos.casinworks.com/terms
 ```
 
 **Keywords (App Store):** POS,retail,inventory,cashier,tablet,gcash,maya,philippines,barcode,receipt  
@@ -90,8 +112,10 @@ Demo account: (enter in App Store Connect only)
 
 Account deletion: Support → Delete my account
 Support: Sidebar → Support → email christianjoshuacasin@gmail.com
-Privacy: https://casin-pos-black.vercel.app/privacy
-Terms: https://casin-pos-black.vercel.app/terms
+Privacy: https://pos.casinworks.com/privacy
+Terms of Use (EULA): https://pos.casinworks.com/terms
+
+Premium subscription: CasinPOS Premium Monthly (auto-renewable, 1 month). Upgrade sheet shows price, renewal terms, Privacy Policy, and Terms of Use links.
 
 Core path: Sign in → Open register → Retail POS → add item → Pay cash → Refund from Sales History
 ```
