@@ -12,6 +12,7 @@ class SalesReportData {
     required this.periodLabel,
     required this.rangeLabel,
     required this.orders,
+    this.costByProductId = const {},
   });
 
   final String storeName;
@@ -20,9 +21,36 @@ class SalesReportData {
   final String rangeLabel;
   final List<PosOrder> orders;
 
+  /// Current product unit costs keyed by product id (for COGS / profit).
+  final Map<String, double> costByProductId;
+
   int get transactionCount => orders.length;
   double get grossSales => orders.fold(0.0, (s, o) => s + o.total);
   double get averageTicket => transactionCount == 0 ? 0 : grossSales / transactionCount;
+
+  /// Line sales before cart-level discount (matches profitability report).
+  double get lineRevenue => orders.fold(
+        0.0,
+        (s, o) => s + o.items.fold(0.0, (a, i) => a + i.lineTotal),
+      );
+
+  double get totalCogs {
+    var cogs = 0.0;
+    for (final o in orders) {
+      for (final i in o.items) {
+        final id = i.productId;
+        if (id == null || id.isEmpty) continue;
+        cogs += (costByProductId[id] ?? 0) * i.qty;
+      }
+    }
+    return cogs;
+  }
+
+  /// Gross profit ≈ line revenue − product cost × qty.
+  double get totalProfit => lineRevenue - totalCogs;
+
+  double get marginPct =>
+      lineRevenue <= 0 ? 0 : (totalProfit / lineRevenue) * 100;
 
   Map<PaymentMethod, double> get byPayment {
     final map = <PaymentMethod, double>{};
@@ -102,7 +130,18 @@ Future<pw.Document> buildSalesReportPdf(SalesReportData data) async {
               'Subtotal',
               money.format(data.orders.fold<double>(0, (s, o) => s + o.subtotal)),
             ),
+            pw.SizedBox(width: 12),
+            _kpi(
+              'Total profit',
+              money.format(data.totalProfit),
+            ),
           ],
+        ),
+        pw.SizedBox(height: 6),
+        pw.Text(
+          'Profit = line sales − cost × qty (set Cost on products). '
+          'Margin ${data.marginPct.toStringAsFixed(1)}%.',
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
         ),
         pw.SizedBox(height: 20),
         pw.Text('By payment method', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),

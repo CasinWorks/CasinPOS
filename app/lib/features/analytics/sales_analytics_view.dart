@@ -61,6 +61,14 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
         .toList();
   }
 
+  Map<String, double> _costByProductId() {
+    final map = <String, double>{};
+    for (final p in ref.read(posCatalogProvider)) {
+      map[p.id] = p.costPrice;
+    }
+    return map;
+  }
+
   Future<void> _exportPdf({
     required List<PosOrder> orders,
     required DateTime start,
@@ -80,6 +88,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       periodLabel: periodLabel,
       rangeLabel: rangeLabel,
       orders: orders,
+      costByProductId: _costByProductId(),
     );
     final doc = await buildSalesReportPdf(data);
     await Printing.layoutPdf(onLayout: (_) => doc.save());
@@ -104,6 +113,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       periodLabel: periodLabel,
       rangeLabel: rangeLabel,
       orders: orders,
+      costByProductId: _costByProductId(),
     );
     final csv = buildSalesReportCsv(data);
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
@@ -330,6 +340,38 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
       );
     }
 
+    // Wide layout: keep cards readable when there are 5+ KPIs.
+    if (metrics.length > 4) {
+      return Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < 3 && i < metrics.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                Expanded(child: metrics[i]),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 3; i < metrics.length; i++) ...[
+                if (i > 3) const SizedBox(width: 10),
+                Expanded(child: metrics[i]),
+              ],
+              // Pad remaining slots so card widths match the top row.
+              for (var i = metrics.length; i < 6; i++) ...[
+                const SizedBox(width: 10),
+                const Expanded(child: SizedBox.shrink()),
+              ],
+            ],
+          ),
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -393,6 +435,7 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     final isService =
         ref.watch(activeMembershipProvider)?.store.businessType == BusinessType.service;
     final allOrders = ref.watch(paidOrdersProvider);
+    final catalog = ref.watch(posCatalogProvider);
     final symbol = ref.watch(activeMembershipProvider)?.store.currencySymbol ?? '₱';
     final now = DateTime.now();
     final start = _periodStart(_period, now);
@@ -405,6 +448,29 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
 
     final orders = _inRange(allOrders, start, end);
     final prevOrders = _inRange(allOrders, prevStart, start);
+
+    final costById = <String, double>{
+      for (final p in catalog) p.id: p.costPrice,
+    };
+    final profitSnapshot = SalesReportData(
+      storeName: '',
+      currencySymbol: symbol,
+      periodLabel: '',
+      rangeLabel: '',
+      orders: orders,
+      costByProductId: costById,
+    );
+    final prevProfitSnapshot = SalesReportData(
+      storeName: '',
+      currencySymbol: symbol,
+      periodLabel: '',
+      rangeLabel: '',
+      orders: prevOrders,
+      costByProductId: costById,
+    );
+    final totalProfit = profitSnapshot.totalProfit;
+    final prevProfit = prevProfitSnapshot.totalProfit;
+    final hasAnyCost = catalog.any((p) => p.costPrice > 0);
 
     final revenue = orders.fold<double>(0, (s, o) => s + o.total);
     final taxCollected = orders.fold<double>(0, (s, o) => s + o.tax);
@@ -439,6 +505,19 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
     } else if (avgBasket > 0) {
       basketTrendPct = 100;
     }
+
+    double? profitTrendPct;
+    if (prevProfit <= 0 && totalProfit <= 0) {
+      profitTrendPct = null;
+    } else if (prevProfit <= 0) {
+      profitTrendPct = 100;
+    } else {
+      profitTrendPct = ((totalProfit - prevProfit) / prevProfit.abs()) * 100;
+    }
+
+    final profitSub = !hasAnyCost
+        ? 'Set Cost on products to see tubo'
+        : 'Margin ${profitSnapshot.marginPct.toStringAsFixed(1)}% · COGS $symbol${profitSnapshot.totalCogs.toStringAsFixed(2)}';
 
     final revenueSpark = _metricSparkline(orders, _period, (o) => o.total);
     final basketSpark = _metricSparkline(
@@ -507,6 +586,16 @@ class _SalesAnalyticsViewState extends ConsumerState<SalesAnalyticsView> {
                       stacked: stacked,
                       sparkline: revenueSpark,
                       trendPct: revenueTrendPct,
+                    ),
+                    _Metric(
+                      title: 'Total Profit',
+                      value: '$symbol${totalProfit.toStringAsFixed(2)}',
+                      sub: profitSub,
+                      subColor: !hasAnyCost
+                          ? AppColors.slate400
+                          : (totalProfit >= 0 ? AppColors.success : AppColors.danger),
+                      stacked: stacked,
+                      trendPct: hasAnyCost ? profitTrendPct : null,
                     ),
                     _Metric(
                       title: isService ? 'Jobs / line items' : 'Units / Orders Sold',

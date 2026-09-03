@@ -24,6 +24,10 @@ String buildSalesReportCsv(SalesReportData data) {
   buf.writeln(_csvRow(['Subtotal', money.format(subtotal)]));
   buf.writeln(_csvRow(['VAT / tax collected', money.format(taxTotal)]));
   buf.writeln(_csvRow(['Average ticket', money.format(data.averageTicket)]));
+  buf.writeln(_csvRow(['Line revenue', money.format(data.lineRevenue)]));
+  buf.writeln(_csvRow(['COGS (cost × qty)', money.format(data.totalCogs)]));
+  buf.writeln(_csvRow(['Total profit', money.format(data.totalProfit)]));
+  buf.writeln(_csvRow(['Margin %', money.format(data.marginPct)]));
   buf.writeln('');
 
   buf.writeln('BY PAYMENT');

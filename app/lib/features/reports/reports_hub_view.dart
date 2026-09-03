@@ -134,6 +134,7 @@ class _DashboardTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(reportDashboardProvider);
+    final profitAsync = isService ? null : ref.watch(profitabilityReportProvider);
     final serviceAsync = isService ? ref.watch(serviceReportStatsProvider) : null;
     final money = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
     return async.when(
@@ -142,6 +143,15 @@ class _DashboardTab extends ConsumerWidget {
       data: (stats) {
         if (stats == null) return const SizedBox.shrink();
         final service = serviceAsync?.valueOrNull;
+        final profitRows = profitAsync?.valueOrNull ?? const <ProfitabilityReportRow>[];
+        final totalProfit =
+            profitRows.fold<double>(0, (s, r) => s + r.grossProfit);
+        final totalCogs =
+            profitRows.fold<double>(0, (s, r) => s + r.cogsTotal);
+        final profitRevenue =
+            profitRows.fold<double>(0, (s, r) => s + r.revenue);
+        final marginPct =
+            profitRevenue <= 0 ? 0.0 : (totalProfit / profitRevenue) * 100;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -156,6 +166,17 @@ class _DashboardTab extends ConsumerWidget {
                   ),
                   changePct: isService ? null : stats.revenueChangePct,
                 ),
+                if (!isService)
+                  _MetricCard(
+                    label: 'Total profit',
+                    value: money.format(totalProfit),
+                    subtitle: profitRows.isEmpty
+                        ? 'Set product cost for tubo'
+                        : 'Margin ${marginPct.toStringAsFixed(1)}% · COGS ${money.format(totalCogs)}',
+                    valueColor: totalProfit >= 0
+                        ? const Color(0xFF059669)
+                        : AppColors.danger,
+                  ),
                 _MetricCard(
                   label: isService ? 'Paid jobs' : 'Units sold',
                   value: isService
@@ -289,11 +310,15 @@ class _MetricCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.changePct,
+    this.subtitle,
+    this.valueColor,
   });
 
   final String label;
   final String value;
   final double? changePct;
+  final String? subtitle;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +342,21 @@ class _MetricCard extends StatelessWidget {
         children: [
           Text(label, style: const TextStyle(fontSize: 11, color: AppColors.slate500)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: valueColor,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle!,
+              style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+            ),
+          ],
           if (changeText != null) ...[
             const SizedBox(height: 4),
             Text(changeText, style: TextStyle(fontSize: 10, color: changeColor, fontWeight: FontWeight.w700)),
@@ -641,9 +680,44 @@ class _ProfitTab extends ConsumerWidget {
                 );
               }
               final top = rows.take(8).toList();
+              final totalProfit =
+                  rows.fold<double>(0, (s, r) => s + r.grossProfit);
+              final totalCogs =
+                  rows.fold<double>(0, (s, r) => s + r.cogsTotal);
+              final totalRevenue =
+                  rows.fold<double>(0, (s, r) => s + r.revenue);
+              final marginPct =
+                  totalRevenue <= 0 ? 0.0 : (totalProfit / totalRevenue) * 100;
+              final peso = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _MetricCard(
+                        label: 'Total profit',
+                        value: peso.format(totalProfit),
+                        valueColor: totalProfit >= 0
+                            ? const Color(0xFF059669)
+                            : AppColors.danger,
+                      ),
+                      _MetricCard(
+                        label: 'Line revenue',
+                        value: peso.format(totalRevenue),
+                      ),
+                      _MetricCard(
+                        label: 'COGS',
+                        value: peso.format(totalCogs),
+                      ),
+                      _MetricCard(
+                        label: 'Margin',
+                        value: '${marginPct.toStringAsFixed(1)}%',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   const Text(
                     'Top by gross profit',
                     style: TextStyle(fontWeight: FontWeight.w800),
