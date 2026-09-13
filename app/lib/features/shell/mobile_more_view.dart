@@ -149,7 +149,7 @@ class MobileMoreView extends ConsumerWidget {
           _MoreTile(
             icon: Icons.tv_outlined,
             title: 'Customer Display',
-            subtitle: 'Copy link or open on another screen',
+            subtitle: 'Live cart on this or another device',
             onTap: () => showCustomerDisplayOptions(context),
           ),
         if (membership?.store.businessType == BusinessType.retail)

@@ -1,43 +1,28 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/brand_mark.dart';
-import '../../data/cart_display_sync.dart';
+import '../../data/providers/pos_providers.dart';
+import '../../data/providers/session_providers.dart';
 
-/// Customer-facing dual-screen view — intended for a second monitor / browser tab.
-class CustomerDisplayPage extends StatefulWidget {
+/// Customer-facing dual-screen view for a paired native device.
+class CustomerDisplayPage extends ConsumerWidget {
   const CustomerDisplayPage({super.key});
 
   @override
-  State<CustomerDisplayPage> createState() => _CustomerDisplayPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final membership = ref.watch(activeMembershipProvider);
+    final storeId = membership?.storeId;
+    final asyncSnap = storeId == null
+        ? const AsyncValue.data(null)
+        : ref.watch(customerDisplaySnapshotProvider(storeId));
 
-class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
-  StreamSubscription<CartDisplaySnapshot?>? _sub;
-  CartDisplaySnapshot? _snapshot;
-
-  @override
-  void initState() {
-    super.initState();
-    _snapshot = readCartDisplay();
-    _sub = watchCartDisplay().listen((s) {
-      if (!mounted) return;
-      setState(() => _snapshot = s);
-    });
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final snap = _snapshot;
+    final snap = asyncSnap.valueOrNull;
     final empty = snap == null || snap.lines.isEmpty;
+    final connecting = storeId != null && asyncSnap.isLoading && snap == null;
+    final storeName = snap?.storeName ?? membership?.store.name;
 
     return Scaffold(
       backgroundColor: AppColors.slate900,
@@ -56,7 +41,7 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          snap?.storeName ?? 'CasinPOS',
+                          storeName ?? 'CasinPOS',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
@@ -64,7 +49,13 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                           ),
                         ),
                         Text(
-                          empty ? 'Waiting for order…' : 'Your order',
+                          storeId == null
+                              ? 'Sign in and select a store'
+                              : connecting
+                                  ? 'Connecting…'
+                                  : empty
+                                      ? 'Waiting for order…'
+                                      : 'Your order',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.55),
                             fontWeight: FontWeight.w600,
@@ -83,6 +74,15 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                         fontSize: 14,
                       ),
                     ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Exit display',
+                    onPressed: () => context.go('/'),
+                    icon: Icon(
+                      Icons.close,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 28),
@@ -99,7 +99,10 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Items appear here as they are added',
+                              storeId == null
+                                  ? 'Open POS on another device and add items'
+                                  : 'Items appear here as they are added',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.45),
                                 fontSize: 16,
@@ -146,7 +149,8 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                                     Text(
                                       '${snap.currencySymbol}${line.unitPrice.toStringAsFixed(2)} each',
                                       style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.45),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.45),
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
                                       ),
@@ -169,13 +173,16 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
               ),
               const SizedBox(height: 20),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF2A2100), Color(0xFF151515)],
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.55)),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.55),
+                  ),
                 ),
                 child: Row(
                   children: [

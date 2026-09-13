@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../bootstrap.dart';
@@ -12,6 +13,7 @@ import '../local/local_pos_store.dart';
 import '../models/demo_catalog.dart';
 import '../models/pos_models.dart';
 import '../repositories/cash_register_repository.dart';
+import '../repositories/customer_display_repository.dart';
 import '../repositories/discount_code_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/transaction_repository.dart';
@@ -34,6 +36,72 @@ final transactionRepositoryProvider = Provider<TransactionRepository>(
 final cashRegisterRepositoryProvider = Provider<CashRegisterRepository>(
   (ref) => CashRegisterRepository(ref.watch(transactionRepositoryProvider)),
 );
+
+final customerDisplayRepositoryProvider = Provider<CustomerDisplayRepository>(
+  (ref) => CustomerDisplayRepository(),
+);
+
+/// Live cart snapshot for [storeId] (Realtime + initial fetch).
+final customerDisplaySnapshotProvider = StreamProvider.autoDispose
+    .family<CartDisplaySnapshot?, String>((ref, storeId) {
+  final repo = ref.watch(customerDisplayRepositoryProvider);
+  final client = supabaseOrNull;
+  if (client == null) {
+    return Stream<CartDisplaySnapshot?>.value(null);
+  }
+
+  final controller = StreamController<CartDisplaySnapshot?>();
+  var closed = false;
+
+  Future<void> emitLatest() async {
+    try {
+      final snap = await repo.fetchSnapshot(storeId);
+      if (!closed && !controller.isClosed) controller.add(snap);
+    } catch (_) {
+      if (!closed && !controller.isClosed) controller.add(null);
+    }
+  }
+
+  final channel = client
+      .channel('customer_display_$storeId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'customer_display_snapshots',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'store_id',
+          value: storeId,
+        ),
+        callback: (payload) {
+          final raw = payload.newRecord['snapshot'];
+          CartDisplaySnapshot? snap;
+          if (raw is Map) {
+            snap = CartDisplaySnapshot.fromJson(
+              Map<String, dynamic>.from(raw),
+            );
+          } else if (raw is String) {
+            snap = CartDisplaySnapshot.tryParse(raw);
+          }
+          if (!closed && !controller.isClosed) controller.add(snap);
+        },
+      );
+
+  channel.subscribe((status, [_]) {
+    if (status == RealtimeSubscribeStatus.subscribed) {
+      unawaited(emitLatest());
+    }
+  });
+  unawaited(emitLatest());
+
+  ref.onDispose(() {
+    closed = true;
+    unawaited(client.removeChannel(channel));
+    unawaited(controller.close());
+  });
+
+  return controller.stream;
+});
 
 class PosCatalogNotifier extends StateNotifier<List<RetailProduct>> {
   PosCatalogNotifier(this._ref) : super(List.from(demoRetailCatalog));
@@ -1164,35 +1232,56 @@ final cartTotalsProvider = Provider<CartTotals>((ref) {
 });
 
 /// Keeps the customer-facing second screen in sync with the live cart.
+/// Publishes locally (same-device fallback) and to Supabase Realtime (multi-device).
 final cartDisplaySyncProvider = Provider<void>((ref) {
+  Timer? debounce;
+
   void publish() {
+    final membership = ref.read(activeMembershipProvider);
     final cart = ref.read(cartProvider);
     final totals = ref.read(cartTotalsProvider);
-    final store = ref.read(activeMembershipProvider)?.store;
-    publishCartDisplay(
-      CartDisplaySnapshot(
-        storeName: store?.name ?? 'CasinPOS',
-        currencySymbol: store?.currencySymbol ?? '₱',
-        lines: [
-          for (final line in cart)
-            CartDisplayLine(
-              name: line.product.name,
-              quantity: line.quantity,
-              unitPrice: line.product.effectivePrice,
-              lineTotal: line.lineTotal,
-            ),
-        ],
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        total: totals.total,
-        updatedAtMs: DateTime.now().millisecondsSinceEpoch,
-      ),
+    final store = membership?.store;
+    final snapshot = CartDisplaySnapshot(
+      storeName: store?.name ?? 'CasinPOS',
+      currencySymbol: store?.currencySymbol ?? '₱',
+      lines: [
+        for (final line in cart)
+          CartDisplayLine(
+            name: line.product.name,
+            quantity: line.quantity,
+            unitPrice: line.product.effectivePrice,
+            lineTotal: line.lineTotal,
+          ),
+      ],
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      updatedAtMs: DateTime.now().millisecondsSinceEpoch,
     );
+
+    // Same-device / web dual-tab fallback.
+    publishCartDisplay(snapshot);
+
+    final storeId = membership?.storeId;
+    if (storeId == null || !isSupabaseReady) return;
+
+    debounce?.cancel();
+    debounce = Timer(const Duration(milliseconds: 250), () async {
+      try {
+        await ref.read(customerDisplayRepositoryProvider).upsertSnapshot(
+              storeId: storeId,
+              snapshot: snapshot,
+            );
+      } catch (_) {
+        // Display is best-effort; POS must keep working offline.
+      }
+    });
   }
 
   ref.listen(cartProvider, (_, _) => publish());
   ref.listen(cartTotalsProvider, (_, _) => publish());
   ref.listen(activeMembershipProvider, (_, _) => publish());
+  ref.onDispose(() => debounce?.cancel());
   publish();
 });
 

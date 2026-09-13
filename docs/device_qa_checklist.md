@@ -33,7 +33,7 @@ Run on a real **iPad** and/or Android tablet before Store submission.
 
 - [ ] Void a sale (if allowed) — drawer / period counts sane  
 - [ ] Sign out → Sign in lands on POS  
-- [ ] Customer display `/display` still loads  
+- [ ] Customer display: POS device + second device, same store, live cart sync
 - [ ] No red-screen crashes through steps above  
 
 ## Pass criteria

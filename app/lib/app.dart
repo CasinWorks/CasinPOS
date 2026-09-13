@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/providers/pos_providers.dart';
 import 'data/providers/session_providers.dart';
 import 'data/providers/ui_prefs_providers.dart';
 import 'features/billing/billing_providers.dart';
@@ -18,6 +19,8 @@ class CasinPosApp extends ConsumerWidget {
 
     // Keep RevenueCat App User ID aligned with Supabase auth.
     ref.watch(revenueCatBootstrapProvider);
+    // Publish live cart for paired Customer Display devices (any route).
+    ref.watch(cartDisplaySyncProvider);
 
     ref.listen(authStateProvider, (prev, next) {
       final state = next.valueOrNull;
