@@ -8,7 +8,9 @@ import '../invite/open_external_uri.dart';
 import '../theme/app_colors.dart';
 
 /// Public URL to open on a second phone, tablet, or browser.
-String customerDisplayUrl() => '${AppUrl.publicOrigin()}/display';
+/// Always uses production so links never point at staging hosts
+/// (e.g. casin-pos-black.vercel.app).
+String customerDisplayUrl() => '${AppUrl.defaultProduction}/display';
 
 /// Opens the customer-facing display in a new browser tab / window.
 Future<bool> openCustomerDisplayWindow() {
