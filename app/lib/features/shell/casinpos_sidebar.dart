@@ -244,6 +244,8 @@ class CasinPosSidebar extends ConsumerWidget {
               const SizedBox(height: 12),
               Expanded(
                 child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 8),
                   children: [
                     for (final item in items)
                       Padding(
@@ -317,56 +319,85 @@ class CasinPosSidebar extends ConsumerWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.slate100.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.slate200),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.32,
                 ),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.slate300,
-                      child: Text(
-                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.slate100.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.slate200),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      userName,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                    ),
-                    Text(role, style: const TextStyle(fontSize: 10, color: AppColors.slate500)),
-                    const SizedBox(height: 8),
-                    if (membership?.role.canInviteUsers == true)
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () => showTeamManageDialog(context, ref),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.slate300,
+                          child: Text(
+                            userName.isNotEmpty
+                                ? userName[0].toUpperCase()
+                                : 'U',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
-                          child: const Text('Invite / Manage'),
                         ),
-                      ),
-                    TextButton(
-                      onPressed: () async {
-                        try {
-                          await ref.read(authRepositoryProvider).signOut();
-                        } catch (_) {}
-                        if (context.mounted) context.go('/login');
-                      },
-                      child: const Text('Sign out', style: TextStyle(fontSize: 11)),
+                        const SizedBox(height: 8),
+                        Text(
+                          userName,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          role,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.slate500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (membership?.role.canInviteUsers == true)
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () =>
+                                  showTeamManageDialog(context, ref),
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                textStyle: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              child: const Text('Invite / Manage'),
+                            ),
+                          ),
+                        TextButton(
+                          onPressed: () async {
+                            try {
+                              await ref
+                                  .read(authRepositoryProvider)
+                                  .signOut();
+                            } catch (_) {}
+                            if (context.mounted) context.go('/login');
+                          },
+                          child: const Text(
+                            'Sign out',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                        ),
+                        const PoweredByCasinworks(),
+                      ],
                     ),
-                    const PoweredByCasinworks(),
-                  ],
+                  ),
                 ),
               ),
             ],
