@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/config/billing_config.dart';
 import 'features/billing/revenuecat_service.dart';
 
 /// Shared RevenueCat instance configured during [bootstrap].
@@ -41,11 +42,13 @@ Future<void> bootstrap() async {
   // publishableKey is the current Supabase Flutter API name for the anon key.
   await Supabase.initialize(url: url, publishableKey: anonKey);
 
-  // StoreKit / Play Billing via RevenueCat (no-op on web or without API keys).
-  await revenueCatBootstrapService.configure();
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid != null) {
-    await revenueCatBootstrapService.logIn(uid);
+  // IAP retired — CasinPOS is a paid App Store app (₱199). No StoreKit products.
+  if (BillingConfig.iapEnabled) {
+    await revenueCatBootstrapService.configure();
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid != null) {
+      await revenueCatBootstrapService.logIn(uid);
+    }
   }
 }
 

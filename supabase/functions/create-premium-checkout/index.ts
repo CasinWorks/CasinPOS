@@ -1,6 +1,6 @@
-// Owner-only: create a PayMongo Checkout Session for 30 days of CasinPOS Premium.
-// Price is USD (default $2.99), converted to PHP at the live FX rate.
-// Secrets: PAYMONGO_SECRET_KEY, optional PAYMONGO_PREMIUM_USD (default 2.99)
+// Owner-only: create a PayMongo Checkout Session for lifetime CasinPOS Premium.
+// Fixed PH price: ₱199 (override with PAYMONGO_PREMIUM_PHP pesos, e.g. 199).
+// Secrets: PAYMONGO_SECRET_KEY, optional PAYMONGO_PREMIUM_PHP
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -12,9 +12,9 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DEFAULT_USD = 2.99;
-const FX_FALLBACK_PHP_PER_USD = 61.76;
+const DEFAULT_PHP_PESOS = 199;
 const APP_STORE_PROVIDERS = new Set(["revenuecat", "app_store", "play_store"]);
+const LIFETIME_END = "2099-12-31T23:59:59.000Z";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -90,29 +90,34 @@ Deno.serve(async (req) => {
     const provider = (sub?.provider as string | undefined) ?? "manual";
     const periodEnd = Date.parse(String(sub?.current_period_end ?? ""));
     const stillCovered = !Number.isNaN(periodEnd) && periodEnd > Date.now();
-    if (
-      store.plan_tier === "premium" &&
-      APP_STORE_PROVIDERS.has(provider) &&
-      stillCovered
-    ) {
+    if (store.plan_tier === "premium" && stillCovered) {
+      if (APP_STORE_PROVIDERS.has(provider)) {
+        return json({
+          error: "BILLED_VIA_APP_STORE",
+          message:
+            "This store is already billed through the iPhone or Android app. " +
+            "Manage Premium there — don’t pay again on the web.",
+        }, 409);
+      }
       return json({
-        error: "BILLED_VIA_APP_STORE",
+        error: "ALREADY_PREMIUM",
         message:
-          "This store is already billed through the iPhone or Android app. " +
-          "Manage Premium there — don’t pay again on the web.",
+          "This store already has Premium unlocked. You don’t need to pay again.",
       }, 409);
     }
 
-    const quote = await quoteUsdToPhp();
+    const quote = premiumPhpQuote();
     if (preview) {
       return json({
         ok: true,
         preview: true,
-        usd: quote.usd,
-        fx_rate: quote.rate,
+        php_pesos: quote.pesos,
         amount_centavos: quote.centavos,
         amount_label: formatPhp(quote.centavos),
         store_id: storeId,
+        // Legacy fields kept for older clients.
+        usd: 0,
+        fx_rate: 0,
       });
     }
 
@@ -143,12 +148,12 @@ Deno.serve(async (req) => {
             show_description: true,
             show_line_items: true,
             description:
-              `CasinPOS Premium — 30 days ($${quote.usd.toFixed(2)} at ₱${quote.rate.toFixed(2)}/USD)`,
+              `CasinPOS Premium Lifetime (${formatPhp(amount)} one-time)`,
             line_items: [
               {
                 currency: "PHP",
                 amount,
-                name: "CasinPOS Premium (30 days)",
+                name: "CasinPOS Premium Lifetime",
                 quantity: 1,
               },
             ],
@@ -157,9 +162,9 @@ Deno.serve(async (req) => {
             cancel_url: cancelUrl,
             metadata: {
               store_id: storeId,
-              product: "casinpos_premium_30d",
-              usd: String(quote.usd),
-              fx_php_per_usd: String(quote.rate),
+              product: "casinpos_premium_lifetime",
+              php_pesos: String(quote.pesos),
+              period_end: LIFETIME_END,
             },
           },
         },
@@ -200,64 +205,26 @@ Deno.serve(async (req) => {
       checkout_url: checkoutUrl,
       amount_centavos: amount,
       amount_label: formatPhp(amount),
-      usd: quote.usd,
-      fx_rate: quote.rate,
+      php_pesos: quote.pesos,
       store_id: storeId,
+      usd: 0,
+      fx_rate: 0,
     });
   } catch (e) {
     return json({ error: "UNEXPECTED", message: String(e) }, 500);
   }
 });
 
-function parseUsd(): number {
-  const n = Number.parseFloat((Deno.env.get("PAYMONGO_PREMIUM_USD") ?? "").trim());
-  if (!Number.isFinite(n) || n < 0.5) return DEFAULT_USD;
+function parsePhpPesos(): number {
+  const n = Number.parseFloat((Deno.env.get("PAYMONGO_PREMIUM_PHP") ?? "").trim());
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_PHP_PESOS;
   return Math.round(n * 100) / 100;
 }
 
-type FxQuote = { usd: number; rate: number; centavos: number };
-
-async function quoteUsdToPhp(): Promise<FxQuote> {
-  const usd = parseUsd();
-  const rate = await fetchUsdPhpRate();
-  const centavos = Math.max(100, Math.round(usd * rate * 100));
-  return { usd, rate, centavos };
-}
-
-async function fetchUsdPhpRate(): Promise<number> {
-  const urls = [
-    "https://open.er-api.com/v6/latest/USD",
-    "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json",
-  ];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (!res.ok) continue;
-      const body = await res.json() as Record<string, unknown>;
-      const rate = readPhpRate(body);
-      if (rate != null) return rate;
-    } catch {
-      // try next source
-    }
-  }
-  return FX_FALLBACK_PHP_PER_USD;
-}
-
-function readPhpRate(body: Record<string, unknown>): number | null {
-  const rates = body.rates as Record<string, unknown> | undefined;
-  const fromRates = Number(rates?.PHP ?? rates?.php);
-  if (Number.isFinite(fromRates) && fromRates > 20 && fromRates < 120) {
-    return fromRates;
-  }
-  const usd = body.usd as Record<string, unknown> | undefined;
-  const fromUsd = Number(usd?.php ?? usd?.PHP);
-  if (Number.isFinite(fromUsd) && fromUsd > 20 && fromUsd < 120) {
-    return fromUsd;
-  }
-  return null;
+function premiumPhpQuote(): { pesos: number; centavos: number } {
+  const pesos = parsePhpPesos();
+  const centavos = Math.max(100, Math.round(pesos * 100));
+  return { pesos, centavos };
 }
 
 function paymongoBasic(secret: string): string {

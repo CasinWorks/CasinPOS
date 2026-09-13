@@ -9,7 +9,6 @@ import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/permissions.dart';
-import '../billing/upgrade_premium_dialog.dart';
 import '../franchise/franchise_dialog.dart';
 import '../onboarding/story_mode.dart';
 import '../settings/store_settings_dialog.dart';
@@ -62,23 +61,6 @@ class MobileMoreView extends ConsumerWidget {
           alignment: Alignment.centerLeft,
           child: StorePlanBadge(plan: plan),
         ),
-        if (plan == PlanTier.free && role?.canManageBilling == true) ...[
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: () => showUpgradePremiumDialog(
-              context,
-              reason: UpgradeReason.general,
-              storeName: storeName,
-              storeId: membership?.storeId,
-            ),
-            icon: const Icon(Icons.workspace_premium_outlined, size: 18),
-            label: const Text('Upgrade to Premium'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brandYellow,
-              foregroundColor: AppColors.ink,
-            ),
-          ),
-        ],
         section('OPERATIONS'),
         if (membership?.store.businessType == BusinessType.service &&
             membership?.store.isQuoteService == true)

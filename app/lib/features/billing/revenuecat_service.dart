@@ -23,6 +23,7 @@ class RevenueCatService {
   bool get isConfigured => _configured && isSupported;
 
   Future<void> configure() async {
+    if (!BillingConfig.iapEnabled) return;
     if (!isSupported || _configured) return;
     try {
       final key = defaultTargetPlatform == TargetPlatform.iOS
@@ -79,18 +80,28 @@ class RevenueCatService {
     }
   }
 
-  Future<Package?> monthlyPremiumPackage() async {
+  /// Prefers lifetime package, then legacy monthly, then product-id match.
+  Future<Package?> premiumPackage() async {
     if (!isConfigured) return null;
     final offerings = await Purchases.getOfferings();
     final current = offerings.current;
     if (current == null) return null;
 
+    final lifetime = current.lifetime;
+    if (lifetime != null) return lifetime;
+
+    for (final pkg in current.availablePackages) {
+      if (pkg.storeProduct.identifier ==
+          BillingConfig.premiumLifetimeProductId) {
+        return pkg;
+      }
+    }
+
     final monthly = current.monthly;
     if (monthly != null) return monthly;
 
     for (final pkg in current.availablePackages) {
-      if (pkg.storeProduct.identifier ==
-          BillingConfig.premiumMonthlyProductId) {
+      if (BillingConfig.isPremiumProductId(pkg.storeProduct.identifier)) {
         return pkg;
       }
     }
@@ -99,18 +110,25 @@ class RevenueCatService {
         : current.availablePackages.first;
   }
 
+  @Deprecated('Use premiumPackage')
+  Future<Package?> monthlyPremiumPackage() => premiumPackage();
+
   bool hasPremium(CustomerInfo info) {
     if (info.entitlements.active
         .containsKey(BillingConfig.premiumEntitlementId)) {
       return true;
     }
-    // Fallback when entitlement mapping lags but StoreKit still reports the SKU.
-    if (info.activeSubscriptions
-        .contains(BillingConfig.premiumMonthlyProductId)) {
-      return true;
+    for (final id in info.activeSubscriptions) {
+      if (BillingConfig.isPremiumProductId(id)) return true;
     }
     for (final ent in info.entitlements.active.values) {
-      if (ent.productIdentifier == BillingConfig.premiumMonthlyProductId) {
+      if (BillingConfig.isPremiumProductId(ent.productIdentifier)) {
+        return true;
+      }
+    }
+    // Non-consumable lifetime purchases may only appear here.
+    for (final tx in info.nonSubscriptionTransactions) {
+      if (BillingConfig.isPremiumProductId(tx.productIdentifier)) {
         return true;
       }
     }
@@ -143,14 +161,11 @@ class RevenueCatService {
     }
   }
 
-  /// Purchases monthly Premium. Returns true if entitlement is active after.
-  ///
-  /// Apple's "You are currently subscribed" sheet often returns as a cancel.
-  /// We always re-check / restore afterward so the store can still unlock.
-  Future<bool> purchaseMonthlyPremium({required String storeId}) async {
+  /// Purchases lifetime Premium (one-time). Returns true if entitlement is active.
+  Future<bool> purchasePremium({required String storeId}) async {
     if (!isConfigured) {
       throw AppException(
-        'In-app subscriptions are not available on this device yet.',
+        'In-app purchases are not available on this device yet.',
       );
     }
     await setStoreId(storeId);
@@ -159,11 +174,12 @@ class RevenueCatService {
       return true;
     }
 
-    final package = await monthlyPremiumPackage();
+    final package = await premiumPackage();
     if (package == null) {
       throw AppException(
-        'Premium subscription is not available yet. '
-        'Check App Store Connect / RevenueCat offerings.',
+        'Premium is not available yet. '
+        'Check App Store Connect / RevenueCat offerings '
+        '(product ${BillingConfig.premiumLifetimeProductId}).',
       );
     }
     try {
@@ -176,7 +192,6 @@ class RevenueCatService {
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError ||
           code == PurchasesErrorCode.productAlreadyPurchasedError) {
-        // Cancelled sheet OR already-owned → still try to attach existing sub.
         return attachStorePurchasesToCurrentUser(storeId: storeId);
       }
       throw AppException(
@@ -186,6 +201,10 @@ class RevenueCatService {
       );
     }
   }
+
+  @Deprecated('Use purchasePremium')
+  Future<bool> purchaseMonthlyPremium({required String storeId}) =>
+      purchasePremium(storeId: storeId);
 
   Future<bool> restorePurchases({required String storeId}) =>
       attachStorePurchasesToCurrentUser(storeId: storeId);

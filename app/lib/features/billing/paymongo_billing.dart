@@ -2,23 +2,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../bootstrap.dart';
 import '../../core/config/app_url.dart';
+import '../../core/config/billing_config.dart';
 import '../../core/errors/app_errors.dart';
 
 class PaymongoPriceQuote {
   const PaymongoPriceQuote({
     required this.amountCentavos,
     required this.amountLabel,
-    required this.usd,
-    required this.fxRate,
+    this.phpPesos = BillingConfig.premiumPhpPesos,
   });
 
   final int amountCentavos;
   final String amountLabel;
-  final double usd;
-  final double fxRate;
+  final double phpPesos;
 
   String get priceLine =>
-      'Premium — \$${usd.toStringAsFixed(2)} for 30 days ($amountLabel today)';
+      'Premium lifetime — $amountLabel one-time';
 }
 
 class PaymongoCheckout extends PaymongoPriceQuote {
@@ -27,8 +26,7 @@ class PaymongoCheckout extends PaymongoPriceQuote {
     required this.checkoutUrl,
     required super.amountCentavos,
     required super.amountLabel,
-    required super.usd,
-    required super.fxRate,
+    super.phpPesos,
   });
 
   final String checkoutId;
@@ -36,11 +34,14 @@ class PaymongoCheckout extends PaymongoPriceQuote {
 }
 
 PaymongoPriceQuote _quoteFromMap(Map data) {
+  final label = data['amount_label'] as String? ?? BillingConfig.premiumPhpLabel;
+  final pesos = (data['php_pesos'] as num?)?.toDouble() ??
+      BillingConfig.premiumPhpPesos;
   return PaymongoPriceQuote(
-    amountCentavos: (data['amount_centavos'] as num?)?.toInt() ?? 0,
-    amountLabel: data['amount_label'] as String? ?? '₱—',
-    usd: (data['usd'] as num?)?.toDouble() ?? 2.99,
-    fxRate: (data['fx_rate'] as num?)?.toDouble() ?? 0,
+    amountCentavos: (data['amount_centavos'] as num?)?.toInt() ??
+        BillingConfig.premiumPhpCentavos,
+    amountLabel: label,
+    phpPesos: pesos,
   );
 }
 
@@ -72,8 +73,7 @@ Future<PaymongoCheckout> createPremiumPaymongoCheckout({
     checkoutUrl: url,
     amountCentavos: quote.amountCentavos,
     amountLabel: quote.amountLabel,
-    usd: quote.usd,
-    fxRate: quote.fxRate,
+    phpPesos: quote.phpPesos,
   );
 }
 

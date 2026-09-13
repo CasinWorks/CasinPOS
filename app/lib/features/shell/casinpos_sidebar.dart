@@ -14,7 +14,6 @@ import '../../../data/providers/session_providers.dart';
 import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/permissions.dart';
-import '../billing/upgrade_premium_dialog.dart';
 import '../franchise/franchise_dialog.dart';
 import '../onboarding/story_mode.dart';
 import '../onboarding/tutorial_anchors.dart';
@@ -179,25 +178,6 @@ class CasinPosSidebar extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: StorePlanBadge(plan: plan),
-                ),
-              ],
-              if (plan == PlanTier.free && membership?.role.canManageBilling == true) ...[
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => showUpgradePremiumDialog(
-                      context,
-                      reason: UpgradeReason.general,
-                      storeName: storeName,
-                      storeId: membership?.storeId,
-                    ),
-                    icon: const Icon(Icons.workspace_premium_outlined, size: 16),
-                    label: const Text('Upgrade to Premium', style: TextStyle(fontSize: 10)),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
                 ),
               ],
               const SizedBox(height: 6),

@@ -1,4 +1,4 @@
-// PayMongo webhook → 30 days of CasinPOS Premium.
+// PayMongo webhook → lifetime CasinPOS Premium (one-time unlock).
 // Dashboard: Developers → Webhooks →
 //   URL https://<project>.supabase.co/functions/v1/paymongo-webhook
 //   Events: checkout_session.payment.paid
@@ -14,7 +14,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DAY_MS = 30 * 24 * 60 * 60 * 1000;
+const LIFETIME_END = "2099-12-31T23:59:59.000Z";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -109,15 +109,17 @@ Deno.serve(async (req) => {
       .eq("store_id", storeId)
       .maybeSingle();
 
-    const now = Date.now();
-    let endBase = now;
-    if ((sub?.provider as string | undefined) === "paymongo") {
-      const existingEnd = Date.parse(String(sub?.current_period_end ?? ""));
-      if (!Number.isNaN(existingEnd) && existingEnd > now) {
-        endBase = existingEnd;
-      }
+    // Already lifetime — don't overwrite bind id unnecessarily.
+    const existingEnd = Date.parse(String(sub?.current_period_end ?? ""));
+    if (
+      (sub?.provider as string | undefined) === "paymongo" &&
+      !Number.isNaN(existingEnd) &&
+      existingEnd >= Date.parse(LIFETIME_END) - 24 * 60 * 60 * 1000
+    ) {
+      return json({ ok: true, skipped: "already_lifetime", storeId });
     }
 
+    const now = Date.now();
     const bindId = paymentId || checkoutId || `paymongo:${storeId}:${now}`;
     const { error } = await admin.rpc("apply_store_subscription_from_provider", {
       p_store_id: storeId,
@@ -127,7 +129,7 @@ Deno.serve(async (req) => {
       p_provider_customer_id: checkoutId,
       p_provider_subscription_id: bindId,
       p_period_start: new Date(now).toISOString(),
-      p_period_end: new Date(endBase + DAY_MS).toISOString(),
+      p_period_end: LIFETIME_END,
       p_monthly_limit: 100000,
     });
     if (error) {
@@ -142,7 +144,12 @@ Deno.serve(async (req) => {
       return json({ error: "APPLY_FAILED", message: error.message }, 500);
     }
 
-    return json({ ok: true, store_id: storeId, provider: "paymongo" });
+    return json({
+      ok: true,
+      store_id: storeId,
+      provider: "paymongo",
+      period_end: LIFETIME_END,
+    });
   } catch (e) {
     return json({ error: "UNEXPECTED", message: String(e) }, 500);
   }

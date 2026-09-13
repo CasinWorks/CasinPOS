@@ -3,6 +3,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../bootstrap.dart';
+import '../../core/config/billing_config.dart';
 import '../../data/providers/session_providers.dart';
 import '../../domain/enums.dart';
 import 'revenuecat_service.dart';
@@ -12,7 +13,9 @@ final revenueCatServiceProvider = Provider<RevenueCatService>((ref) {
 });
 
 /// Configures RevenueCat once and keeps App User ID in sync with Supabase auth.
+/// No-op when [BillingConfig.iapEnabled] is false (paid App Store product).
 final revenueCatBootstrapProvider = FutureProvider<void>((ref) async {
+  if (!BillingConfig.iapEnabled) return;
   final service = ref.watch(revenueCatServiceProvider);
   await service.configure();
 
@@ -27,13 +30,15 @@ final revenueCatBootstrapProvider = FutureProvider<void>((ref) async {
 });
 
 final premiumMonthlyPackageProvider = FutureProvider<Package?>((ref) async {
+  if (!BillingConfig.iapEnabled) return null;
   await ref.watch(revenueCatBootstrapProvider.future);
-  return ref.watch(revenueCatServiceProvider).monthlyPremiumPackage();
+  return ref.watch(revenueCatServiceProvider).premiumPackage();
 });
 
 /// When an Owner opens a Free store and this Apple/Google account already has
 /// Premium, attach + sync automatically (no extra Restore tap).
 final premiumAutoSyncProvider = FutureProvider.autoDispose<void>((ref) async {
+  if (!BillingConfig.iapEnabled) return;
   await ref.watch(revenueCatBootstrapProvider.future);
   final membership = ref.watch(activeMembershipProvider);
   if (membership == null) return;

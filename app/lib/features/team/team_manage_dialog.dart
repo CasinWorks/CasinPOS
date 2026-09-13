@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_url.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_share_actions.dart';
 import '../../core/theme/app_colors.dart';
@@ -10,7 +9,6 @@ import '../../core/theme/app_spacing.dart';
 import '../../data/models/team_models.dart';
 import '../../data/providers/session_providers.dart';
 import '../../domain/enums.dart';
-import '../billing/upgrade_premium_dialog.dart';
 import '../auth/pin_pad.dart';
 import 'invite_teammate_dialog.dart';
 
@@ -29,7 +27,6 @@ Future<void> showTeamManageDialog(BuildContext context, WidgetRef ref) async {
       storeId: membership.storeId,
       storeName: membership.store.name,
       actorRole: membership.role,
-      planTier: membership.store.planTier,
     ),
   );
 }
@@ -39,13 +36,11 @@ class _TeamManageDialog extends ConsumerStatefulWidget {
     required this.storeId,
     required this.storeName,
     required this.actorRole,
-    required this.planTier,
   });
 
   final String storeId;
   final String storeName;
   final StoreRole actorRole;
-  final PlanTier planTier;
 
   @override
   ConsumerState<_TeamManageDialog> createState() => _TeamManageDialogState();
@@ -55,7 +50,6 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   StoreTeamSnapshot? _team;
-  StoreSeatUsage? _seats;
   var _loading = true;
   String? _error;
   String? _busyId;
@@ -80,14 +74,10 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     });
     final storeRepo = ref.read(storeRepositoryProvider);
     try {
-      final results = await Future.wait([
-        storeRepo.listStoreTeam(widget.storeId),
-        storeRepo.storeSeatUsage(widget.storeId),
-      ]);
+      final team = await storeRepo.listStoreTeam(widget.storeId);
       if (!mounted) return;
       setState(() {
-        _team = results[0] as StoreTeamSnapshot;
-        _seats = results[1] as StoreSeatUsage;
+        _team = team;
         _loading = false;
       });
     } catch (e) {
@@ -242,14 +232,7 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     } catch (e) {
       if (!mounted) return;
       final msg = friendlyError(e);
-      if (msg.toLowerCase().contains('upgrade to premium') ||
-          msg.toUpperCase().contains('FREE_TEAM_SEAT_LIMIT')) {
-        await showUpgradePremiumDialog(
-          context,
-          reason: UpgradeReason.teamSeats,
-          storeName: widget.storeName,
-        );
-      } else if (msg.toLowerCase().contains('ref') &&
+      if (msg.toLowerCase().contains('ref') &&
           msg.toLowerCase().contains('disposed')) {
         showAppMessage(
           context,
@@ -265,17 +248,6 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
   }
 
   Future<void> _invite() async {
-    final seats = _seats;
-    if (widget.planTier == PlanTier.free &&
-        seats != null &&
-        seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
-      await showUpgradePremiumDialog(
-        context,
-        reason: UpgradeReason.teamSeats,
-        storeName: widget.storeName,
-      );
-      return;
-    }
     // Keep Team Manage mounted — do not pop then reuse disposed `ref`.
     await showInviteTeammateDialog(context);
     if (mounted) await _load();
@@ -351,13 +323,6 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
     final team = _team;
     final memberCount = team?.members.length ?? 0;
     final inviteCount = team?.invitations.length ?? 0;
-    final seats = _seats;
-    final seatLimit = AppConstants.freeTeamSeatLimit;
-    final seatsUsed = seats?.seatsUsed ?? memberCount;
-    final overFreeLimit =
-        widget.planTier == PlanTier.free && seatsUsed > seatLimit;
-    final atFreeLimit =
-        widget.planTier == PlanTier.free && seatsUsed >= seatLimit;
 
     return AlertDialog(
       title: const Text('Team'),
@@ -368,31 +333,9 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              widget.planTier == PlanTier.free
-                  ? 'Free seats: $seatsUsed / $seatLimit'
-                      '${seats != null && seats.pendingInvites > 0 ? ' · ${seats.pendingInvites} pending invite' : ''}'
-                      '${overFreeLimit ? ' — over limit (remove a teammate or upgrade).' : '.'}'
-                  : 'Members and pending invites for ${widget.storeName}.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: overFreeLimit ? AppColors.danger : null,
-                    fontWeight: overFreeLimit ? FontWeight.w700 : null,
-                  ),
+              'Members and pending invites for ${widget.storeName}.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (widget.planTier == PlanTier.free) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => showUpgradePremiumDialog(
-                    context,
-                    reason: UpgradeReason.teamSeats,
-                    storeName: widget.storeName,
-                  ),
-                  icon: const Icon(Icons.workspace_premium_outlined, size: 16),
-                  label: Text(atFreeLimit ? 'Upgrade for more seats' : 'Need more seats?'),
-                ),
-              ),
-            ],
             const SizedBox(height: AppSpacing.sm),
             TabBar(
               controller: _tabs,
@@ -434,15 +377,9 @@ class _TeamManageDialogState extends ConsumerState<_TeamManageDialog>
         ),
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         FilledButton.icon(
-          onPressed: atFreeLimit
-              ? () => showUpgradePremiumDialog(
-                    context,
-                    reason: UpgradeReason.teamSeats,
-                    storeName: widget.storeName,
-                  )
-              : _invite,
-          icon: Icon(atFreeLimit ? Icons.workspace_premium_outlined : Icons.person_add_alt_1, size: 18),
-          label: Text(atFreeLimit ? 'Upgrade' : 'Invite'),
+          onPressed: _invite,
+          icon: const Icon(Icons.person_add_alt_1, size: 18),
+          label: const Text('Invite'),
         ),
       ],
     );

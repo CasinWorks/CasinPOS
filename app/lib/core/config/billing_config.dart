@@ -2,11 +2,32 @@
 ///
 /// Must match App Store Connect + RevenueCat dashboard exactly.
 abstract final class BillingConfig {
-  /// RevenueCat entitlement that unlocks CasinPOS Premium.
+  /// Paid App Store / full-access product. IAP / RevenueCat disabled in shipping builds.
+  static const iapEnabled = false;
+
+  /// RevenueCat entitlement that unlocks CasinPOS Premium (legacy / dormant).
   static const premiumEntitlementId = 'premium';
 
-  /// App Store / Play product id for the monthly Premium subscription.
+  /// One-time Non-Consumable (App Store) / one-time product (Play).
+  static const premiumLifetimeProductId = 'casinpos_premium_lifetime';
+
+  /// Legacy auto-renewable product — still accepted for existing buyers.
   static const premiumMonthlyProductId = 'casinpos_premium_monthly';
+
+  static const premiumProductIds = {
+    premiumLifetimeProductId,
+    premiumMonthlyProductId,
+  };
+
+  /// Fixed PH list price for Premium (web PayMongo + marketing copy).
+  /// Apple/Google show the StoreKit / Play price tier you set in the consoles.
+  static const premiumPhpPesos = 199.0;
+  static const premiumPhpCentavos = 19900;
+  static const premiumPhpLabel = '₱199';
+  static const premiumPeriodLabel = 'paid app';
+
+  /// Far-future period end so PayMongo expire jobs never demote lifetime.
+  static const lifetimePeriodEndIso = '2099-12-31T23:59:59.000Z';
 
   /// Public SDK keys from RevenueCat → Project → API keys.
   /// Pass via --dart-define (never commit secret/server keys).
@@ -32,4 +53,9 @@ abstract final class BillingConfig {
 
   static bool get hasIosKey => resolvedIosKey.isNotEmpty;
   static bool get hasAndroidKey => resolvedAndroidKey.isNotEmpty;
+
+  static bool isPremiumProductId(String? id) {
+    final v = (id ?? '').trim();
+    return v.isNotEmpty && premiumProductIds.contains(v);
+  }
 }

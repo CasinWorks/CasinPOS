@@ -14,7 +14,11 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const PREMIUM_PRODUCT = "casinpos_premium_monthly";
+const PREMIUM_PRODUCT_IDS = new Set([
+  "casinpos_premium_lifetime",
+  "casinpos_premium_monthly",
+]);
+const LIFETIME_END = "2099-12-31T23:59:59.000Z";
 
 type RcSub = {
   expires_date?: string | null;
@@ -76,7 +80,7 @@ Deno.serve(async (req) => {
 
     let lastPayload: unknown = null;
     let active = false;
-    let productId = PREMIUM_PRODUCT;
+    let productId = "casinpos_premium_lifetime";
     let periodStart: string | null = null;
     let periodEnd: string | null = null;
     let bindId: string | null = null;
@@ -107,6 +111,11 @@ Deno.serve(async (req) => {
             product_identifier?: string;
           }>;
           subscriptions?: Record<string, RcSub>;
+          non_subscriptions?: Record<string, Array<{
+            purchase_date?: string | null;
+            store_transaction_id?: string | null;
+            id?: string | null;
+          }>>;
         };
       };
       lastPayload = payload;
@@ -115,18 +124,38 @@ Deno.serve(async (req) => {
       let premium = ents["premium"];
       if (!premium) {
         for (const ent of Object.values(ents)) {
-          if (ent.product_identifier === PREMIUM_PRODUCT) {
+          if (
+            ent.product_identifier &&
+            PREMIUM_PRODUCT_IDS.has(ent.product_identifier)
+          ) {
             premium = ent;
             break;
           }
         }
       }
 
+      const productFromEnt = premium?.product_identifier ?? "";
+      const nonSubs = payload.subscriber?.non_subscriptions ?? {};
+      let nonSubTx: {
+        purchase_date?: string | null;
+        store_transaction_id?: string | null;
+        id?: string | null;
+      } | undefined;
+      for (const [pid, txs] of Object.entries(nonSubs)) {
+        if (!PREMIUM_PRODUCT_IDS.has(pid)) continue;
+        if (Array.isArray(txs) && txs.length > 0) {
+          nonSubTx = txs[txs.length - 1];
+          if (!productFromEnt) productId = pid;
+          break;
+        }
+      }
+
       const sub =
-        payload.subscriber?.subscriptions?.[PREMIUM_PRODUCT] ??
-        (premium?.product_identifier
-          ? payload.subscriber?.subscriptions?.[premium.product_identifier]
-          : undefined);
+        (productFromEnt
+          ? payload.subscriber?.subscriptions?.[productFromEnt]
+          : undefined) ??
+        payload.subscriber?.subscriptions?.["casinpos_premium_lifetime"] ??
+        payload.subscriber?.subscriptions?.["casinpos_premium_monthly"];
 
       const expiresRaw = premium?.expires_date ?? sub?.expires_date ?? null;
       const expires = expiresRaw ? Date.parse(expiresRaw) : null;
@@ -135,16 +164,24 @@ Deno.serve(async (req) => {
       const subActive = !!sub &&
         (sub.expires_date == null ||
           Date.parse(sub.expires_date) > Date.now());
+      const nonSubActive = !!nonSubTx;
 
-      if (entActive || subActive) {
+      if (entActive || subActive || nonSubActive) {
         active = true;
-        productId = premium?.product_identifier ?? PREMIUM_PRODUCT;
-        periodStart = sub?.purchase_date ?? null;
-        periodEnd = expiresRaw;
-        // Prefer Apple/Play transaction id so one phone sub ≠ many stores.
+        productId = premium?.product_identifier ||
+          productId ||
+          "casinpos_premium_lifetime";
+        periodStart = sub?.purchase_date ?? nonSubTx?.purchase_date ?? null;
+        // Lifetime / non-consumable: null expiry → far future.
+        periodEnd = expiresRaw ?? LIFETIME_END;
         bindId = (sub?.store_transaction_id ?? "").trim() ||
+          (nonSubTx?.store_transaction_id ?? "").trim() ||
+          (nonSubTx?.id ?? "").trim() ||
           (sub?.original_purchase_date
             ? `${productId}:${sub.original_purchase_date}`
+            : null) ||
+          (nonSubTx?.purchase_date
+            ? `${productId}:${nonSubTx.purchase_date}`
             : null);
         break;
       }
@@ -209,7 +246,7 @@ Deno.serve(async (req) => {
         p_provider_customer_id: user.id,
         p_provider_subscription_id: bindId,
         p_period_start: periodStart,
-        p_period_end: periodEnd,
+        p_period_end: periodEnd ?? LIFETIME_END,
         p_monthly_limit: 100000,
       },
     );

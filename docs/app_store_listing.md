@@ -2,6 +2,26 @@
 
 Use these with App Store Connect and Google Play Console.
 
+## Pricing model (paid app)
+
+CasinPOS is a **paid application** at **₱199**. There is **no Free plan** and **no In-App Purchases**.
+
+| Channel | How users pay |
+|---------|----------------|
+| Apple App Store | App price **₱199** (Price Schedule) |
+| After install | Full Premium access (create store → Premium) |
+
+### App Store Connect checklist (required)
+
+1. **Pricing and Availability** → set base / Philippines price to **₱199**.
+2. **Monetization** → remove from this app version (do **not** submit with the binary):
+   - `casinpos_premium_monthly`
+   - `casinpos_premium_lifetime` (if created)
+   - Clear for Sale **off**, or detach from the version.
+3. **App Information** → Privacy Policy URL: `https://pos.casinworks.com/privacy`
+4. Terms of Use: custom EULA or link in description → `https://pos.casinworks.com/terms`
+5. Resubmit binary. This clears Guideline **2.1(b)** (no IAP products for reviewers to find).
+
 ## Public policy URLs (required for account apps)
 
 After deploy, these must open without login:
@@ -12,25 +32,7 @@ After deploy, these must open without login:
 | Privacy Policy | `https://pos.casinworks.com/privacy` |
 | Terms of Use (EULA) | `https://pos.casinworks.com/terms` |
 
-Also linked from Sign in, Sign up, Store settings → Privacy / Terms, and the Premium upgrade sheet.
-
-## Auto-renewable subscription (Apple Guideline 3.1.2)
-
-CasinPOS Premium uses **auto-renewable subscriptions** on iOS. Apple requires a **functional Terms of Use link on the App Store product page**.
-
-**Do this in App Store Connect before resubmitting:**
-
-1. **App Information** → **Privacy Policy URL:** `https://pos.casinworks.com/privacy`
-2. **Terms of Use (EULA)** — pick one:
-   - **Custom EULA (recommended):** App Information → **License Agreement** → choose **Custom** and paste the subscription section from `/terms` (or link to `https://pos.casinworks.com/terms`).
-   - **Apple standard EULA:** Add this line at the **end of the App Description** (must be a clickable URL in the description field):
-     ```
-     Terms of Use (EULA): https://pos.casinworks.com/terms
-     ```
-3. **App Privacy** → confirm Privacy Policy URL matches above.
-4. **Review notes** — include both URLs (see below).
-
-In-app, the Premium upgrade sheet shows subscription length, price, and **Privacy Policy** / **Terms of Use** links.
+Also linked from Sign in, Sign up, and Store settings → Privacy / Terms.
 
 ## Account deletion (Apple Guideline 5.1.1)
 
@@ -53,6 +55,8 @@ Email `christianjoshuacasin@gmail.com` with the signed-in account email and requ
 
 ```
 CasinPOS is a retail point-of-sale built for tablet cashiers.
+
+One-time App Store purchase (₱199). Full access after install — no subscriptions and no in-app purchases.
 
 • Ring up sales with search or camera barcode scan
 • Cash calculator with change, GCash / Maya / card
@@ -110,12 +114,13 @@ Export PNG; avoid demo passwords on screen. Use a demo store with realistic prod
 ```
 Demo account: (enter in App Store Connect only)
 
+CasinPOS is a PAID APP (₱199). There are NO In-App Purchases and NO subscriptions.
+Full features after App Store purchase and install. New stores are Premium by default.
+
 Account deletion: Support → Delete my account
 Support: Sidebar → Support → email christianjoshuacasin@gmail.com
 Privacy: https://pos.casinworks.com/privacy
 Terms of Use (EULA): https://pos.casinworks.com/terms
-
-Premium subscription: CasinPOS Premium Monthly (auto-renewable, 1 month). Upgrade sheet shows price, renewal terms, Privacy Policy, and Terms of Use links.
 
 Core path: Sign in → Open register → Retail POS → add item → Pay cash → Refund from Sales History
 ```

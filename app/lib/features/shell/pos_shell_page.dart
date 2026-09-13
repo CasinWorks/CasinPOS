@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/responsive/breakpoints.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/store_plan_badge.dart';
 import '../../../data/models/store_models.dart';
@@ -12,7 +11,6 @@ import '../../../data/providers/sync_providers.dart';
 import '../../../domain/enums.dart';
 import '../analytics/sales_analytics_view.dart';
 import '../billing/billing_providers.dart';
-import '../billing/upgrade_premium_dialog.dart';
 import '../reports/reports_hub_view.dart';
 import '../cart_checkout/mobile_cart_fab.dart';
 import '../cart_checkout/retail_cart_tray.dart';
@@ -186,37 +184,6 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
                             ],
                           ),
                         ),
-                        if (membership?.store.planTier == PlanTier.free &&
-                            membership?.role.canManageBilling == true)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: TextButton(
-                              onPressed: () => showUpgradePremiumDialog(
-                                context,
-                                reason: UpgradeReason.general,
-                                storeName: storeName,
-                                storeId: membership?.storeId,
-                              ),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.ink,
-                                backgroundColor: AppColors.brandYellow,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              child: const Text(
-                                'Upgrade',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ),
                         const MobileAccountButton(),
                       ],
                     ),

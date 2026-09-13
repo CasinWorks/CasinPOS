@@ -1,15 +1,15 @@
 CasinPOS Terms of Use (EULA)
-Last updated: September 2, 2026
+Last updated: September 14, 2026
 Full text online: https://pos.casinworks.com/terms
 
 AGREEMENT
 By creating a CasinPOS account or using the app, you agree to these Terms of Use (EULA). If you use CasinPOS for a business, you confirm you have authority to bind that business.
 
 THE SERVICE
-CasinPOS provides point-of-sale, inventory, receipts, and related tools for retail tablet/web use. Features may change as we improve the product. Free plans may include usage limits.
+CasinPOS provides point-of-sale, inventory, receipts, and related tools for retail tablet/web use. Features may change as we improve the product.
 
-PREMIUM SUBSCRIPTION (AUTO-RENEWABLE)
-CasinPOS Premium is an optional auto-renewable monthly subscription billed through the Apple App Store, Google Play, or PayMongo on the web. The subscription unlocks Premium features for one store (more team seats, higher monthly sales limits, franchise tools, and related features). Payment is charged to your Apple ID, Google account, or chosen PayMongo payment method at confirmation of purchase. The subscription renews automatically each month unless you cancel at least 24 hours before the current period ends. Your account is charged for renewal within 24 hours before the period ends. You can manage or cancel App Store or Play subscriptions in your device account settings (Settings → Apple ID → Subscriptions on iPhone/iPad, or Google Play → Payments & subscriptions). PayMongo web billing is a 30-day prepaid period and does not auto-renew through Apple or Google. If a free trial is offered, unused trial time is forfeited when you purchase a subscription where applicable. Prices may vary by region and are shown before you confirm purchase.
+PAID APP ACCESS
+CasinPOS on Apple is a paid application. The App Store price (typically ₱199 in the Philippines) is charged once when you purchase the app. After purchase and install, creating a store unlocks full Premium features (team seats, higher sales limits, franchise tools, and related features). There is no separate in-app subscription and no auto-renewing In-App Purchase. Platform operators may adjust a store’s plan for support or abuse prevention.
 
 YOUR RESPONSIBILITIES
 You are responsible for account security, staff access, accurate catalog/pricing/tax settings, complying with local laws (including Philippine tax and receipt rules where applicable), and verifying sales totals before charging customers.

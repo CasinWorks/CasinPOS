@@ -8,7 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/pos_models.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
-import '../billing/upgrade_premium_dialog.dart';
 import '../onboarding/tutorial_anchors.dart';
 import '../receipts/receipt_pdf.dart';
 import '../receipts/receipt_preview_page.dart';
@@ -195,17 +194,11 @@ class _RetailCartTrayState extends ConsumerState<RetailCartTray> {
       );
     } catch (e) {
       if (!mounted) return;
-      final msg = friendlyError(e, fallback: 'Checkout failed. Please try again.');
-      if (msg.toLowerCase().contains('upgrade to premium') ||
-          msg.toUpperCase().contains('FREE_MONTHLY_LIMIT_REACHED')) {
-        await showUpgradePremiumDialog(
-          context,
-          reason: UpgradeReason.monthlyTransactions,
-          storeName: ref.read(activeMembershipProvider)?.store.name,
-        );
-      } else {
-        showAppError(context, msg);
-      }
+      showAppError(
+        context,
+        e,
+        fallback: 'Checkout failed. Please try again.',
+      );
     }
   }
 

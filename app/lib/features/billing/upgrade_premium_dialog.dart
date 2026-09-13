@@ -7,6 +7,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/billing_config.dart';
 import '../../core/config/legal_urls.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/theme/app_colors.dart';
@@ -104,7 +105,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       if (!mounted) return;
       setState(() => _webQuote = quote);
     } catch (_) {
-      // Offer still shows $2.99; peso amount appears on the PayMongo sheet.
+      // Offer still shows ₱199; amount confirmed on the PayMongo sheet.
     }
   }
 
@@ -113,7 +114,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     await ref.read(revenueCatBootstrapProvider.future);
     if (!service.isConfigured) return;
     try {
-      final pkg = await service.monthlyPremiumPackage();
+      final pkg = await service.premiumPackage();
       if (!mounted) return;
       setState(() => _package = pkg);
     } catch (_) {
@@ -183,7 +184,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     try {
       final service = ref.read(revenueCatServiceProvider);
       // Purchase sheet (or “already subscribed”) → always try attach + server sync.
-      await service.purchaseMonthlyPremium(storeId: storeId);
+      await service.purchasePremium(storeId: storeId);
       await service.attachStorePurchasesToCurrentUser(storeId: storeId);
 
       String? syncError;
@@ -226,7 +227,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           _busy = false;
           _error =
               'RevenueCat does not see Premium on this login yet. '
-              'Apple can still show the sub under Settings. Tap Subscribe — '
+              'Apple can still show the purchase under Settings. Tap Buy — '
               'if Apple says you already own it, we will attach it to this store.';
         });
         return;
@@ -398,9 +399,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     }
 
     final body = iapReady
-        ? 'Unlock Premium for this store. Billing goes through Apple or Google.\n\n'
-            'Already subscribed on this phone? Tap Subscribe or Restore — '
-            'we unlock this store without charging again until the period ends.'
+        ? 'Unlock Premium forever for this store with a one-time purchase. '
+            'Billing goes through Apple or Google.\n\n'
+            'Already purchased on this Apple ID / Google account? '
+            'Tap Buy or Restore — we unlock this store without charging again.'
         : 'This build has no RevenueCat API key. Relaunch with '
             'scripts/run_ios_billing.sh';
 
@@ -432,7 +434,9 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
             Text(body, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.lg),
             _benefitsCard(
-              price == null ? null : 'Premium monthly — $price',
+              price == null
+                  ? 'Premium lifetime — ${BillingConfig.premiumPhpLabel} one-time'
+                  : 'Premium lifetime — $price (one-time)',
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -454,7 +458,9 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
               FilledButton(
                 onPressed: _busy ? null : _purchase,
                 child: Text(
-                  price == null ? 'Subscribe' : 'Subscribe — $price',
+                  price == null
+                      ? 'Buy Premium — ${BillingConfig.premiumPhpLabel}'
+                      : 'Buy Premium — $price',
                 ),
               ),
               const SizedBox(height: 8),
@@ -463,7 +469,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
                 child: const Text('Restore purchases'),
               ),
               const SizedBox(height: 8),
-              _subscriptionDisclosure(price),
+              _purchaseDisclosure(price),
               const SizedBox(height: 4),
               _legalLinks(),
               const SizedBox(height: 4),
@@ -482,14 +488,13 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     );
   }
 
-  Widget _subscriptionDisclosure(String? price) {
-    final priceLabel = price ?? 'the price shown in the App Store';
+  Widget _purchaseDisclosure(String? price) {
+    final priceLabel = price ?? BillingConfig.premiumPhpLabel;
     return Text(
-      'CasinPOS Premium Monthly — 1 month, auto-renewing subscription. '
-      'Price: $priceLabel per month. Payment is charged to your Apple ID or '
-      'Google account at confirmation. Renews automatically unless cancelled at '
-      'least 24 hours before the period ends. Manage or cancel in your device '
-      'account subscription settings.',
+      'CasinPOS Premium Lifetime — one-time purchase ($priceLabel). '
+      'Unlocks Premium for this store permanently. Payment is charged to your '
+      'Apple ID or Google account at confirmation. Not a subscription — '
+      'no auto-renewal. Restore purchases if you reinstall or switch devices.',
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: AppColors.slate500,
             height: 1.4,
@@ -588,13 +593,14 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           const SizedBox(height: 12),
           Text(
             'Pay on the web with GCash, Maya, QR Ph, or card. '
-            'Premium is \$2.99 USD; PayMongo charges the peso equivalent at today’s rate. '
-            'Each payment unlocks 30 days. iPhone billing stays in the iOS app.',
+            'Premium is a one-time ${BillingConfig.premiumPhpLabel} unlock for this store. '
+            'iPhone / Android purchases stay in the mobile apps.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: AppSpacing.lg),
           _benefitsCard(
-            _webQuote?.priceLine ?? 'Premium — \$2.99 for 30 days (pesos at today’s rate)',
+            _webQuote?.priceLine ??
+                'Premium lifetime — ${BillingConfig.premiumPhpLabel} one-time',
           ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -646,9 +652,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           const SizedBox(height: 12),
           Text(
             until == null
-                ? 'This store is billed on the web via PayMongo.'
-                : 'This store is billed on the web via PayMongo through $until. '
-                    'Pay again to add 30 more days.',
+                ? 'This store is Premium (web billing via PayMongo).'
+                : endLooksLifetime(periodEnd)
+                    ? 'This store has lifetime Premium via PayMongo.'
+                    : 'This store is billed on the web via PayMongo through $until.',
           ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -666,18 +673,31 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
             const Center(child: CircularProgressIndicator()),
           ],
           const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _busy ? null : _startWebCheckout,
-            child: const Text('Renew 30 days'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _busy ? null : () => Navigator.pop(context),
-            child: const Text('Done'),
-          ),
+          if (!endLooksLifetime(periodEnd))
+            FilledButton(
+              onPressed: _busy ? null : _startWebCheckout,
+              child: const Text('Unlock lifetime'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done'),
+            ),
+          if (!endLooksLifetime(periodEnd)) ...[
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _busy ? null : () => Navigator.pop(context),
+              child: const Text('Done'),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  bool endLooksLifetime(DateTime? periodEnd) {
+    if (periodEnd == null) return false;
+    return periodEnd.year >= 2090;
   }
 
   Widget _webPayBody() {
@@ -696,7 +716,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           const SizedBox(height: 8),
           Text(
             'Use GCash, Maya, QR Ph, or a card on your phone. '
-            '\$${checkout.usd.toStringAsFixed(2)} USD converts to ${checkout.amountLabel} today. '
+            'Pay ${checkout.amountLabel} once for lifetime Premium. '
             'This screen unlocks Premium when PayMongo confirms payment.',
           ),
           const SizedBox(height: 16),

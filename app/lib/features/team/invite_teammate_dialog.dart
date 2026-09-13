@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_url.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_errors.dart';
 import '../../core/invite/invite_share_actions.dart';
 import '../../core/theme/app_colors.dart';
@@ -11,7 +10,6 @@ import '../../data/models/store_models.dart';
 import '../../data/providers/session_providers.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../domain/enums.dart';
-import '../billing/upgrade_premium_dialog.dart';
 
 /// Opens invite UI without holding a [WidgetRef] across async gaps.
 Future<void> showInviteTeammateDialog(BuildContext context) async {
@@ -36,23 +34,6 @@ Future<void> showInviteTeammateDialog(BuildContext context) async {
 
   final storeRepo = container.read(storeRepositoryProvider);
   final authRepo = container.read(authRepositoryProvider);
-
-  if (membership.store.planTier == PlanTier.free) {
-    try {
-      final seats = await storeRepo.storeSeatUsage(membership.storeId);
-      if (!context.mounted) return;
-      if (seats.seatsUsed >= AppConstants.freeTeamSeatLimit) {
-        await showUpgradePremiumDialog(
-          context,
-          reason: UpgradeReason.teamSeats,
-          storeName: membership.store.name,
-        );
-        return;
-      }
-    } catch (_) {
-      // RPC invite still enforces.
-    }
-  }
 
   if (!context.mounted) return;
   await showDialog<void>(
@@ -129,7 +110,7 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
           });
           return;
         }
-        // Default: all listed branches (Free = Main only).
+        // Default: all listed branches.
         branchIds = branches.map((b) => b.id).toList();
       }
       final row = await storeRepo.createInvitation(
@@ -186,16 +167,6 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
         setState(() => _error = 'Something went wrong. Close this and try Invite again.');
         return;
       }
-      if (msg.toLowerCase().contains('upgrade to premium') ||
-          msg.toUpperCase().contains('FREE_TEAM_SEAT_LIMIT')) {
-        await showUpgradePremiumDialog(
-          context,
-          reason: UpgradeReason.teamSeats,
-          storeName: widget.membership.store.name,
-        );
-        if (mounted) Navigator.pop(context);
-        return;
-      }
       setState(() => _error = msg);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -218,9 +189,7 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
           children: [
             Text(
               token == null
-                  ? membership.store.planTier == PlanTier.free
-                      ? 'Free plan: you + 1 teammate. Enter their email — we’ll try to email a join link.'
-                      : 'Enter their email. They must sign up / sign in with that same email.'
+                  ? 'Enter their email. They must sign up / sign in with that same email.'
                   : 'Send them the join link below. One link is enough — they don’t need a separate token.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -259,7 +228,7 @@ class _InviteTeammateDialogState extends State<_InviteTeammateDialog> {
               if (_role == StoreRole.branchManager) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Branch Manager needs at least one branch. On Free plan there is usually one Main branch — we’ll assign it automatically after invite if you leave this as Branch Manager.',
+                  'Branch Manager needs at least one branch — we’ll assign available branches automatically after invite if you leave this as Branch Manager.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.slate500),
                 ),
               ],

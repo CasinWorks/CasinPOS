@@ -279,7 +279,7 @@ String? mapKnownBackendError(String raw) {
     return 'You can’t open a franchise for your own email.';
   }
   if (s.contains('FREE_FRANCHISE_NOT_ALLOWED')) {
-    return 'Opening franchise stores requires a Premium subscription. Upgrade to Premium to open and manage franchises.';
+    return 'Franchise requires a Premium store. Contact CasinPOS support if this looks wrong.';
   }
   if (s.contains('FRANCHISE_CANNOT_FRANCHISE')) {
     return 'Franchise stores can’t open another franchise.';
@@ -287,15 +287,17 @@ String? mapKnownBackendError(String raw) {
   if (s.contains('STORE_NOT_FOUND')) {
     return 'Store not found.';
   }
+  if (s.contains('ALREADY_PREMIUM')) {
+    return 'This store already has full access.';
+  }
   if (s.contains('BILLED_VIA_APP_STORE')) {
-    return 'This store is already billed through the iPhone or Android app. '
-        'Manage Premium there — don’t pay again on the web.';
+    return 'This store is managed through the iPhone or Android app.';
   }
   if (s.contains('PAYMONGO_NOT_CONFIGURED')) {
-    return 'Web billing is not set up yet. Try again later, or upgrade in the iOS app.';
+    return 'Web billing is not available. Use the mobile app, or try again later.';
   }
   if (s.contains('CHECKOUT_FAILED')) {
-    return 'Couldn’t start PayMongo checkout. Please try again.';
+    return 'Couldn’t start checkout. Please try again.';
   }
   if (s.contains('STORE_SUSPENDED')) {
     return 'This store is suspended. Contact CasinPOS support.';
@@ -304,10 +306,10 @@ String? mapKnownBackendError(String raw) {
     return 'That email is already on this store.';
   }
   if (s.contains('FREE_TEAM_SEAT_LIMIT')) {
-    return 'Free plan allows 2 people on this store (you + 1 teammate). Upgrade to Premium for more staff.';
+    return 'Team seat limit reached. Contact CasinPOS support.';
   }
   if (s.contains('FREE_MONTHLY_LIMIT_REACHED')) {
-    return 'Free monthly transaction limit reached (1,000 sales). Upgrade to Premium or ask CasinPOS support.';
+    return 'Monthly sales limit reached. Contact CasinPOS support.';
   }
   if (s.contains('MEMBER_NOT_FOUND')) {
     return 'That teammate was already removed or isn’t on this store.';

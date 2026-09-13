@@ -15,8 +15,10 @@ const corsHeaders: Record<string, string> = {
 };
 
 const PREMIUM_PRODUCT_IDS = new Set([
-  "casinpos_premium_monthly",
+  "casinpos_premium_lifetime",
+  "casinpos_premium_monthly", // legacy auto-renew
 ]);
+const LIFETIME_END = "2099-12-31T23:59:59.000Z";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -125,9 +127,20 @@ Deno.serve(async (req) => {
     const periodStart = event.purchased_at_ms
       ? new Date(event.purchased_at_ms).toISOString()
       : null;
+    // Non-consumable lifetime has null expiration — use far-future so SQL
+    // coalesce does not invent a 1-month period.
     const periodEnd = event.expiration_at_ms
       ? new Date(event.expiration_at_ms).toISOString()
-      : null;
+      : (plan === "premium" ? LIFETIME_END : null);
+
+    // Don't demote lifetime non-consumable on EXPIRATION noise.
+    if (
+      plan === "free" &&
+      PREMIUM_PRODUCT_IDS.has(productId) &&
+      productId.includes("lifetime")
+    ) {
+      return json({ ok: true, skipped: "lifetime_ignore_deactivate", type });
+    }
 
     const bindId =
       (event.original_transaction_id ?? event.transaction_id ?? "").trim() ||
