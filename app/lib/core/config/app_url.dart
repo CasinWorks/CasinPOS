@@ -38,11 +38,8 @@ abstract final class AppUrl {
   }
 
   /// Password recovery redirect — must be allow-listed in Supabase Auth.
-  /// Native apps always use production so the email link opens in Safari/Chrome.
-  static String resetPasswordLink() {
-    if (!kIsWeb) return '$defaultProduction/reset-password';
-    return '${publicOrigin()}/reset-password';
-  }
+  /// Always production so reset emails never point at stale staging hosts.
+  static String resetPasswordLink() => '$defaultProduction/reset-password';
 
   /// Friendly alias used in copy for humans; same destination as [inviteLink].
   static String joinLink(String token) {
