@@ -60,8 +60,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -118,6 +119,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
@@ -179,8 +181,9 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
     final session = ref.watch(currentSessionProvider);
 
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -249,6 +252,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

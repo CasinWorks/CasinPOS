@@ -57,8 +57,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -162,6 +163,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ),
           ),
         ),
+        ),
       ),
     );
   }
@@ -237,8 +239,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     final joiningTeam = readPendingInviteToken() != null;
 
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -333,6 +336,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
@@ -481,8 +485,9 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
     });
 
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -634,6 +639,7 @@ class _InviteAcceptPageState extends ConsumerState<InviteAcceptPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

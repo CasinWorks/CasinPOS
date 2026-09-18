@@ -119,174 +119,181 @@ class _FluidInkIntroState extends State<FluidInkIntro>
               animation: _waddle,
               builder: (context, _) => CustomPaint(painter: _SoftOrbPainter(_waddle.value)),
             ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedBuilder(
-                      animation: Listenable.merge([_waddle, _progress]),
-                      builder: (context, _) {
-                        final bob = math.sin(_waddle.value * math.pi) * 10;
-                        final tilt = (_waddle.value - 0.5) * 0.18;
-                        final scale = 0.96 + (_waddle.value * 0.08);
-                        final fadeIn = (_progress.value / 0.12).clamp(0.0, 1.0);
-                        final fadeOut = _progress.value > 0.88
-                            ? (1 - (_progress.value - 0.88) / 0.12).clamp(0.0, 1.0)
-                            : 1.0;
+            SafeArea(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: Listenable.merge([_waddle, _progress]),
+                            builder: (context, _) {
+                              final bob = math.sin(_waddle.value * math.pi) * 10;
+                              final tilt = (_waddle.value - 0.5) * 0.18;
+                              final scale = 0.96 + (_waddle.value * 0.08);
+                              final fadeIn = (_progress.value / 0.12).clamp(0.0, 1.0);
+                              final fadeOut = _progress.value > 0.88
+                                  ? (1 - (_progress.value - 0.88) / 0.12).clamp(0.0, 1.0)
+                                  : 1.0;
 
-                        return Opacity(
-                          opacity: fadeIn * fadeOut,
-                          child: Transform.translate(
-                            offset: Offset(0, bob),
-                            child: Transform.rotate(
-                              angle: tilt,
-                              child: Transform.scale(
-                                scale: scale,
-                                child: Column(
-                                  children: [
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.accent.withValues(alpha: 0.35),
-                                            blurRadius: 36,
-                                            spreadRadius: 2,
-                                            offset: const Offset(0, 14),
+                              return Opacity(
+                                opacity: fadeIn * fadeOut,
+                                child: Transform.translate(
+                                  offset: Offset(0, bob),
+                                  child: Transform.rotate(
+                                    angle: tilt,
+                                    child: Transform.scale(
+                                      scale: scale,
+                                      child: Column(
+                                        children: [
+                                          DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppColors.accent.withValues(alpha: 0.35),
+                                                  blurRadius: 36,
+                                                  spreadRadius: 2,
+                                                  offset: const Offset(0, 14),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Image.asset(
+                                              BrandAssets.duck,
+                                              height: 168,
+                                              fit: BoxFit.contain,
+                                              filterQuality: FilterQuality.high,
+                                              errorBuilder: (_, error, stack) =>
+                                                  const BrandLogo(size: 140),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: List.generate(5, (i) {
+                                              final active =
+                                                  ((_waddle.value * 5) + i) % 5 < 2.2;
+                                              return Container(
+                                                margin: const EdgeInsets.symmetric(horizontal: 3),
+                                                width: 7,
+                                                height: 7,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.accentDeep.withValues(
+                                                    alpha: active ? 0.85 : 0.2,
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(99),
+                                                ),
+                                              );
+                                            }),
                                           ),
                                         ],
                                       ),
-                                      child: Image.asset(
-                                        BrandAssets.duck,
-                                        height: 168,
-                                        fit: BoxFit.contain,
-                                        filterQuality: FilterQuality.high,
-                                        errorBuilder: (_, error, stack) =>
-                                            const BrandLogo(size: 140),
-                                      ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: List.generate(5, (i) {
-                                        final active =
-                                            ((_waddle.value * 5) + i) % 5 < 2.2;
-                                        return Container(
-                                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                                          width: 7,
-                                          height: 7,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.accentDeep.withValues(
-                                              alpha: active ? 0.85 : 0.2,
-                                            ),
-                                            borderRadius: BorderRadius.circular(99),
-                                          ),
-                                        );
-                                      }),
-                                    ),
-                                  ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 28),
+                          Text(
+                            'CASIN POS',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'POINT OF SALE  ·  INVENTORY',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2.2,
+                              color: AppColors.slate600,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          SizedBox(
+                            height: 48,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 420),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, anim) {
+                                return FadeTransition(
+                                  opacity: anim,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.2),
+                                      end: Offset.zero,
+                                    ).animate(anim),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                _pun,
+                                key: ValueKey(_pun),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                  color: AppColors.slate800,
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 28),
-                    Text(
-                      'CASIN POS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'POINT OF SALE  ·  INVENTORY',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2.2,
-                        color: AppColors.slate600,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    SizedBox(
-                      height: 48,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 420),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, anim) {
-                          return FadeTransition(
-                            opacity: anim,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 0.2),
-                                end: Offset.zero,
-                              ).animate(anim),
-                              child: child,
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: 220,
+                            child: AnimatedBuilder(
+                              animation: _progress,
+                              builder: (context, _) {
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: _progress.value,
+                                    minHeight: 6,
+                                    backgroundColor: Colors.white.withValues(alpha: 0.65),
+                                    color: AppColors.accentDeep,
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                        child: Text(
-                          _pun,
-                          key: ValueKey(_pun),
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1.35,
-                            color: AppColors.slate800,
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: 220,
-                      child: AnimatedBuilder(
-                        animation: _progress,
-                        builder: (context, _) {
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: LinearProgressIndicator(
-                              value: _progress.value,
-                              minHeight: 6,
-                              backgroundColor: Colors.white.withValues(alpha: 0.65),
-                              color: AppColors.accentDeep,
+                          const SizedBox(height: 14),
+                          Text(
+                            'Powered by CASINWORKS',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.6,
+                              color: AppColors.slate500,
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'Powered by CASINWORKS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.6,
-                        color: AppColors.slate500,
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 16,
+                    child: FilledButton.tonal(
+                      onPressed: widget.onComplete,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.ink.withValues(alpha: 0.88),
+                        foregroundColor: Colors.white,
                       ),
+                      child: const Text('Skip'),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: 24,
-              right: 24,
-              child: FilledButton.tonal(
-                onPressed: widget.onComplete,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.ink.withValues(alpha: 0.88),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Skip'),
+                  ),
+                ],
               ),
             ),
           ],

@@ -62,8 +62,9 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -213,6 +214,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
