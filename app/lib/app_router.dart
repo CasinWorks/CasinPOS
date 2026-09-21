@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +34,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final pathTok = state.pathParameters['token'];
       if (pathTok != null && pathTok.isNotEmpty) {
         savePendingInviteToken(pathTok);
+      }
+
+      // Web (pos.casinworks.com): login + invite join only — no public store signup.
+      if (kIsWeb && loc == '/signup') {
+        final pendingInvite = readPendingInviteToken();
+        if (pendingInvite == null || pendingInvite.isEmpty) {
+          return '/login';
+        }
       }
 
       if (!introSeen &&

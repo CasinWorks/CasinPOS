@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,10 +136,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.md),
-                  TextButton(
-                    onPressed: () => context.go('/signup'),
-                    child: const Text('Create a new store account'),
-                  ),
+                  if (!kIsWeb)
+                    TextButton(
+                      onPressed: () => context.go('/signup'),
+                      child: const Text('Create a new store account'),
+                    )
+                  else
+                    Text(
+                      'New store accounts are created in the CasinPOS app '
+                      '(App Store / Mac App Store). This site is for sign-in only.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.slate500,
+                          ),
+                    ),
                   TextButton(
                     onPressed: () => context.go('/invite'),
                     child: const Text('Join with an invite link'),
