@@ -420,3 +420,22 @@ Paste `supabase/migrations/20260921000300_platform_store_setup_snapshot.sql` →
 Effects:
 - `platform_get_store_setup(store_id)` — read-only product/category/branch counts + up to 20 items
 - Tenant list includes `product_count` / `active_product_count` (sidebar “N items” / “no catalog”)
+
+---
+
+## Script Q — Platform Ops delete + analytics (`20260921000400`)
+
+Paste `supabase/migrations/20260921000400_platform_delete_and_analytics.sql` → Run.
+
+Then deploy the delete Edge Function (project owner account):
+
+```bash
+npx supabase functions deploy platform-delete-tenant --project-ref ftbmkqpioyfzrkziptox
+```
+
+Or Dashboard → Edge Functions → Deploy a new function named `platform-delete-tenant` from
+`supabase/functions/platform-delete-tenant/`.
+
+Effects:
+- `platform_analytics_series(days)` — daily registered / first-sale converted / sales / GMV
+- `platform-delete-tenant` — admin deletes store (type name + password); deletes Auth user if sole store

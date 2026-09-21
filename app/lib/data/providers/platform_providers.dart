@@ -37,6 +37,15 @@ final platformUsageOverviewProvider = FutureProvider<PlatformUsageOverview?>((re
   return ref.watch(platformAdminRepositoryProvider).usageOverview();
 });
 
+final platformAnalyticsDaysProvider = StateProvider<int>((ref) => 30);
+
+final platformAnalyticsProvider = FutureProvider<PlatformAnalyticsSeries?>((ref) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) return null;
+  final days = ref.watch(platformAnalyticsDaysProvider);
+  return ref.watch(platformAdminRepositoryProvider).analyticsSeries(days: days);
+});
+
 final platformGlobalTransactionsProvider =
     FutureProvider<PlatformTransactionPage>((ref) async {
   final isAdmin = await ref.watch(isPlatformAdminProvider.future);

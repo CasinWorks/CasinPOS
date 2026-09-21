@@ -1,0 +1,2 @@
+# Platform admin: delete a tenant store (and owner Auth user when sole store).
+verify_jwt = true

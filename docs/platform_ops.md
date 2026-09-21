@@ -27,6 +27,8 @@ select public.platform_set_admin_by_email('you@casinworks.com', true);
 | Reset owner password | Recovery email via Edge Function (+ Resend); otherwise copies link |
 | Usage overview | Stores active today/7d, paid txn counts, GMV (Asia/Manila day) |
 | Recent transactions | Global or per-store feed, **10 per page**, tap for line items |
+| Growth charts | Registered / converted / sales / GMV (14–90d)
+| Delete account | Type store name + admin password; sole-store owners removed from Auth |
 
 Also apply `supabase/migrations/20260921000100_platform_recent_transactions.sql`
 (`platform_usage_overview`, `platform_list_recent_transactions`).

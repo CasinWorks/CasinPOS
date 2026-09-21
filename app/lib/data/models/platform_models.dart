@@ -433,3 +433,74 @@ class PlatformStoreSetup {
     );
   }
 }
+
+class PlatformAnalyticsDay {
+  const PlatformAnalyticsDay({
+    required this.day,
+    required this.registered,
+    required this.converted,
+    required this.sales,
+    required this.gmv,
+  });
+
+  final DateTime day;
+  final int registered;
+  final int converted;
+  final int sales;
+  final double gmv;
+
+  factory PlatformAnalyticsDay.fromJson(Map<String, dynamic> json) {
+    final rawDay = json['day']?.toString() ?? '';
+    return PlatformAnalyticsDay(
+      day: DateTime.tryParse(rawDay)?.toLocal() ??
+          DateTime.tryParse('${rawDay}T00:00:00')?.toLocal() ??
+          DateTime.now(),
+      registered: (json['registered'] as num?)?.toInt() ?? 0,
+      converted: (json['converted'] as num?)?.toInt() ?? 0,
+      sales: (json['sales'] as num?)?.toInt() ?? 0,
+      gmv: (json['gmv'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class PlatformAnalyticsSeries {
+  const PlatformAnalyticsSeries({
+    required this.days,
+    required this.registered,
+    required this.converted,
+    required this.sales,
+    required this.gmv,
+    required this.conversionRate,
+    required this.series,
+  });
+
+  final int days;
+  final int registered;
+  final int converted;
+  final int sales;
+  final double gmv;
+  final double conversionRate;
+  final List<PlatformAnalyticsDay> series;
+
+  factory PlatformAnalyticsSeries.fromJson(Map<String, dynamic> json) {
+    final totals = json['totals'] is Map
+        ? Map<String, dynamic>.from(json['totals'] as Map)
+        : <String, dynamic>{};
+    final raw = json['series'];
+    final series = raw is List
+        ? raw
+            .whereType<Map>()
+            .map((e) => PlatformAnalyticsDay.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <PlatformAnalyticsDay>[];
+    return PlatformAnalyticsSeries(
+      days: (json['days'] as num?)?.toInt() ?? series.length,
+      registered: (totals['registered'] as num?)?.toInt() ?? 0,
+      converted: (totals['converted'] as num?)?.toInt() ?? 0,
+      sales: (totals['sales'] as num?)?.toInt() ?? 0,
+      gmv: (totals['gmv'] as num?)?.toDouble() ?? 0,
+      conversionRate: (totals['conversion_rate'] as num?)?.toDouble() ?? 0,
+      series: series,
+    );
+  }
+}

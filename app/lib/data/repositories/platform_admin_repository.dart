@@ -202,6 +202,60 @@ class PlatformAdminRepository {
     return PlatformStoreSetup.fromJson(Map<String, dynamic>.from(res));
   }
 
+  Future<PlatformAnalyticsSeries> analyticsSeries({int days = 30}) async {
+    final res = await _client.rpc(
+      'platform_analytics_series',
+      params: {'p_days': days.clamp(7, 90)},
+    );
+    if (res is! Map) {
+      throw AppException('Could not load analytics');
+    }
+    return PlatformAnalyticsSeries.fromJson(Map<String, dynamic>.from(res));
+  }
+
+  Future<({bool storeDeleted, bool authDeleted, String? warning})> deleteTenant({
+    required String storeId,
+    required String confirmName,
+  }) async {
+    try {
+      final res = await _client.functions.invoke(
+        'platform-delete-tenant',
+        body: {
+          'store_id': storeId,
+          'confirm_name': confirmName.trim(),
+        },
+      );
+      final data = res.data;
+      final map = data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
+      if (res.status >= 400 || map['ok'] != true) {
+        throw AppException(
+          friendlyError(
+            map['message'] ?? map['error'] ?? 'Could not delete tenant',
+          ),
+        );
+      }
+      return (
+        storeDeleted: map['store_deleted'] == true,
+        authDeleted: map['auth_deleted'] == true,
+        warning: map['warning'] as String?,
+      );
+    } on AppException {
+      rethrow;
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final message = details is Map
+          ? (details['message'] as String? ??
+              details['error'] as String? ??
+              e.reasonPhrase)
+          : (e.reasonPhrase ?? 'Could not delete tenant');
+      throw AppException(friendlyError(message ?? 'Could not delete tenant'));
+    } catch (e) {
+      throw AppException(friendlyError(e));
+    }
+  }
+
   Future<PlatformResetPasswordResult> sendOwnerPasswordReset({
     required String storeId,
     String? email,

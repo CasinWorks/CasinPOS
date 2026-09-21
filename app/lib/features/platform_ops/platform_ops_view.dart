@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/platform_models.dart';
 import '../../data/providers/platform_providers.dart';
 import '../../domain/enums.dart';
+import '../auth/confirm_password.dart';
 
 /// CasinPOS SaaS ops console — platform admins only.
 class PlatformOpsView extends ConsumerStatefulWidget {
@@ -31,6 +33,7 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
     ref.invalidate(platformTenantsProvider);
     ref.invalidate(isPlatformAdminProvider);
     ref.invalidate(platformUsageOverviewProvider);
+    ref.invalidate(platformAnalyticsProvider);
     ref.invalidate(platformGlobalTransactionsProvider);
     final storeId = _selected?.id;
     if (storeId != null) {
@@ -95,6 +98,10 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
                           final match = list.where((t) => t.id == _selected!.id).firstOrNull;
                           if (mounted) setState(() => _selected = match ?? _selected);
                         },
+                        onDeleted: () {
+                          setState(() => _selected = null);
+                          _refresh();
+                        },
                       );
 
                 if (!wide) {
@@ -102,6 +109,8 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
                     padding: const EdgeInsets.all(20),
                     children: [
                       const _UsageOverviewStrip(),
+                      const SizedBox(height: 12),
+                      const _AnalyticsChartsStrip(),
                       const SizedBox(height: 16),
                       list,
                       const SizedBox(height: 16),
@@ -116,6 +125,8 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const _UsageOverviewStrip(),
+                      const SizedBox(height: 12),
+                      const _AnalyticsChartsStrip(),
                       const SizedBox(height: 16),
                       Expanded(
                         child: Row(
@@ -204,6 +215,311 @@ class _StatChip extends StatelessWidget {
           Text(label, style: const TextStyle(fontSize: 10, color: AppColors.slate500, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalyticsChartsStrip extends ConsumerWidget {
+  const _AnalyticsChartsStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final days = ref.watch(platformAnalyticsDaysProvider);
+    final async = ref.watch(platformAnalyticsProvider);
+    final money = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.scaffold,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Growth & sales',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                ),
+              ),
+              SegmentedButton<int>(
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                segments: const [
+                  ButtonSegment(value: 14, label: Text('14d')),
+                  ButtonSegment(value: 30, label: Text('30d')),
+                  ButtonSegment(value: 90, label: Text('90d')),
+                ],
+                selected: {days},
+                onSelectionChanged: (s) {
+                  ref.read(platformAnalyticsDaysProvider.notifier).state = s.first;
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Registered = new stores · Converted = first paid sale · Sales = paid orders',
+            style: TextStyle(fontSize: 11, color: AppColors.slate500),
+          ),
+          const SizedBox(height: 12),
+          async.when(
+            loading: () => const SizedBox(
+              height: 160,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (e, _) => Text(
+              friendlyError(e),
+              style: const TextStyle(color: AppColors.danger, fontSize: 12),
+            ),
+            data: (data) {
+              if (data == null || data.series.isEmpty) {
+                return const Text(
+                  'No analytics yet',
+                  style: TextStyle(color: AppColors.slate500),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      _StatChip(label: 'Registered', value: '${data.registered}'),
+                      _StatChip(label: 'Converted', value: '${data.converted}'),
+                      _StatChip(
+                        label: 'Conv. rate',
+                        value: '${data.conversionRate.toStringAsFixed(0)}%',
+                      ),
+                      _StatChip(label: 'Sales', value: '${data.sales}'),
+                      _StatChip(label: 'GMV', value: money.format(data.gmv)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 180,
+                    child: _FunnelChart(series: data.series),
+                  ),
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      _LegendDot(color: Color(0xFF64748B), label: 'Registered'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: AppColors.accentDeep, label: 'Converted'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: AppColors.success, label: 'Sales'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'GMV',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 140,
+                    child: _GmvChart(series: data.series),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.slate600)),
+      ],
+    );
+  }
+}
+
+class _FunnelChart extends StatelessWidget {
+  const _FunnelChart({required this.series});
+
+  final List<PlatformAnalyticsDay> series;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxY = series
+        .map((e) => [e.registered, e.converted, e.sales].reduce((a, b) => a > b ? a : b))
+        .fold<int>(1, (a, b) => a > b ? a : b)
+        .toDouble();
+    final labelEvery = (series.length / 6).ceil().clamp(1, 14);
+
+    return BarChart(
+      BarChartData(
+        maxY: maxY * 1.2,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: AppColors.slate200.withValues(alpha: 0.8),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              getTitlesWidget: (v, _) => Text(
+                v.toInt().toString(),
+                style: const TextStyle(fontSize: 9, color: AppColors.slate400),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= series.length || i % labelEvery != 0) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  DateFormat('M/d').format(series[i].day),
+                  style: const TextStyle(fontSize: 9, color: AppColors.slate400),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: [
+          for (var i = 0; i < series.length; i++)
+            BarChartGroupData(
+              x: i,
+              barsSpace: 1,
+              barRods: [
+                BarChartRodData(
+                  toY: series[i].registered.toDouble(),
+                  width: 3,
+                  color: const Color(0xFF64748B),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                BarChartRodData(
+                  toY: series[i].converted.toDouble(),
+                  width: 3,
+                  color: AppColors.accentDeep,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                BarChartRodData(
+                  toY: series[i].sales.toDouble(),
+                  width: 3,
+                  color: AppColors.success,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GmvChart extends StatelessWidget {
+  const _GmvChart({required this.series});
+
+  final List<PlatformAnalyticsDay> series;
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = <FlSpot>[
+      for (var i = 0; i < series.length; i++)
+        FlSpot(i.toDouble(), series[i].gmv),
+    ];
+    final maxY = series.map((e) => e.gmv).fold<double>(0, (a, b) => a > b ? a : b);
+    final chartMax = maxY <= 0 ? 1.0 : maxY * 1.15;
+    final labelEvery = (series.length / 6).ceil().clamp(1, 14);
+    final money = NumberFormat.compactCurrency(symbol: '₱', decimalDigits: 0);
+
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: chartMax,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: AppColors.slate200.withValues(alpha: 0.8),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (v, _) => Text(
+                money.format(v),
+                style: const TextStyle(fontSize: 8, color: AppColors.slate400),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= series.length || i % labelEvery != 0) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  DateFormat('M/d').format(series[i].day),
+                  style: const TextStyle(fontSize: 9, color: AppColors.slate400),
+                );
+              },
+            ),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: true,
+            color: AppColors.accent,
+            barWidth: 2.5,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.accent.withValues(alpha: 0.15),
+            ),
+            spots: spots,
+          ),
         ],
       ),
     );
@@ -449,10 +765,15 @@ class _Pill extends StatelessWidget {
 }
 
 class _TenantDetailPane extends ConsumerStatefulWidget {
-  const _TenantDetailPane({required this.tenant, required this.onChanged});
+  const _TenantDetailPane({
+    required this.tenant,
+    required this.onChanged,
+    required this.onDeleted,
+  });
 
   final PlatformTenant tenant;
   final Future<void> Function() onChanged;
+  final VoidCallback onDeleted;
 
   @override
   ConsumerState<_TenantDetailPane> createState() => _TenantDetailPaneState();
@@ -688,6 +1009,89 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
     }
   }
 
+  Future<void> _deleteTenant() async {
+    final nameCtrl = TextEditingController();
+    final typedOk = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete tenant?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Permanently deletes “${t.name}” and all sales/inventory. '
+              'If this is the owner’s only store, their login is deleted too. '
+              'This cannot be undone.',
+              style: const TextStyle(fontSize: 13, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Type the store name to confirm:',
+              style: TextStyle(fontSize: 12, color: AppColors.slate600, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: t.name,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    final confirmName = nameCtrl.text.trim();
+    nameCtrl.dispose();
+    if (typedOk != true) return;
+    if (confirmName.toLowerCase() != t.name.trim().toLowerCase()) {
+      if (mounted) {
+        showAppMessage(context, 'Store name did not match', isError: true);
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final pwdOk = await confirmSignedInPassword(
+      context,
+      ref,
+      title: 'Confirm admin password',
+      body: 'Enter your CasinPOS admin password to delete this tenant.',
+      confirmLabel: 'Delete permanently',
+    );
+    if (!pwdOk || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(platformAdminRepositoryProvider).deleteTenant(
+            storeId: t.id,
+            confirmName: confirmName,
+          );
+      if (!mounted) return;
+      final msg = result.authDeleted
+          ? 'Store and owner account deleted'
+          : (result.warning ?? 'Store deleted');
+      showAppMessage(context, msg);
+      widget.onDeleted();
+    } catch (e) {
+      if (mounted) showAppError(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('MMM d, yyyy · h:mm a');
@@ -809,6 +1213,14 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
               OutlinedButton(
                 onPressed: _busy ? null : _resetOwnerPassword,
                 child: const Text('Reset owner password'),
+              ),
+              FilledButton(
+                onPressed: _busy ? null : _deleteTenant,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Delete account'),
               ),
             ],
           ),
