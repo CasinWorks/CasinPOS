@@ -191,6 +191,17 @@ class PlatformAdminRepository {
     return PlatformTransactionPage.fromJson(Map<String, dynamic>.from(res));
   }
 
+  Future<PlatformStoreSetup> getStoreSetup(String storeId) async {
+    final res = await _client.rpc(
+      'platform_get_store_setup',
+      params: {'p_store_id': storeId},
+    );
+    if (res is! Map) {
+      throw AppException('Could not load store setup');
+    }
+    return PlatformStoreSetup.fromJson(Map<String, dynamic>.from(res));
+  }
+
   Future<PlatformResetPasswordResult> sendOwnerPasswordReset({
     required String storeId,
     String? email,

@@ -410,3 +410,13 @@ Effects:
 - Web `create_store(..., p_pending_web_payment := true)` creates Free/`pending_web` store until PayMongo ₱199
 - Native/default create_store still Premium lifetime
 - Router gates unpaid web owners on `/onboarding/activate`
+
+---
+
+## Script P — Platform Ops store setup snapshot (`20260921000300`)
+
+Paste `supabase/migrations/20260921000300_platform_store_setup_snapshot.sql` → Run.
+
+Effects:
+- `platform_get_store_setup(store_id)` — read-only product/category/branch counts + up to 20 items
+- Tenant list includes `product_count` / `active_product_count` (sidebar “N items” / “no catalog”)

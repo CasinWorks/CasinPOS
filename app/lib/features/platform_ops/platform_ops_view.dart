@@ -35,6 +35,7 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
     final storeId = _selected?.id;
     if (storeId != null) {
       ref.invalidate(platformStoreTransactionsProvider(storeId));
+      ref.invalidate(platformStoreSetupProvider(storeId));
       ref.invalidate(platformSupportNotesProvider(storeId));
       ref.invalidate(platformStoreMessagesAdminProvider(storeId));
     }
@@ -353,7 +354,8 @@ class _TenantListPane extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             'Usage ${t.transactionsThisPeriod}/${t.monthlyTransactionLimit}'
-                            ' · ${t.activeMembers} members',
+                            ' · ${t.activeMembers} members'
+                            ' · ${t.hasCatalog ? '${t.productCount} items' : 'no catalog'}',
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 6),
@@ -729,6 +731,21 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
                     '${t.suspensionReason != null ? ' — ${t.suspensionReason}' : ''}'
                 : 'Active',
           ),
+          _kv(
+            'Catalog',
+            t.hasCatalog
+                ? '${t.activeProductCount} active / ${t.productCount} items'
+                : 'Not set up yet — no products',
+          ),
+          const SizedBox(height: 20),
+          const Text('Store setup', style: TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          const Text(
+            'Read-only snapshot — you cannot edit their catalog from here',
+            style: TextStyle(fontSize: 11, color: AppColors.slate500),
+          ),
+          const SizedBox(height: 10),
+          _StoreSetupPanel(storeId: t.id),
           const SizedBox(height: 20),
           const Text('Recent transactions', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
@@ -889,6 +906,178 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
           Expanded(
             child: Text(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoreSetupPanel extends ConsumerWidget {
+  const _StoreSetupPanel({required this.storeId});
+
+  final String storeId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(platformStoreSetupProvider(storeId));
+    final money = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
+    final fmt = DateFormat('MMM d, yyyy');
+
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (e, _) => Text(
+        friendlyError(e),
+        style: const TextStyle(color: AppColors.danger, fontSize: 12),
+      ),
+      data: (setup) {
+        if (setup == null) {
+          return const Text('Unavailable', style: TextStyle(color: AppColors.slate500));
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.slate200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _SetupStat(
+                    label: 'Products',
+                    value: '${setup.productCount}',
+                    warn: !setup.hasCatalog,
+                  ),
+                  _SetupStat(
+                    label: 'Active',
+                    value: '${setup.activeProductCount}',
+                  ),
+                  _SetupStat(
+                    label: 'Categories',
+                    value: '${setup.categoryCount}',
+                  ),
+                  _SetupStat(
+                    label: 'Branches',
+                    value: '${setup.branchCount}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                setup.hasCatalog
+                    ? 'Catalog is set up'
+                        '${setup.latestProductAt != null ? ' · last item ${fmt.format(setup.latestProductAt!)}' : ''}'
+                    : 'They have not added any products yet.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: setup.hasCatalog ? AppColors.success : AppColors.warning,
+                ),
+              ),
+              if (setup.categories.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Categories: ${setup.categories.take(12).join(' · ')}'
+                  '${setup.categories.length > 12 ? '…' : ''}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.slate600),
+                ),
+              ],
+              if (setup.products.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Items (preview, max 20)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                for (final p in setup.products)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            [
+                              p.name,
+                              if (p.categoryName != null && p.categoryName!.isNotEmpty)
+                                p.categoryName!,
+                              if (!p.isActive) 'inactive',
+                            ].join(' · '),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: p.isActive ? null : AppColors.slate500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          money.format(p.price),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (setup.productCount > setup.products.length)
+                  Text(
+                    '+ ${setup.productCount - setup.products.length} more not shown',
+                    style: const TextStyle(fontSize: 11, color: AppColors.slate500),
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SetupStat extends StatelessWidget {
+  const _SetupStat({
+    required this.label,
+    required this.value,
+    this.warn = false,
+  });
+
+  final String label;
+  final String value;
+  final bool warn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: warn ? const Color(0xFFFFF7ED) : AppColors.scaffold,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: warn ? const Color(0xFFFDBA74) : AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: warn ? AppColors.warning : AppColors.slate500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
         ],
       ),
     );

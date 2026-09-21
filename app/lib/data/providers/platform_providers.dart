@@ -74,6 +74,13 @@ final platformStoreTransactionsProvider =
       );
 });
 
+final platformStoreSetupProvider =
+    FutureProvider.family<PlatformStoreSetup?, String>((ref, storeId) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) return null;
+  return ref.watch(platformAdminRepositoryProvider).getStoreSetup(storeId);
+});
+
 final platformSupportNotesProvider =
     FutureProvider.family<List<PlatformSupportNote>, String>((ref, storeId) async {
   final isAdmin = await ref.watch(isPlatformAdminProvider.future);

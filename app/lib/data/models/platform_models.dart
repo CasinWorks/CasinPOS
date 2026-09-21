@@ -17,6 +17,8 @@ class PlatformTenant {
     this.ownerEmail,
     this.ownerName,
     this.activeMembers = 0,
+    this.productCount = 0,
+    this.activeProductCount = 0,
     this.subscriptionStatus,
   });
 
@@ -35,9 +37,13 @@ class PlatformTenant {
   final String? ownerEmail;
   final String? ownerName;
   final int activeMembers;
+  final int productCount;
+  final int activeProductCount;
   final String? subscriptionStatus;
 
   bool get isSuspended => suspendedAt != null;
+
+  bool get hasCatalog => productCount > 0;
 
   double get usageRatio {
     if (monthlyTransactionLimit <= 0) return 0;
@@ -66,6 +72,8 @@ class PlatformTenant {
       ownerEmail: json['owner_email'] as String?,
       ownerName: json['owner_name'] as String?,
       activeMembers: (json['active_members'] as num?)?.toInt() ?? 0,
+      productCount: (json['product_count'] as num?)?.toInt() ?? 0,
+      activeProductCount: (json['active_product_count'] as num?)?.toInt() ?? 0,
       subscriptionStatus: json['subscription_status'] as String?,
     );
   }
@@ -321,6 +329,107 @@ class PlatformTransactionPage {
       limit: (json['limit'] as num?)?.toInt() ?? 10,
       offset: (json['offset'] as num?)?.toInt() ?? 0,
       hasMore: json['has_more'] == true,
+    );
+  }
+}
+
+class PlatformSetupProduct {
+  const PlatformSetupProduct({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.isActive,
+    this.stock,
+    this.kind,
+    this.sku,
+    this.categoryName,
+    this.createdAt,
+  });
+
+  final String id;
+  final String name;
+  final double price;
+  final bool isActive;
+  final double? stock;
+  final String? kind;
+  final String? sku;
+  final String? categoryName;
+  final DateTime? createdAt;
+
+  factory PlatformSetupProduct.fromJson(Map<String, dynamic> json) {
+    double? n(Object? v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse('$v');
+    }
+
+    return PlatformSetupProduct(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Item',
+      price: n(json['price']) ?? 0,
+      stock: n(json['stock']),
+      isActive: json['is_active'] != false,
+      kind: json['kind'] as String?,
+      sku: json['sku'] as String?,
+      categoryName: json['category_name'] as String?,
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '')?.toLocal(),
+    );
+  }
+}
+
+class PlatformStoreSetup {
+  const PlatformStoreSetup({
+    required this.storeId,
+    required this.productCount,
+    required this.activeProductCount,
+    required this.categoryCount,
+    required this.branchCount,
+    required this.hasCatalog,
+    this.latestProductAt,
+    this.products = const [],
+    this.categories = const [],
+  });
+
+  final String storeId;
+  final int productCount;
+  final int activeProductCount;
+  final int categoryCount;
+  final int branchCount;
+  final bool hasCatalog;
+  final DateTime? latestProductAt;
+  final List<PlatformSetupProduct> products;
+  final List<String> categories;
+
+  factory PlatformStoreSetup.fromJson(Map<String, dynamic> json) {
+    final rawProducts = json['products'];
+    final products = rawProducts is List
+        ? rawProducts
+            .whereType<Map>()
+            .map((e) => PlatformSetupProduct.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <PlatformSetupProduct>[];
+    final rawCats = json['categories'];
+    final categories = <String>[];
+    if (rawCats is List) {
+      for (final c in rawCats) {
+        if (c is Map && c['name'] != null) {
+          categories.add(c['name'].toString());
+        } else if (c is String) {
+          categories.add(c);
+        }
+      }
+    }
+    return PlatformStoreSetup(
+      storeId: json['store_id'] as String? ?? '',
+      productCount: (json['product_count'] as num?)?.toInt() ?? 0,
+      activeProductCount: (json['active_product_count'] as num?)?.toInt() ?? 0,
+      categoryCount: (json['category_count'] as num?)?.toInt() ?? 0,
+      branchCount: (json['branch_count'] as num?)?.toInt() ?? 0,
+      hasCatalog: json['has_catalog'] == true,
+      latestProductAt:
+          DateTime.tryParse(json['latest_product_at']?.toString() ?? '')?.toLocal(),
+      products: products,
+      categories: categories,
     );
   }
 }
