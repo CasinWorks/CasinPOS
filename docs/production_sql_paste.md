@@ -439,3 +439,13 @@ Or Dashboard → Edge Functions → Deploy a new function named `platform-delete
 Effects:
 - `platform_analytics_series(days)` — daily registered / first-sale converted / sales / GMV
 - `platform-delete-tenant` — admin deletes store (type name + password); deletes Auth user if sole store
+
+---
+
+## Script R — Platform analytics = ₱199 app fees (`20260921000500`)
+
+Paste `supabase/migrations/20260921000500_platform_analytics_app_fees.sql` → Run.
+
+Effects:
+- Growth charts count **₱199 app payments** (PayMongo checkout / App Store / Play / RC), not store POS orders
+- Top chips: app fees + app revenue; store GMV kept as secondary

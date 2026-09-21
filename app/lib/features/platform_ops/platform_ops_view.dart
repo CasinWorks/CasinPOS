@@ -180,12 +180,12 @@ class _UsageOverviewStrip extends ConsumerWidget {
             runSpacing: 10,
             children: [
               _StatChip(label: 'Stores', value: '${o.totalStores}'),
-              _StatChip(label: 'Active today', value: '${o.activeStoresToday}'),
-              _StatChip(label: 'Active 7d', value: '${o.activeStores7d}'),
-              _StatChip(label: 'Sales today', value: '${o.paidToday}'),
-              _StatChip(label: 'Sales 7d', value: '${o.paid7d}'),
-              _StatChip(label: 'GMV today', value: money.format(o.gmvToday)),
-              _StatChip(label: 'GMV 7d', value: money.format(o.gmv7d)),
+              _StatChip(label: '₱199 paid today', value: '${o.appFeesToday}'),
+              _StatChip(label: '₱199 paid 7d', value: '${o.appFees7d}'),
+              _StatChip(label: 'App rev today', value: money.format(o.appRevenueToday)),
+              _StatChip(label: 'App rev 7d', value: money.format(o.appRevenue7d)),
+              _StatChip(label: 'Stores selling 7d', value: '${o.activeStores7d}'),
+              _StatChip(label: 'Store GMV 7d', value: money.format(o.gmv7d)),
             ],
           ),
         );
@@ -267,7 +267,7 @@ class _AnalyticsChartsStrip extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Registered = new stores · Converted = first paid sale · Sales = paid orders',
+            'Registered = new stores · Paid ₱199 = app fee (PayMongo / App Store) · Revenue = your ₱199 income',
             style: TextStyle(fontSize: 11, color: AppColors.slate500),
           ),
           const SizedBox(height: 12),
@@ -295,13 +295,12 @@ class _AnalyticsChartsStrip extends ConsumerWidget {
                     runSpacing: 8,
                     children: [
                       _StatChip(label: 'Registered', value: '${data.registered}'),
-                      _StatChip(label: 'Converted', value: '${data.converted}'),
+                      _StatChip(label: 'Paid ₱199', value: '${data.converted}'),
                       _StatChip(
                         label: 'Conv. rate',
                         value: '${data.conversionRate.toStringAsFixed(0)}%',
                       ),
-                      _StatChip(label: 'Sales', value: '${data.sales}'),
-                      _StatChip(label: 'GMV', value: money.format(data.gmv)),
+                      _StatChip(label: 'App revenue', value: money.format(data.gmv)),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -314,14 +313,12 @@ class _AnalyticsChartsStrip extends ConsumerWidget {
                     children: [
                       _LegendDot(color: Color(0xFF64748B), label: 'Registered'),
                       SizedBox(width: 12),
-                      _LegendDot(color: AppColors.accentDeep, label: 'Converted'),
-                      SizedBox(width: 12),
-                      _LegendDot(color: AppColors.success, label: 'Sales'),
+                      _LegendDot(color: AppColors.accentDeep, label: 'Paid ₱199'),
                     ],
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'GMV',
+                    'App revenue (₱199 fees)',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
@@ -370,7 +367,7 @@ class _FunnelChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxY = series
-        .map((e) => [e.registered, e.converted, e.sales].reduce((a, b) => a > b ? a : b))
+        .map((e) => e.registered > e.converted ? e.registered : e.converted)
         .fold<int>(1, (a, b) => a > b ? a : b)
         .toDouble();
     final labelEvery = (series.length / 6).ceil().clamp(1, 14);
@@ -421,24 +418,18 @@ class _FunnelChart extends StatelessWidget {
           for (var i = 0; i < series.length; i++)
             BarChartGroupData(
               x: i,
-              barsSpace: 1,
+              barsSpace: 2,
               barRods: [
                 BarChartRodData(
                   toY: series[i].registered.toDouble(),
-                  width: 3,
+                  width: 5,
                   color: const Color(0xFF64748B),
                   borderRadius: BorderRadius.circular(2),
                 ),
                 BarChartRodData(
                   toY: series[i].converted.toDouble(),
-                  width: 3,
+                  width: 5,
                   color: AppColors.accentDeep,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                BarChartRodData(
-                  toY: series[i].sales.toDouble(),
-                  width: 3,
-                  color: AppColors.success,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ],

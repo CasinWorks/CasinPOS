@@ -166,6 +166,10 @@ class PlatformUsageOverview {
     required this.paid7d,
     required this.gmvToday,
     required this.gmv7d,
+    this.appFeesToday = 0,
+    this.appFees7d = 0,
+    this.appRevenueToday = 0,
+    this.appRevenue7d = 0,
   });
 
   final int totalStores;
@@ -175,6 +179,10 @@ class PlatformUsageOverview {
   final int paid7d;
   final double gmvToday;
   final double gmv7d;
+  final int appFeesToday;
+  final int appFees7d;
+  final double appRevenueToday;
+  final double appRevenue7d;
 
   factory PlatformUsageOverview.fromJson(Map<String, dynamic> json) {
     double money(Object? v) => (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
@@ -187,6 +195,10 @@ class PlatformUsageOverview {
       paid7d: n(json['paid_7d']),
       gmvToday: money(json['gmv_today']),
       gmv7d: money(json['gmv_7d']),
+      appFeesToday: n(json['app_fees_today']),
+      appFees7d: n(json['app_fees_7d']),
+      appRevenueToday: money(json['app_revenue_today']),
+      appRevenue7d: money(json['app_revenue_7d']),
     );
   }
 }
