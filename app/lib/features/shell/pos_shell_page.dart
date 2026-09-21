@@ -50,6 +50,13 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final email = ref.read(authRepositoryProvider).currentUser?.email;
+      if (isPlatformOpsOwnerEmail(email)) {
+        if (ref.read(retailTabProvider) == 'checkout') {
+          ref.read(retailTabProvider.notifier).state = 'ops';
+        }
+        return;
+      }
       final membership = ref.read(activeMembershipProvider);
       if (membership?.store.businessType == BusinessType.retail &&
           !ref.read(tutorialCompletedProvider) &&
@@ -105,7 +112,7 @@ class _PosShellPageState extends ConsumerState<PosShellPage> {
     final orderCount = ref.watch(paidOrdersProvider).length;
     final width = MediaQuery.sizeOf(context).width;
     final showSidebar = Breakpoints.useSidebar(width);
-    final showCart = !isService && Breakpoints.useCartTray(width);
+    final showCart = !isService && Breakpoints.useCartTray(width) && tab == 'checkout';
     ref.watch(cartDisplaySyncProvider);
     ref.watch(syncBootstrapProvider);
 

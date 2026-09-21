@@ -61,6 +61,16 @@ class MobileMoreView extends ConsumerWidget {
           alignment: Alignment.centerLeft,
           child: StorePlanBadge(plan: plan),
         ),
+        if (isPlatformAdmin) ...[
+          section('CASINWORKS'),
+          _MoreTile(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Platform Ops',
+            subtitle: 'Tenants, sales, growth — business console',
+            emphasize: true,
+            onTap: () => _go(ref, 'ops'),
+          ),
+        ],
         section('OPERATIONS'),
         if (membership?.store.businessType == BusinessType.service &&
             membership?.store.isQuoteService == true)
@@ -170,16 +180,6 @@ class MobileMoreView extends ConsumerWidget {
           title: 'Support',
           onTap: () => _go(ref, 'support'),
         ),
-        if (isPlatformAdmin) ...[
-          section('CASINWORKS'),
-          _MoreTile(
-            icon: Icons.admin_panel_settings_outlined,
-            title: 'Platform Ops',
-            subtitle: 'All tenants, plans, support tools',
-            emphasize: true,
-            onTap: () => _go(ref, 'ops'),
-          ),
-        ],
       ],
     );
   }

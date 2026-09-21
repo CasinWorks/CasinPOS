@@ -226,7 +226,7 @@ class _MobileAccountSheet extends ConsumerWidget {
                     'Platform Ops',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  subtitle: const Text('All tenants & billing tools'),
+                  subtitle: const Text('Business console — tenants & growth'),
                   onTap: () => goTab('ops'),
                 ),
               const Divider(height: 20),

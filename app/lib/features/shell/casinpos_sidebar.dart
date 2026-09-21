@@ -52,6 +52,8 @@ class CasinPosSidebar extends ConsumerWidget {
     } catch (_) {}
 
     final items = <({String id, String label, IconData icon, int? badge})>[
+      if (isPlatformAdmin)
+        (id: 'ops', label: 'Platform Ops', icon: Icons.admin_panel_settings_outlined, badge: null),
       if (type == BusinessType.service && membership?.store.isQuoteService == true) ...[
         (id: 'quotes', label: 'Quotes', icon: Icons.request_quote_outlined, badge: null),
         (id: 'bookings', label: 'Bookings', icon: Icons.event_outlined, badge: null),
@@ -309,13 +311,6 @@ class CasinPosSidebar extends ConsumerWidget {
                       selected: activeTab == 'support',
                       onTap: () => onSelectTab('support'),
                     ),
-                    if (isPlatformAdmin)
-                      _NavItem(
-                        label: 'Platform Ops',
-                        icon: Icons.admin_panel_settings_outlined,
-                        selected: activeTab == 'ops',
-                        onTap: () => onSelectTab('ops'),
-                      ),
                   ],
                 ),
               ),

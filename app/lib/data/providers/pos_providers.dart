@@ -1184,6 +1184,14 @@ final checkoutSettingsProvider =
 
 final retailTabProvider = StateProvider<String>((ref) => 'checkout');
 
+/// CasinWorks owner console — land on Platform Ops instead of store POS.
+const kPlatformOpsOwnerEmail = 'christianjoshuacasin@gmail.com';
+
+bool isPlatformOpsOwnerEmail(String? email) {
+  final e = email?.trim().toLowerCase();
+  return e != null && e == kPlatformOpsOwnerEmail;
+}
+
 class CartTotals {
   const CartTotals({
     required this.subtotal,
