@@ -376,3 +376,37 @@ Effects:
 - Branch-scoped helpers + transaction SELECT RLS for branch managers
 - Product `supplier_name` / `last_restocked_at` (COGS uses existing `cost_price`)
 - RPCs: `list_store_branches`, `report_inventory`, `report_sales_lines`, `report_profitability`, `report_dashboard_stats`
+
+---
+
+## Script N — Platform Ops recent transactions (`20260921000100`)
+
+Paste the full file `supabase/migrations/20260921000100_platform_recent_transactions.sql` → Run.
+
+Then ensure your admin login is promoted:
+
+```sql
+select public.platform_set_admin_by_email('christianjoshuacasin@gmail.com', true);
+```
+
+Effects:
+- `platform_usage_overview()` — active stores / paid counts / GMV (Asia/Manila day boundaries)
+- `platform_list_recent_transactions(p_store_id, p_limit, p_offset)` — max **10** rows per call, optional store filter, includes line items
+- Platform Ops UI: usage chips + global activity feed + per-tenant recent sales
+
+---
+
+## Script O — Web registration ₱199 PayMongo (`20260921000200`)
+
+Paste `supabase/migrations/20260921000200_web_registration_payment.sql` → Run.
+
+Then redeploy the checkout function (copy for web registration):
+
+```bash
+supabase functions deploy create-premium-checkout
+```
+
+Effects:
+- Web `create_store(..., p_pending_web_payment := true)` creates Free/`pending_web` store until PayMongo ₱199
+- Native/default create_store still Premium lifetime
+- Router gates unpaid web owners on `/onboarding/activate`

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../bootstrap.dart';
+import '../../../core/config/billing_config.dart';
 import '../../../core/errors/app_errors.dart';
 import '../../../core/invite/invite_token.dart';
 import '../../../core/invite/pending_invite_token.dart';
@@ -136,15 +137,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.md),
-                  if (!kIsWeb)
-                    TextButton(
-                      onPressed: () => context.go('/signup'),
-                      child: const Text('Create a new store account'),
-                    )
-                  else
+                  TextButton(
+                    onPressed: () => context.go('/signup'),
+                    child: const Text('Create a new store account'),
+                  ),
+                  if (kIsWeb)
                     Text(
-                      'New store accounts are created in the CasinPOS app '
-                      '(App Store / Mac App Store). This site is for sign-in only.',
+                      'Web registration is ${BillingConfig.premiumPhpLabel} one-time '
+                      '(GCash / Maya / QR Ph). Invite join is free.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.slate500,
@@ -273,8 +273,13 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                   Text(
                     joiningTeam
                         ? 'Use the exact email from your invite. After signup you’ll join the store automatically.'
-                        : 'This registers you as a new business owner. '
-                            'Teammates join only via Owner/Admin invite — not free signup.',
+                        : kIsWeb
+                            ? 'This registers you as a new business owner. '
+                                'Activating your store on the web costs '
+                                '${BillingConfig.premiumPhpLabel} one-time (GCash / Maya / QR Ph). '
+                                'Teammates join free via invite.'
+                            : 'This registers you as a new business owner. '
+                                'Teammates join only via Owner/Admin invite — not free signup.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppSpacing.xl),

@@ -30,6 +30,14 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
   Future<void> _refresh() async {
     ref.invalidate(platformTenantsProvider);
     ref.invalidate(isPlatformAdminProvider);
+    ref.invalidate(platformUsageOverviewProvider);
+    ref.invalidate(platformGlobalTransactionsProvider);
+    final storeId = _selected?.id;
+    if (storeId != null) {
+      ref.invalidate(platformStoreTransactionsProvider(storeId));
+      ref.invalidate(platformSupportNotesProvider(storeId));
+      ref.invalidate(platformStoreMessagesAdminProvider(storeId));
+    }
   }
 
   @override
@@ -70,11 +78,14 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
                   onSearch: (q) {
                     ref.read(platformTenantSearchProvider.notifier).state = q;
                   },
-                  onSelect: (t) => setState(() => _selected = t),
+                  onSelect: (t) {
+                    ref.read(platformStoreTxnOffsetProvider(t.id).notifier).state = 0;
+                    setState(() => _selected = t);
+                  },
                   onRefresh: _refresh,
                 );
                 final detail = _selected == null
-                    ? const _EmptyDetail()
+                    ? const _GlobalActivityPane()
                     : _TenantDetailPane(
                         tenant: _selected!,
                         onChanged: () async {
@@ -89,21 +100,32 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
                   return ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
+                      const _UsageOverviewStrip(),
+                      const SizedBox(height: 16),
                       list,
                       const SizedBox(height: 16),
-                      SizedBox(height: 440, child: detail),
+                      SizedBox(height: 520, child: detail),
                     ],
                   );
                 }
 
                 return Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Row(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SizedBox(width: 380, child: list),
-                      const SizedBox(width: 16),
-                      Expanded(child: detail),
+                      const _UsageOverviewStrip(),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(width: 380, child: list),
+                            const SizedBox(width: 16),
+                            Expanded(child: detail),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -116,21 +138,124 @@ class _PlatformOpsViewState extends ConsumerState<PlatformOpsView> {
   }
 }
 
-class _EmptyDetail extends StatelessWidget {
-  const _EmptyDetail();
+class _UsageOverviewStrip extends ConsumerWidget {
+  const _UsageOverviewStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final money = NumberFormat.currency(symbol: '₱', decimalDigits: 0);
+    final async = ref.watch(platformUsageOverviewProvider);
+    return async.when(
+      loading: () => const SizedBox(
+        height: 72,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (e, _) => Text(
+        friendlyError(e),
+        style: const TextStyle(color: AppColors.danger, fontSize: 12),
+      ),
+      data: (o) {
+        if (o == null) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.scaffold,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.slate200),
+          ),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _StatChip(label: 'Stores', value: '${o.totalStores}'),
+              _StatChip(label: 'Active today', value: '${o.activeStoresToday}'),
+              _StatChip(label: 'Active 7d', value: '${o.activeStores7d}'),
+              _StatChip(label: 'Sales today', value: '${o.paidToday}'),
+              _StatChip(label: 'Sales 7d', value: '${o.paid7d}'),
+              _StatChip(label: 'GMV today', value: money.format(o.gmvToday)),
+              _StatChip(label: 'GMV 7d', value: money.format(o.gmv7d)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.slate500, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlobalActivityPane extends ConsumerWidget {
+  const _GlobalActivityPane();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.scaffold,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.slate200),
       ),
-      child: const Text(
-        'Select a store to manage plan or suspension',
-        style: TextStyle(color: AppColors.slate500, fontWeight: FontWeight.w600),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Recent platform activity',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Latest sales across all stores · 10 per page. Select a store for tenant tools.',
+            style: TextStyle(fontSize: 12, color: AppColors.slate500),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: _TransactionsPanel(
+              async: ref.watch(platformGlobalTransactionsProvider),
+              showStoreName: true,
+              offset: ref.watch(platformGlobalTxnOffsetProvider),
+              onPrev: () {
+                final cur = ref.read(platformGlobalTxnOffsetProvider);
+                ref.read(platformGlobalTxnOffsetProvider.notifier).state =
+                    (cur - 10).clamp(0, 1 << 30).toInt();
+              },
+              onNext: (page) {
+                if (!page.hasMore) return;
+                ref.read(platformGlobalTxnOffsetProvider.notifier).state =
+                    page.offset + page.limit;
+              },
+              onRefresh: () {
+                ref.invalidate(platformGlobalTransactionsProvider);
+                ref.invalidate(platformUsageOverviewProvider);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -605,6 +730,35 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
                 : 'Active',
           ),
           const SizedBox(height: 20),
+          const Text('Recent transactions', style: TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          const Text(
+            'Latest orders for this store · 10 per page',
+            style: TextStyle(fontSize: 11, color: AppColors.slate500),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 360,
+            child: _TransactionsPanel(
+              async: ref.watch(platformStoreTransactionsProvider(t.id)),
+              showStoreName: false,
+              offset: ref.watch(platformStoreTxnOffsetProvider(t.id)),
+              onPrev: () {
+                final cur = ref.read(platformStoreTxnOffsetProvider(t.id));
+                ref.read(platformStoreTxnOffsetProvider(t.id).notifier).state =
+                    (cur - 10).clamp(0, 1 << 30).toInt();
+              },
+              onNext: (page) {
+                if (!page.hasMore) return;
+                ref.read(platformStoreTxnOffsetProvider(t.id).notifier).state =
+                    page.offset + page.limit;
+              },
+              onRefresh: () {
+                ref.invalidate(platformStoreTransactionsProvider(t.id));
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
           const Text('Actions', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
           Wrap(
@@ -738,5 +892,279 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
         ],
       ),
     );
+  }
+}
+
+class _TransactionsPanel extends StatelessWidget {
+  const _TransactionsPanel({
+    required this.async,
+    required this.showStoreName,
+    required this.offset,
+    required this.onPrev,
+    required this.onNext,
+    required this.onRefresh,
+  });
+
+  final AsyncValue<PlatformTransactionPage> async;
+  final bool showStoreName;
+  final int offset;
+  final VoidCallback onPrev;
+  final void Function(PlatformTransactionPage page) onNext;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final money = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
+    final fmt = DateFormat('MMM d · h:mm a');
+
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(friendlyError(e), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 8),
+              TextButton(onPressed: onRefresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      ),
+      data: (page) {
+        if (page.transactions.isEmpty) {
+          return const Center(
+            child: Text(
+              'No transactions yet',
+              style: TextStyle(color: AppColors.slate500, fontWeight: FontWeight.w600),
+            ),
+          );
+        }
+
+        final from = page.offset + 1;
+        final to = page.offset + page.transactions.length;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ListView.separated(
+                itemCount: page.transactions.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, i) {
+                  final txn = page.transactions[i];
+                  return Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => _showTxnDetail(context, txn, money, fmt),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.slate200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    showStoreName ? txn.storeName : '#${txn.orderNo}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                                  ),
+                                ),
+                                _TxnStatusPill(status: txn.status),
+                              ],
+                            ),
+                            if (showStoreName) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '#${txn.orderNo}',
+                                style: const TextStyle(fontSize: 11, color: AppColors.slate600),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    [
+                                      money.format(txn.netTotal),
+                                      if (txn.paymentMethod != null) txn.paymentMethod!,
+                                      if (txn.itemCount > 0) '${txn.itemCount} items',
+                                    ].join(' · '),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                Text(
+                                  fmt.format(txn.paidAt ?? txn.createdAt),
+                                  style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                                ),
+                              ],
+                            ),
+                            if (txn.items.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                txn.items
+                                    .take(3)
+                                    .map((it) {
+                                      final qty = it.quantity == it.quantity.roundToDouble()
+                                          ? it.quantity.toInt().toString()
+                                          : it.quantity.toString();
+                                      return '$qty× ${it.name}';
+                                    })
+                                    .join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: AppColors.slate500),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  '$from–$to of ${page.totalCount}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.slate500, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                OutlinedButton(
+                  onPressed: offset <= 0 ? null : onPrev,
+                  child: const Text('Prev 10'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: page.hasMore ? () => onNext(page) : null,
+                  child: const Text('Next 10'),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showTxnDetail(
+    BuildContext context,
+    PlatformTransaction txn,
+    NumberFormat money,
+    DateFormat fmt,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${txn.storeName} · #${txn.orderNo}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TxnStatusPill(status: txn.status),
+                      if (txn.paymentMethod != null)
+                        _Pill(label: txn.paymentMethod!.toUpperCase(), danger: false),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _detailRow('When', fmt.format(txn.paidAt ?? txn.createdAt)),
+                  _detailRow('Staff', txn.staffName ?? txn.staffEmail ?? '—'),
+                  _detailRow('Customer', txn.customerName?.trim().isNotEmpty == true ? txn.customerName! : '—'),
+                  _detailRow('Subtotal', money.format(txn.subtotal)),
+                  _detailRow('Tax', money.format(txn.tax)),
+                  _detailRow('Total', money.format(txn.total)),
+                  if (txn.refundedTotal > 0)
+                    _detailRow('Refunded', money.format(txn.refundedTotal)),
+                  _detailRow('Net', money.format(txn.netTotal)),
+                  const SizedBox(height: 12),
+                  const Text('Line items', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  if (txn.items.isEmpty)
+                    const Text('No line items', style: TextStyle(color: AppColors.slate500, fontSize: 12))
+                  else
+                    for (final it in txn.items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${it.quantity == it.quantity.roundToDouble() ? it.quantity.toInt() : it.quantity}× ${it.name}',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Text(
+                              money.format(it.lineTotal),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    'Txn ${txn.id}',
+                    style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(k, style: const TextStyle(fontSize: 12, color: AppColors.slate500, fontWeight: FontWeight.w700)),
+          ),
+          Expanded(child: Text(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+  }
+}
+
+class _TxnStatusPill extends StatelessWidget {
+  const _TxnStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = status.toLowerCase();
+    final danger = s == 'voided' || s == 'refunded';
+    return _Pill(label: status.toUpperCase(), danger: danger);
   }
 }

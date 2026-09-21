@@ -148,3 +148,179 @@ class PlatformResetPasswordResult {
   final String? message;
   final String? reason;
 }
+
+class PlatformUsageOverview {
+  const PlatformUsageOverview({
+    required this.totalStores,
+    required this.activeStoresToday,
+    required this.activeStores7d,
+    required this.paidToday,
+    required this.paid7d,
+    required this.gmvToday,
+    required this.gmv7d,
+  });
+
+  final int totalStores;
+  final int activeStoresToday;
+  final int activeStores7d;
+  final int paidToday;
+  final int paid7d;
+  final double gmvToday;
+  final double gmv7d;
+
+  factory PlatformUsageOverview.fromJson(Map<String, dynamic> json) {
+    double money(Object? v) => (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
+    int n(Object? v) => (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
+    return PlatformUsageOverview(
+      totalStores: n(json['total_stores']),
+      activeStoresToday: n(json['active_stores_today']),
+      activeStores7d: n(json['active_stores_7d']),
+      paidToday: n(json['paid_today']),
+      paid7d: n(json['paid_7d']),
+      gmvToday: money(json['gmv_today']),
+      gmv7d: money(json['gmv_7d']),
+    );
+  }
+}
+
+class PlatformTxnItem {
+  const PlatformTxnItem({
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.lineTotal,
+  });
+
+  final String name;
+  final double quantity;
+  final double unitPrice;
+  final double lineTotal;
+
+  factory PlatformTxnItem.fromJson(Map<String, dynamic> json) {
+    double n(Object? v) => (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
+    return PlatformTxnItem(
+      name: json['name'] as String? ?? 'Item',
+      quantity: n(json['quantity']),
+      unitPrice: n(json['unit_price']),
+      lineTotal: n(json['line_total']),
+    );
+  }
+}
+
+class PlatformTransaction {
+  const PlatformTransaction({
+    required this.id,
+    required this.storeId,
+    required this.storeName,
+    required this.orderNo,
+    required this.status,
+    required this.total,
+    required this.currencyCode,
+    required this.createdAt,
+    this.businessType,
+    this.subtotal = 0,
+    this.tax = 0,
+    this.refundedTotal = 0,
+    this.paymentMethod,
+    this.customerName,
+    this.paidAt,
+    this.staffName,
+    this.staffEmail,
+    this.itemCount = 0,
+    this.items = const [],
+  });
+
+  final String id;
+  final String storeId;
+  final String storeName;
+  final String orderNo;
+  final String status;
+  final String? businessType;
+  final double subtotal;
+  final double tax;
+  final double total;
+  final double refundedTotal;
+  final String currencyCode;
+  final String? paymentMethod;
+  final String? customerName;
+  final DateTime? paidAt;
+  final DateTime createdAt;
+  final String? staffName;
+  final String? staffEmail;
+  final int itemCount;
+  final List<PlatformTxnItem> items;
+
+  double get netTotal => total - refundedTotal;
+
+  factory PlatformTransaction.fromJson(Map<String, dynamic> json) {
+    DateTime? parseTs(Object? v) {
+      if (v == null) return null;
+      return DateTime.tryParse(v.toString())?.toLocal();
+    }
+
+    double money(Object? v) => (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
+
+    final rawItems = json['items'];
+    final items = rawItems is List
+        ? rawItems
+            .whereType<Map>()
+            .map((e) => PlatformTxnItem.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <PlatformTxnItem>[];
+
+    return PlatformTransaction(
+      id: json['id'] as String,
+      storeId: json['store_id'] as String,
+      storeName: json['store_name'] as String? ?? 'Store',
+      orderNo: json['order_no'] as String? ?? '—',
+      status: json['status'] as String? ?? 'paid',
+      businessType: json['business_type'] as String?,
+      subtotal: money(json['subtotal']),
+      tax: money(json['tax']),
+      total: money(json['total']),
+      refundedTotal: money(json['refunded_total']),
+      currencyCode: json['currency_code'] as String? ?? 'PHP',
+      paymentMethod: json['payment_method'] as String?,
+      customerName: json['customer_name'] as String?,
+      paidAt: parseTs(json['paid_at']),
+      createdAt: parseTs(json['created_at']) ?? DateTime.now(),
+      staffName: json['staff_name'] as String?,
+      staffEmail: json['staff_email'] as String?,
+      itemCount: (json['item_count'] as num?)?.toInt() ?? items.length,
+      items: items,
+    );
+  }
+}
+
+class PlatformTransactionPage {
+  const PlatformTransactionPage({
+    required this.transactions,
+    required this.totalCount,
+    required this.limit,
+    required this.offset,
+    required this.hasMore,
+  });
+
+  final List<PlatformTransaction> transactions;
+  final int totalCount;
+  final int limit;
+  final int offset;
+  final bool hasMore;
+
+  factory PlatformTransactionPage.fromJson(Map<String, dynamic> json) {
+    final raw = json['transactions'];
+    final list = raw is List
+        ? raw
+            .whereType<Map>()
+            .map((e) => PlatformTransaction.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <PlatformTransaction>[];
+    return PlatformTransactionPage(
+      transactions: list,
+      totalCount: (json['total_count'] as num?)?.toInt() ?? list.length,
+      limit: (json['limit'] as num?)?.toInt() ?? 10,
+      offset: (json['offset'] as num?)?.toInt() ?? 0,
+      hasMore: json['has_more'] == true,
+    );
+  }
+}

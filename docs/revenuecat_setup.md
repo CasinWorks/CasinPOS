@@ -7,8 +7,12 @@ CasinPOS on Apple is a **paid application (₱199)**. There is **no Free plan** 
 | App Store price | **₱199** (Pricing and Availability) |
 | IAP `casinpos_premium_monthly` | **Retired** — detach from version / Clear for Sale off |
 | IAP `casinpos_premium_lifetime` | **Do not ship** |
-| Store plan after signup | **Premium** (lifetime) |
+| Store plan after signup | **Premium** (lifetime) on native; web requires **₱199 PayMongo** first |
 | RevenueCat / StoreKit in app | **Disabled** (`BillingConfig.iapEnabled = false`) |
+
+## Web (pos.casinworks.com)
+
+New owner signup is allowed. Creating a store sets `subscriptions.provider = pending_web` until the owner pays **₱199** via PayMongo (GCash / Maya / QR Ph / card). Invite join stays free. Apply Script O in `docs/production_sql_paste.md` and redeploy `create-premium-checkout`.
 
 ## App Store Connect
 
@@ -22,4 +26,4 @@ Set Play to a matching paid / one-time model separately when you ship Android. D
 
 ## Legacy code (dormant)
 
-PayMongo web checkout and RevenueCat helpers may remain in the repo for ops/history but must not appear as Upgrade CTAs in the shipping UI.
+RevenueCat helpers may remain in the repo for ops/history. **PayMongo web checkout is live** for web registration / Premium unlock on pos.casinworks.com.

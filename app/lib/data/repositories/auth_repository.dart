@@ -129,6 +129,7 @@ class StoreRepository {
     String currencyCode = 'PHP',
     String currencySymbol = '₱',
     ServicePricingMode? servicePricingMode,
+    bool pendingWebPayment = false,
   }) async {
     final result = await _client.rpc(
       'create_store',
@@ -138,6 +139,7 @@ class StoreRepository {
         'p_currency_code': currencyCode,
         'p_currency_symbol': currencySymbol,
         'p_primary_branch_name': 'Main',
+        'p_pending_web_payment': pendingWebPayment,
         if (businessType == BusinessType.service)
           'p_service_pricing_mode':
               (servicePricingMode ?? ServicePricingMode.fixed).value,

@@ -47,20 +47,24 @@ PaymongoPriceQuote _quoteFromMap(Map data) {
 
 Future<PaymongoPriceQuote> fetchPremiumPaymongoQuote({
   required String storeId,
+  bool webRegistration = false,
 }) async {
   final data = await _invokeCheckout({
     'store_id': storeId,
     'preview': true,
+    if (webRegistration) 'source': 'web_registration',
   });
   return _quoteFromMap(data);
 }
 
 Future<PaymongoCheckout> createPremiumPaymongoCheckout({
   required String storeId,
+  bool webRegistration = false,
 }) async {
   final data = await _invokeCheckout({
     'store_id': storeId,
     'origin': AppUrl.publicOrigin(),
+    if (webRegistration) 'source': 'web_registration',
   });
   final url = data['checkout_url'] as String?;
   final id = data['checkout_id'] as String?;

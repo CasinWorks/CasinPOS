@@ -23,6 +23,7 @@ enum UpgradeReason {
   monthlyTransactions,
   franchise,
   general,
+  webRegistration,
 }
 
 /// Premium upgrade: Apple/Google IAP on mobile, PayMongo QR on web.
@@ -32,11 +33,14 @@ Future<void> showUpgradePremiumDialog(
   String? storeName,
   String? storeId,
 }) {
+  final lockDismiss = reason == UpgradeReason.webRegistration;
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    showDragHandle: true,
+    showDragHandle: !lockDismiss,
+    isDismissible: !lockDismiss,
+    enableDrag: !lockDismiss,
     backgroundColor: Theme.of(context).colorScheme.surface,
     builder: (ctx) => UpgradePremiumDialog(
       reason: reason,
@@ -77,6 +81,7 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
         UpgradeReason.monthlyTransactions => 'Monthly sales limit reached',
         UpgradeReason.franchise => 'Open franchise stores with Premium',
         UpgradeReason.general => 'Upgrade to Premium',
+        UpgradeReason.webRegistration => 'Pay ₱199 to activate your store',
       };
 
   String get _resolvedStoreId {
@@ -101,7 +106,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
     final storeId = _resolvedStoreId;
     if (storeId.isEmpty) return;
     try {
-      final quote = await fetchPremiumPaymongoQuote(storeId: storeId);
+      final quote = await fetchPremiumPaymongoQuote(
+        storeId: storeId,
+        webRegistration: widget.reason == UpgradeReason.webRegistration,
+      );
       if (!mounted) return;
       setState(() => _webQuote = quote);
     } catch (_) {
@@ -147,10 +155,16 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('You’re on Premium'),
-          content: const Text(
-            'This store is upgraded. Enjoy more seats, higher sales limits, '
-            'and multi-branch tools.',
+          title: Text(
+            widget.reason == UpgradeReason.webRegistration
+                ? 'Store activated'
+                : 'You’re on Premium',
+          ),
+          content: Text(
+            widget.reason == UpgradeReason.webRegistration
+                ? 'Payment received. Your store is unlocked — you can start selling.'
+                : 'This store is upgraded. Enjoy more seats, higher sales limits, '
+                    'and multi-branch tools.',
           ),
           actions: [
             FilledButton(
@@ -267,7 +281,10 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           current.storeId == storeId &&
           current.store.planTier == PlanTier.premium;
       _periodEndBefore = already ? current.store.premiumPeriodEnd : null;
-      final checkout = await createPremiumPaymongoCheckout(storeId: storeId);
+      final checkout = await createPremiumPaymongoCheckout(
+        storeId: storeId,
+        webRegistration: widget.reason == UpgradeReason.webRegistration,
+      );
       if (!mounted) return;
       setState(() {
         _webCheckout = checkout;
@@ -592,15 +609,21 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           ],
           const SizedBox(height: 12),
           Text(
-            'Pay on the web with GCash, Maya, QR Ph, or card. '
-            'Premium is a one-time ${BillingConfig.premiumPhpLabel} unlock for this store. '
-            'iPhone / Android purchases stay in the mobile apps.',
+            widget.reason == UpgradeReason.webRegistration
+                ? 'Pay ${BillingConfig.premiumPhpLabel} once with GCash, Maya, QR Ph, or card '
+                    'to activate this store on the web. Same unlock as CasinPOS Premium lifetime.'
+                : 'Pay on the web with GCash, Maya, QR Ph, or card. '
+                    'Premium is a one-time ${BillingConfig.premiumPhpLabel} unlock for this store. '
+                    'iPhone / Android purchases stay in the mobile apps.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: AppSpacing.lg),
           _benefitsCard(
-            _webQuote?.priceLine ??
-                'Premium lifetime — ${BillingConfig.premiumPhpLabel} one-time',
+            widget.reason == UpgradeReason.webRegistration
+                ? (_webQuote?.priceLine.replaceFirst('Premium lifetime', 'Web registration') ??
+                    'Web registration — ${BillingConfig.premiumPhpLabel} one-time')
+                : (_webQuote?.priceLine ??
+                    'Premium lifetime — ${BillingConfig.premiumPhpLabel} one-time'),
           ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -620,15 +643,20 @@ class _UpgradePremiumDialogState extends ConsumerState<UpgradePremiumDialog> {
           const SizedBox(height: AppSpacing.lg),
           FilledButton(
             onPressed: _busy ? null : _startWebCheckout,
-            child: const Text('Pay with QR / GCash / Maya'),
+            child: Text(
+              widget.reason == UpgradeReason.webRegistration
+                  ? 'Pay ${BillingConfig.premiumPhpLabel} with QR / GCash / Maya'
+                  : 'Pay with QR / GCash / Maya',
+            ),
           ),
           const SizedBox(height: 8),
           _legalLinks(),
           const SizedBox(height: 4),
-          TextButton(
-            onPressed: _busy ? null : () => Navigator.pop(context),
-            child: const Text('Not now'),
-          ),
+          if (widget.reason != UpgradeReason.webRegistration)
+            TextButton(
+              onPressed: _busy ? null : () => Navigator.pop(context),
+              child: const Text('Not now'),
+            ),
         ],
       ),
     );

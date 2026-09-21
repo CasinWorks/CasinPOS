@@ -25,6 +25,13 @@ select public.platform_set_admin_by_email('you@casinworks.com', true);
 | Support notes | Internal-only admin notes on a tenant |
 | Message store | Pushes into store **Notifications** for all active members |
 | Reset owner password | Recovery email via Edge Function (+ Resend); otherwise copies link |
+| Usage overview | Stores active today/7d, paid txn counts, GMV (Asia/Manila day) |
+| Recent transactions | Global or per-store feed, **10 per page**, tap for line items |
+
+Also apply `supabase/migrations/20260921000100_platform_recent_transactions.sql`
+(`platform_usage_overview`, `platform_list_recent_transactions`).
+
+Web store signup on pos.casinworks.com requires **₱199 PayMongo** (`pending_web` → Premium). See Script O in `docs/production_sql_paste.md`.
 
 ## Security
 

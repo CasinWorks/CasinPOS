@@ -164,6 +164,33 @@ class PlatformAdminRepository {
     throw AppException(friendlyError(res ?? 'Could not mark read'));
   }
 
+  Future<PlatformUsageOverview> usageOverview() async {
+    final res = await _client.rpc('platform_usage_overview');
+    if (res is! Map) {
+      throw AppException('Could not load usage overview');
+    }
+    return PlatformUsageOverview.fromJson(Map<String, dynamic>.from(res));
+  }
+
+  Future<PlatformTransactionPage> listRecentTransactions({
+    String? storeId,
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final res = await _client.rpc(
+      'platform_list_recent_transactions',
+      params: {
+        'p_store_id': storeId,
+        'p_limit': limit.clamp(1, 10).toInt(),
+        'p_offset': offset < 0 ? 0 : offset,
+      },
+    );
+    if (res is! Map) {
+      throw AppException('Could not load transactions');
+    }
+    return PlatformTransactionPage.fromJson(Map<String, dynamic>.from(res));
+  }
+
   Future<PlatformResetPasswordResult> sendOwnerPasswordReset({
     required String storeId,
     String? email,

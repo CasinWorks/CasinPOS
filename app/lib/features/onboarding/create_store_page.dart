@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/billing_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/app_errors.dart';
 import '../../../core/theme/app_colors.dart';
@@ -46,10 +48,16 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
             currencySymbol: AppConstants.defaultCurrencySymbol,
             servicePricingMode:
                 _type == BusinessType.service ? _pricingMode : null,
+            pendingWebPayment: kIsWeb,
           );
       await ref.read(storeRepositoryProvider).markOnboardingComplete();
       ref.invalidate(membershipsProvider);
-      if (mounted) context.go('/');
+      if (!mounted) return;
+      if (kIsWeb) {
+        context.go('/onboarding/activate');
+      } else {
+        context.go('/');
+      }
     } catch (e) {
       final msg = friendlyError(e, fallback: 'Could not create store. Please try again.');
       setState(() => _error = msg);
@@ -81,7 +89,10 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Retail checkout with inventory, or a service business with bookings and optional quotes. Restaurant mode is coming later.',
+                    kIsWeb
+                        ? 'Retail or service. After you create the store, activate it with '
+                            '${BillingConfig.premiumPhpLabel} via GCash / Maya / QR Ph.'
+                        : 'Retail checkout with inventory, or a service business with bookings and optional quotes. Restaurant mode is coming later.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -194,7 +205,11 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
                             width: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Create store & continue'),
+                        : Text(
+                            kIsWeb
+                                ? 'Create store & pay ${BillingConfig.premiumPhpLabel}'
+                                : 'Create store & continue',
+                          ),
                   ),
                   TextButton(
                     onPressed: () => context.go('/invite'),

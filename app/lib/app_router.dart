@@ -13,6 +13,7 @@ import 'features/auth/login_page.dart';
 import 'features/customer_display/customer_display_page.dart';
 import 'features/legal/legal_pages.dart';
 import 'features/onboarding/create_store_page.dart';
+import 'features/onboarding/web_registration_paywall_page.dart';
 import 'features/shell/pos_shell_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -36,13 +37,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         savePendingInviteToken(pathTok);
       }
 
-      // Web (pos.casinworks.com): login + invite join only — no public store signup.
-      if (kIsWeb && loc == '/signup') {
-        final pendingInvite = readPendingInviteToken();
-        if (pendingInvite == null || pendingInvite.isEmpty) {
-          return '/login';
-        }
-      }
+      // Invite tokens may still land on /signup; public web signup is allowed
+      // (new stores require ₱199 PayMongo before POS — see /onboarding/activate).
 
       if (!introSeen &&
           loc != '/intro' &&
@@ -68,6 +64,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = loc == '/login' || loc == '/signup';
       final onInvite = loc == '/invite' || loc == '/join' || loc.startsWith('/invite/');
       final onboarding = loc == '/onboarding/store';
+      final onActivate = loc == '/onboarding/activate';
       final onCustomerDisplay = loc == '/display';
       final onPasswordReset = loc == '/forgot-password' || loc == '/reset-password';
       final recoveryPending = ref.read(passwordRecoveryPendingProvider);
@@ -102,6 +99,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
       final memberships = membershipsAsync.valueOrNull ?? [];
       final hasStore = memberships.isNotEmpty;
+      final needsWebPay = kIsWeb &&
+          memberships.any((m) => m.store.needsWebRegistrationPayment);
 
       if (!hasStore) {
         if (onCustomerDisplay) return null;
@@ -114,9 +113,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return '/onboarding/store';
       }
 
+      if (needsWebPay) {
+        if (onActivate ||
+            onInvite ||
+            loc == '/privacy' ||
+            loc == '/terms' ||
+            onCustomerDisplay) {
+          return null;
+        }
+        return '/onboarding/activate';
+      }
+
       if (onCustomerDisplay) return null;
 
-      if (loggingIn || onboarding) {
+      if (loggingIn || onboarding || onActivate) {
         if (hasPendingInvite && !onInvite) {
           return '/invite?token=${Uri.encodeQueryComponent(pendingToken)}';
         }
@@ -167,6 +177,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CreateStorePage(),
       ),
       GoRoute(
+        path: '/onboarding/activate',
+        builder: (context, state) => const WebRegistrationPaywallPage(),
+      ),
+      GoRoute(
         path: '/display',
         builder: (context, state) => const CustomerDisplayPage(),
       ),
@@ -194,6 +208,10 @@ String _postIntroTarget(Ref ref) {
   final memberships = ref.read(membershipsProvider).valueOrNull;
   if (memberships == null) return '/';
   if (memberships.isEmpty) return '/onboarding/store';
+  if (kIsWeb &&
+      memberships.any((m) => m.store.needsWebRegistrationPayment)) {
+    return '/onboarding/activate';
+  }
   return '/';
 }
 

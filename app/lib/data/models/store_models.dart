@@ -40,11 +40,14 @@ class StoreSummary {
   final String? businessTin;
   final String? businessAddress;
   final ServicePricingMode? servicePricingMode;
-  /// `paymongo`, `revenuecat`, `app_store`, `play_store`, or `manual`.
+  /// `paymongo`, `revenuecat`, `app_store`, `play_store`, `manual`, or `pending_web`.
   final String? billingProvider;
   final DateTime? premiumPeriodEnd;
 
   bool get isFranchise => franchisorStoreId != null;
+
+  /// Web signup created the store but ₱199 PayMongo is not paid yet.
+  bool get needsWebRegistrationPayment => billingProvider == 'pending_web';
 
   bool get isPaymongoPremium =>
       planTier == PlanTier.premium && billingProvider == 'paymongo';

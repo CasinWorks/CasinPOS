@@ -17,11 +17,61 @@ final isPlatformAdminProvider = FutureProvider<bool>((ref) async {
 
 final platformTenantSearchProvider = StateProvider<String>((ref) => '');
 
+/// Page offset for global recent transactions (10 per page).
+final platformGlobalTxnOffsetProvider = StateProvider<int>((ref) => 0);
+
+/// Page offset for a selected store's recent transactions (10 per page).
+final platformStoreTxnOffsetProvider =
+    StateProvider.family<int, String>((ref, storeId) => 0);
+
 final platformTenantsProvider = FutureProvider<List<PlatformTenant>>((ref) async {
   final isAdmin = await ref.watch(isPlatformAdminProvider.future);
   if (!isAdmin) return const [];
   final q = ref.watch(platformTenantSearchProvider);
   return ref.watch(platformAdminRepositoryProvider).listTenants(search: q);
+});
+
+final platformUsageOverviewProvider = FutureProvider<PlatformUsageOverview?>((ref) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) return null;
+  return ref.watch(platformAdminRepositoryProvider).usageOverview();
+});
+
+final platformGlobalTransactionsProvider =
+    FutureProvider<PlatformTransactionPage>((ref) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) {
+    return const PlatformTransactionPage(
+      transactions: [],
+      totalCount: 0,
+      limit: 10,
+      offset: 0,
+      hasMore: false,
+    );
+  }
+  final offset = ref.watch(platformGlobalTxnOffsetProvider);
+  return ref.watch(platformAdminRepositoryProvider).listRecentTransactions(
+        offset: offset,
+      );
+});
+
+final platformStoreTransactionsProvider =
+    FutureProvider.family<PlatformTransactionPage, String>((ref, storeId) async {
+  final isAdmin = await ref.watch(isPlatformAdminProvider.future);
+  if (!isAdmin) {
+    return const PlatformTransactionPage(
+      transactions: [],
+      totalCount: 0,
+      limit: 10,
+      offset: 0,
+      hasMore: false,
+    );
+  }
+  final offset = ref.watch(platformStoreTxnOffsetProvider(storeId));
+  return ref.watch(platformAdminRepositoryProvider).listRecentTransactions(
+        storeId: storeId,
+        offset: offset,
+      );
 });
 
 final platformSupportNotesProvider =

@@ -50,10 +50,12 @@ Deno.serve(async (req) => {
       store_id?: string;
       origin?: string;
       preview?: boolean;
+      source?: string;
     };
     const storeId = (body.store_id ?? "").trim();
     if (!storeId) return json({ error: "STORE_REQUIRED" }, 400);
     const preview = body.preview === true;
+    const webRegistration = (body.source ?? "").trim() === "web_registration";
 
     const admin = createClient(supabaseUrl, serviceKey);
 
@@ -115,6 +117,7 @@ Deno.serve(async (req) => {
         amount_centavos: quote.centavos,
         amount_label: formatPhp(quote.centavos),
         store_id: storeId,
+        source: webRegistration ? "web_registration" : "premium",
         // Legacy fields kept for older clients.
         usd: 0,
         fx_rate: 0,
@@ -131,8 +134,19 @@ Deno.serve(async (req) => {
     const amount = quote.centavos;
     const origin = sanitizeOrigin(body.origin) ??
       "https://pos.casinworks.com";
-    const successUrl = `${origin}/?premium=success`;
-    const cancelUrl = `${origin}/?premium=cancel`;
+    const successUrl = webRegistration
+      ? `${origin}/onboarding/activate?premium=success`
+      : `${origin}/?premium=success`;
+    const cancelUrl = webRegistration
+      ? `${origin}/onboarding/activate?premium=cancel`
+      : `${origin}/?premium=cancel`;
+
+    const productName = webRegistration
+      ? "CasinPOS web registration"
+      : "CasinPOS Premium Lifetime";
+    const description = webRegistration
+      ? `CasinPOS web registration (${formatPhp(amount)} one-time)`
+      : `CasinPOS Premium Lifetime (${formatPhp(amount)} one-time)`;
 
     const pmRes = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
       method: "POST",
@@ -147,13 +161,12 @@ Deno.serve(async (req) => {
             send_email_receipt: true,
             show_description: true,
             show_line_items: true,
-            description:
-              `CasinPOS Premium Lifetime (${formatPhp(amount)} one-time)`,
+            description,
             line_items: [
               {
                 currency: "PHP",
                 amount,
-                name: "CasinPOS Premium Lifetime",
+                name: productName,
                 quantity: 1,
               },
             ],
@@ -162,7 +175,10 @@ Deno.serve(async (req) => {
             cancel_url: cancelUrl,
             metadata: {
               store_id: storeId,
-              product: "casinpos_premium_lifetime",
+              product: webRegistration
+                ? "casinpos_web_registration"
+                : "casinpos_premium_lifetime",
+              source: webRegistration ? "web_registration" : "premium",
               php_pesos: String(quote.pesos),
               period_end: LIFETIME_END,
             },
