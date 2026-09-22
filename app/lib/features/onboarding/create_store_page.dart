@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,16 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../data/providers/session_providers.dart';
 import '../../../domain/enums.dart';
+
+String _signupChannel() {
+  if (kIsWeb) return 'web';
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => 'ios',
+    TargetPlatform.macOS => 'macos',
+    TargetPlatform.android => 'android',
+    _ => 'unknown',
+  };
+}
 
 class CreateStorePage extends ConsumerStatefulWidget {
   const CreateStorePage({super.key});
@@ -49,6 +60,7 @@ class _CreateStorePageState extends ConsumerState<CreateStorePage> {
             servicePricingMode:
                 _type == BusinessType.service ? _pricingMode : null,
             pendingWebPayment: kIsWeb,
+            signupChannel: _signupChannel(),
           );
       await ref.read(storeRepositoryProvider).markOnboardingComplete();
       ref.invalidate(membershipsProvider);

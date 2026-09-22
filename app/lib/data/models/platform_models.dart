@@ -20,6 +20,8 @@ class PlatformTenant {
     this.productCount = 0,
     this.activeProductCount = 0,
     this.subscriptionStatus,
+    this.signupChannel,
+    this.billingProvider,
   });
 
   final String id;
@@ -40,10 +42,20 @@ class PlatformTenant {
   final int productCount;
   final int activeProductCount;
   final String? subscriptionStatus;
+  final String? signupChannel;
+  final String? billingProvider;
 
   bool get isSuspended => suspendedAt != null;
 
   bool get hasCatalog => productCount > 0;
+
+  String get signupChannelLabel => switch (signupChannel) {
+        'ios' => 'iOS',
+        'macos' => 'Mac',
+        'android' => 'Android',
+        'web' => 'Web',
+        _ => '—',
+      };
 
   double get usageRatio {
     if (monthlyTransactionLimit <= 0) return 0;
@@ -75,6 +87,8 @@ class PlatformTenant {
       productCount: (json['product_count'] as num?)?.toInt() ?? 0,
       activeProductCount: (json['active_product_count'] as num?)?.toInt() ?? 0,
       subscriptionStatus: json['subscription_status'] as String?,
+      signupChannel: json['signup_channel'] as String?,
+      billingProvider: json['billing_provider'] as String?,
     );
   }
 }
@@ -453,6 +467,9 @@ class PlatformAnalyticsDay {
     required this.converted,
     required this.sales,
     required this.gmv,
+    this.registeredIos = 0,
+    this.registeredWeb = 0,
+    this.webPaid = 0,
   });
 
   final DateTime day;
@@ -460,6 +477,9 @@ class PlatformAnalyticsDay {
   final int converted;
   final int sales;
   final double gmv;
+  final int registeredIos;
+  final int registeredWeb;
+  final int webPaid;
 
   factory PlatformAnalyticsDay.fromJson(Map<String, dynamic> json) {
     final rawDay = json['day']?.toString() ?? '';
@@ -471,6 +491,9 @@ class PlatformAnalyticsDay {
       converted: (json['converted'] as num?)?.toInt() ?? 0,
       sales: (json['sales'] as num?)?.toInt() ?? 0,
       gmv: (json['gmv'] as num?)?.toDouble() ?? 0,
+      registeredIos: (json['registered_ios'] as num?)?.toInt() ?? 0,
+      registeredWeb: (json['registered_web'] as num?)?.toInt() ?? 0,
+      webPaid: (json['web_paid'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -484,6 +507,9 @@ class PlatformAnalyticsSeries {
     required this.gmv,
     required this.conversionRate,
     required this.series,
+    this.registeredIos = 0,
+    this.registeredWeb = 0,
+    this.webPaid = 0,
   });
 
   final int days;
@@ -493,6 +519,9 @@ class PlatformAnalyticsSeries {
   final double gmv;
   final double conversionRate;
   final List<PlatformAnalyticsDay> series;
+  final int registeredIos;
+  final int registeredWeb;
+  final int webPaid;
 
   factory PlatformAnalyticsSeries.fromJson(Map<String, dynamic> json) {
     final totals = json['totals'] is Map
@@ -512,6 +541,9 @@ class PlatformAnalyticsSeries {
       sales: (totals['sales'] as num?)?.toInt() ?? 0,
       gmv: (totals['gmv'] as num?)?.toDouble() ?? 0,
       conversionRate: (totals['conversion_rate'] as num?)?.toDouble() ?? 0,
+      registeredIos: (totals['registered_ios'] as num?)?.toInt() ?? 0,
+      registeredWeb: (totals['registered_web'] as num?)?.toInt() ?? 0,
+      webPaid: (totals['web_paid'] as num?)?.toInt() ?? 0,
       series: series,
     );
   }

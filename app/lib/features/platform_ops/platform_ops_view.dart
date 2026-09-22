@@ -267,7 +267,7 @@ class _AnalyticsChartsStrip extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Registered = new stores · Paid ₱199 = app fee (PayMongo / App Store) · Revenue = your ₱199 income',
+            'Registered = new stores · Paid ₱199 = iOS/Mac (App Store) + web PayMongo · Revenue = your fee income',
             style: TextStyle(fontSize: 11, color: AppColors.slate500),
           ),
           const SizedBox(height: 12),
@@ -295,7 +295,10 @@ class _AnalyticsChartsStrip extends ConsumerWidget {
                     runSpacing: 8,
                     children: [
                       _StatChip(label: 'Registered', value: '${data.registered}'),
-                      _StatChip(label: 'Paid ₱199', value: '${data.converted}'),
+                      _StatChip(label: 'iOS / Mac', value: '${data.registeredIos}'),
+                      _StatChip(label: 'Web signups', value: '${data.registeredWeb}'),
+                      _StatChip(label: 'Web paid ₱199', value: '${data.webPaid}'),
+                      _StatChip(label: 'Paid ₱199 total', value: '${data.converted}'),
                       _StatChip(
                         label: 'Conv. rate',
                         value: '${data.conversionRate.toStringAsFixed(0)}%',
@@ -662,7 +665,8 @@ class _TenantListPane extends StatelessWidget {
                           Text(
                             'Usage ${t.transactionsThisPeriod}/${t.monthlyTransactionLimit}'
                             ' · ${t.activeMembers} members'
-                            ' · ${t.hasCatalog ? '${t.productCount} items' : 'no catalog'}',
+                            ' · ${t.hasCatalog ? '${t.productCount} items' : 'no catalog'}'
+                            ' · ${t.signupChannelLabel}',
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 6),
@@ -1114,6 +1118,7 @@ class _TenantDetailPaneState extends ConsumerState<_TenantDetailPane> {
           _kv('Owner', t.ownerName ?? '—'),
           _kv('Email', t.ownerEmail ?? '—'),
           _kv('Type', t.businessType.value),
+          _kv('Signed up via', t.signupChannelLabel),
           _kv('Plan', t.planTier.value),
           _kv('Subscription', t.subscriptionStatus ?? '—'),
           _kv('Usage', '${t.transactionsThisPeriod} / ${t.monthlyTransactionLimit} this period'),

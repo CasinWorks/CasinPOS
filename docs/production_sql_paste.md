@@ -449,3 +449,14 @@ Paste `supabase/migrations/20260921000500_platform_analytics_app_fees.sql` → R
 Effects:
 - Growth charts count **₱199 app payments** (PayMongo checkout / App Store / Play / RC), not store POS orders
 - Top chips: app fees + app revenue; store GMV kept as secondary
+
+---
+
+## Script S — Signup channel iOS vs web (`20260921000600`)
+
+Paste `supabase/migrations/20260921000600_signup_channel_ios_web.sql` → Run.
+
+Effects:
+- `stores.signup_channel` (`ios` / `macos` / `web` / `android`)
+- iOS/Mac store creates count as **Paid ₱199** immediately in Platform Ops analytics
+- Web converts only after PayMongo payment

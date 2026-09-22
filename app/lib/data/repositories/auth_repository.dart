@@ -130,6 +130,7 @@ class StoreRepository {
     String currencySymbol = '₱',
     ServicePricingMode? servicePricingMode,
     bool pendingWebPayment = false,
+    String? signupChannel,
   }) async {
     final result = await _client.rpc(
       'create_store',
@@ -140,6 +141,8 @@ class StoreRepository {
         'p_currency_symbol': currencySymbol,
         'p_primary_branch_name': 'Main',
         'p_pending_web_payment': pendingWebPayment,
+        'p_signup_channel': signupChannel ??
+            (pendingWebPayment ? 'web' : 'unknown'),
         if (businessType == BusinessType.service)
           'p_service_pricing_mode':
               (servicePricingMode ?? ServicePricingMode.fixed).value,
