@@ -8,6 +8,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
 import '../../../core/widgets/store_plan_badge.dart';
+import '../../../core/widgets/web_browser_access_promo.dart';
 import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/session_providers.dart';
@@ -313,6 +314,10 @@ class CasinPosSidebar extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
+              const WebBrowserAccessPromo(
+                compact: true,
+                margin: EdgeInsets.only(bottom: 10),
               ),
               ConstrainedBox(
                 constraints: BoxConstraints(

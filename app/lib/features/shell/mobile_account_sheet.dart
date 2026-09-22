@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/store_plan_badge.dart';
+import '../../../core/widgets/web_browser_access_promo.dart';
 import '../../../data/providers/connectivity_providers.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/pos_providers.dart';
@@ -229,6 +230,10 @@ class _MobileAccountSheet extends ConsumerWidget {
                   subtitle: const Text('Business console — tenants & growth'),
                   onTap: () => goTab('ops'),
                 ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 4),
+                child: WebBrowserAccessPromo(),
+              ),
               const Divider(height: 20),
               ListTile(
                 contentPadding: EdgeInsets.zero,

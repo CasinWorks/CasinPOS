@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/display/open_customer_display.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/store_plan_badge.dart';
+import '../../../core/widgets/web_browser_access_promo.dart';
 import '../../../data/providers/platform_providers.dart';
 import '../../../data/providers/pos_providers.dart';
 import '../../../data/providers/session_providers.dart';
@@ -169,6 +170,11 @@ class MobileMoreView extends ConsumerWidget {
             subtitle: 'Story walkthrough',
             onTap: () => startRetailStory(ref),
           ),
+        section('WEB ACCESS'),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: WebBrowserAccessPromo(),
+        ),
         section('HELP'),
         _MoreTile(
           icon: Icons.notifications_none_rounded,

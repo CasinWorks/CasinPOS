@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/powered_by_casinworks.dart';
+import '../../../core/widgets/web_browser_access_promo.dart';
 import '../../../data/providers/session_providers.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -137,6 +138,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.md),
+                  if (!kIsWeb) ...[
+                    const WebBrowserAccessPromo(),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   TextButton(
                     onPressed: () => context.go('/signup'),
                     child: const Text('Create a new store account'),
@@ -329,6 +334,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                           )
                         : const Text('Create account'),
                   ),
+                  if (!kIsWeb) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    const WebBrowserAccessPromo(),
+                  ],
                   TextButton(
                     onPressed: () => context.go('/login'),
                     child: const Text('Already have an account? Sign in'),
